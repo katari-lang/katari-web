@@ -10,7 +10,7 @@ export const siteConfig = {
   copyright: "yukikurage",
   copyrightYear: 2026,
   // 仮 URL。実際のリポジトリに合わせて差し替える。
-  github: "https://github.com/katari-org/katari",
+  github: "https://github.com/katari-lang/katari",
   // ヘッダーのナビ。docs 以外のページが増えたら追記。
   // `{latest}` は render 時に最新バージョンに展開される (Header / Footer 共通)。
   nav: [{ label: "Docs", href: "/docs/{latest}/getting-started" }],
@@ -21,12 +21,12 @@ export const siteConfig = {
       items: [
         {
           label: "GitHub",
-          href: "https://github.com/katari-org/katari",
+          href: "https://github.com/katari-lang/katari",
           external: true,
         },
         {
           label: "License",
-          href: "https://github.com/katari-org/katari/blob/main/LICENSE",
+          href: "https://github.com/katari-lang/katari/blob/main/LICENSE",
           external: true,
         },
       ],
@@ -45,12 +45,12 @@ export const siteConfig = {
       items: [
         {
           label: "Issues",
-          href: "https://github.com/katari-org/katari/issues",
+          href: "https://github.com/katari-lang/katari/issues",
           external: true,
         },
         {
           label: "Discussions",
-          href: "https://github.com/katari-org/katari/discussions",
+          href: "https://github.com/katari-lang/katari/discussions",
           external: true,
         },
       ],
