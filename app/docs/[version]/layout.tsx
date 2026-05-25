@@ -1,7 +1,7 @@
-import { notFound } from "next/navigation";
-import { getNavigation, listVersions } from "@/lib/content";
+import { getNavigation, latestVersion, listVersions } from "@/lib/content";
 import { Sidebar } from "@/components/docs/sidebar";
 import { SidebarScrollContainer } from "@/components/docs/sidebar-scroll-container";
+import { VersionFallbackRedirect } from "@/components/docs/version-fallback-redirect";
 
 type Props = {
   children: React.ReactNode;
@@ -12,7 +12,7 @@ export default async function DocsVersionLayout({ children, params }: Props) {
   const { version } = await params;
   const versions = listVersions();
   if (!versions.includes(version)) {
-    notFound();
+    return <VersionFallbackRedirect latestVersion={latestVersion()} />;
   }
   const nav = getNavigation(version);
 
