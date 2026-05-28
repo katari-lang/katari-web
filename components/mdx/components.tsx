@@ -9,10 +9,7 @@ function isInternalHref(href: string): boolean {
   // `/`, `./`, `../`, `#` で始まるものを内部リンク扱い (next/link 経由)。
   // それ以外 (http://, mailto:, tel: 等) は外部リンク。
   return (
-    href.startsWith("/") ||
-    href.startsWith("#") ||
-    href.startsWith("./") ||
-    href.startsWith("../")
+    href.startsWith("/") || href.startsWith("#") || href.startsWith("./") || href.startsWith("../")
   );
 }
 
@@ -55,7 +52,7 @@ export function buildMdxComponents(ctx: MdxBuildContext): MDXComponents {
     ol: (props) => <ol className="mt-4 ml-6 list-decimal space-y-1.5" {...props} />,
     li: (props) => <li className="leading-7" {...props} />,
     blockquote: (props) => (
-      <blockquote className="mt-6 border-l-2 border-border-strong pl-4 italic" {...props} />
+      <blockquote className="mt-6 border-l border-border-strong pl-4 italic" {...props} />
     ),
     hr: (props) => <hr className="my-8 border-border" {...props} />,
     table: (props) => (
