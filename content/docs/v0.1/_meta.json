@@ -1,4 +1,10 @@
 {
   "label": "v0.1",
-  "order": ["getting-started", "language-reference", "katari-toolchains"]
+  "order": [
+    "getting-started",
+    "language-reference",
+    "guides",
+    "standard-library",
+    "katari-toolchains"
+  ]
 }

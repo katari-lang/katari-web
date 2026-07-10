@@ -1,4 +1,4 @@
 {
   "label": "Katari Toolchains",
-  "order": ["index", "compiler", "runtime", "lsp"]
+  "order": ["index", "compiler", "runtime", "lsp", "cli"]
 }

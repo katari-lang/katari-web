@@ -1,4 +1,12 @@
 {
   "label": "Language Reference",
-  "order": ["index", "syntax", "types", "effects"]
+  "order": [
+    "index",
+    "syntax",
+    "types",
+    "effects",
+    "partial-application",
+    "providers",
+    "finally"
+  ]
 }
