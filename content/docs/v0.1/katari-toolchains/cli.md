@@ -29,6 +29,43 @@ description: katari コマンドの一覧と、MCP サブコマンド (login / p
 多くのコマンドが共通のグローバルオプションを取る: `-q,--quiet`、`--verbose`、`--no-input`、
 `--url URL` (runtime URL の上書き)、`-C,--directory DIR` (`katari.toml` のあるディレクトリ)。
 
+## env
+
+プロジェクトスコープの key/value ストア (secret 込み) を管理する — プログラム側の読み取りは
+[`env.get_secret` / `env.get_all`]({docs}/{currentVersion}/standard-library/env) を参照。一覧は
+`katari ls env`。
+
+```sh
+katari env [--project NAME] <get|set|unset> ...
+```
+
+| サブコマンド                 | 説明                                                                                            |
+| ---------------------------- | ----------------------------------------------------------------------------------------------- |
+| `get KEY`                    | non-secret エントリの値を印字する (secret は API 上 write-only なので拒否される)                |
+| `set KEY [VALUE] [--secret]` | エントリを作成・上書きする。`VALUE` を省略すると echo off のプロンプト (端末) か stdin から読む |
+| `unset KEY`                  | エントリを削除する                                                                              |
+
+`--secret` を付けた値は保存時に暗号化され、API 上どこからも読み出せなくなる (プログラムからは
+`env.get_secret` でのみ読める)。`VALUE` を明示せず端末で対話的なら echo off のプロンプト、
+非対話なら stdin から読む (shell 履歴に残さない安全な入力経路)。
+
+## file
+
+プロジェクトの blob ストレージを管理する — 一覧は `katari ls files`。bytes は両方向にストリームする
+(大きな blob もメモリに載らない)。
+
+```sh
+katari file <upload|download|delete> ...
+```
+
+| サブコマンド                        | 説明                                                                   |
+| ----------------------------------- | ---------------------------------------------------------------------- |
+| `upload PATH [--content-type TYPE]` | ローカルファイルをアップロードし、新しい file id を印字する            |
+| `download FILE [-o PATH]`           | ファイルの bytes をダウンロードする (既定: 端末でなければ stdout)      |
+| `delete FILE`                       | ファイルを削除する (まだ参照している run はそれを「消えた」として読む) |
+
+`FILE` は file id、またはその一意なプレフィックスでよい。
+
 ## mcp
 
 MCP 統合の verb。`login` はプログラムの外で named OAuth credential を確立し、`pull` は live サーバーから
