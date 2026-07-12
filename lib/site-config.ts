@@ -9,12 +9,11 @@ export const siteConfig = {
   locale: "en",
   copyright: "yukikurage",
   copyrightYear: 2026,
-  // 仮 URL。実際のリポジトリに合わせて差し替える。
   github: "https://github.com/katari-lang/katari",
   // ヘッダーのナビ。docs 以外のページが増えたら追記。
   // `{latest}` は render 時に最新バージョンに展開される (Header / Footer 共通)。
   nav: [{ label: "Docs", href: "/docs/{latest}/getting-started" }],
-  // フッターの link 群。仮置き。
+  // フッターの link 群。
   footerLinks: [
     {
       heading: "Project",

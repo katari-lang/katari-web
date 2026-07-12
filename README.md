@@ -35,7 +35,7 @@ content/docs/<version>/<category>/<slug>.md   # ドキュメント本体
 lib/
   docs.ts               # version / nav / page / search-index のロジック
   site-config.ts        # サイトメタ・nav / footer link
-public/                 # 画像など。logo-placeholder.svg がロゴ仮置き
+public/                 # 画像など。katari.svg がロゴ (mask-image で塗り分ける)
 scripts/build-search-index.ts                 # 検索インデックス生成
 ```
 
@@ -72,7 +72,7 @@ description: ページ説明 (任意)
 
 ## 差し替えポイント
 
-- ロゴ画像: `public/logo-placeholder.svg` を上書き、または [components/site/logo.tsx](components/site/logo.tsx) を編集
+- ロゴ画像: `public/katari.svg` を上書き (`lib/site-config.ts` の `logo` で参照パスを変更可)、または [components/site/logo.tsx](components/site/logo.tsx) を編集
 - サイトメタ・footer link: [lib/site-config.ts](lib/site-config.ts)
 - カラートークン: [app/globals.css](app/globals.css) の `:root` / `.dark` ブロック
 - Markdown のスタイリング: [components/mdx/components.tsx](components/mdx/components.tsx)
