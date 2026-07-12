@@ -1,9 +1,5 @@
 import { getDoc } from "@/lib/content";
-import {
-  extractDocSlug,
-  resolveDocHref,
-  type MdxBuildContext,
-} from "@/lib/mdx/resolve-href";
+import { extractDocSlug, resolveDocHref, type MdxBuildContext } from "@/lib/mdx/resolve-href";
 import { FeatureCard } from "@/components/site/feature-card";
 
 type DocCardProps = {
@@ -35,18 +31,13 @@ export function makeDocCard(ctx: MdxBuildContext) {
     if (!resolvedTitle) {
       // フォールバック: タイトルが解決できない (リンク切れ + props 未指定) → 素朴なリンク
       return (
-        <a
-          href={resolved}
-          className="font-medium text-foreground underline underline-offset-4"
-        >
+        <a href={resolved} className="font-medium text-foreground underline underline-offset-4">
           {href}
         </a>
       );
     }
 
-    return (
-      <FeatureCard href={resolved} title={resolvedTitle} description={resolvedDescription} />
-    );
+    return <FeatureCard href={resolved} title={resolvedTitle} description={resolvedDescription} />;
   };
 }
 

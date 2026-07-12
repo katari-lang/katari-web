@@ -39,9 +39,7 @@ export function resolveDocHref(href: string, ctx: MdxBuildContext): string {
 }
 
 /** 解決後 href が `/docs/<version>/<slug...>` 形式なら slug を抜き出す。 */
-export function extractDocSlug(
-  resolved: string,
-): { version: string; slug: string[] } | undefined {
+export function extractDocSlug(resolved: string): { version: string; slug: string[] } | undefined {
   const match = /^\/docs\/([^/]+)\/(.+?)\/?$/.exec(resolved);
   if (!match) return undefined;
   return { version: match[1]!, slug: match[2]!.split("/") };

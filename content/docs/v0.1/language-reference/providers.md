@@ -13,12 +13,12 @@ description: use 文で capability を導入する — handler リテラルか�
 **provider を「書いた引数 ∪ continuation」に一回適用する**。continuation は `use` の後に続く残りの
 block である。
 
-| 形 | 例 |
-| --- | --- |
-| handler リテラル | `use handler { request tick() -> integer { next 0 } }` |
-| (qualified) 名前 | `use my_provider` |
-| 明示インスタンス化 | `use my_provider[integer]` |
-| 適用 `callee(args…)` | `use my_provider(base = 1)` |
+| 形                   | 例                                                     |
+| -------------------- | ------------------------------------------------------ |
+| handler リテラル     | `use handler { request tick() -> integer { next 0 } }` |
+| (qualified) 名前     | `use my_provider`                                      |
+| 明示インスタンス化   | `use my_provider[integer]`                             |
+| 適用 `callee(args…)` | `use my_provider(base = 1)`                            |
 
 bare 形 (名前・インスタンス化) は零引数の適用である。フィールド読みや `match` など、それ以外の式は
 **K3011** で拒否される — `let p = <式>` に束ねてから `use p`、または `use <式>(args…)` と書き直す。

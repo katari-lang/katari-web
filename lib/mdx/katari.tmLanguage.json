@@ -23,17 +23,13 @@
       "name": "comment.block.katari",
       "begin": "/\\*",
       "end": "\\*/",
-      "patterns": [
-        { "include": "#block-comment" }
-      ]
+      "patterns": [{ "include": "#block-comment" }]
     },
     "annotation": {
       "name": "comment.documentation.katari",
       "begin": "@\"",
       "end": "\"",
-      "patterns": [
-        { "include": "#string-escapes" }
-      ]
+      "patterns": [{ "include": "#string-escapes" }]
     },
     "declarations": {
       "patterns": [
@@ -183,9 +179,7 @@
       "endCaptures": {
         "0": { "name": "punctuation.definition.string.end.katari" }
       },
-      "patterns": [
-        { "include": "#string-escapes" }
-      ]
+      "patterns": [{ "include": "#string-escapes" }]
     },
     "string-multiline": {
       "name": "string.quoted.triple.katari",
@@ -197,9 +191,7 @@
       "endCaptures": {
         "0": { "name": "punctuation.definition.string.end.katari" }
       },
-      "patterns": [
-        { "include": "#string-escapes" }
-      ]
+      "patterns": [{ "include": "#string-escapes" }]
     },
     "template-single": {
       "name": "string.template.katari",
@@ -211,10 +203,7 @@
       "endCaptures": {
         "0": { "name": "punctuation.definition.string.template.end.katari" }
       },
-      "patterns": [
-        { "include": "#string-escapes" },
-        { "include": "#template-expression" }
-      ]
+      "patterns": [{ "include": "#string-escapes" }, { "include": "#template-expression" }]
     },
     "template-multiline": {
       "name": "string.template.katari",
@@ -226,10 +215,7 @@
       "endCaptures": {
         "0": { "name": "punctuation.definition.string.template.end.katari" }
       },
-      "patterns": [
-        { "include": "#string-escapes" },
-        { "include": "#template-expression" }
-      ]
+      "patterns": [{ "include": "#string-escapes" }, { "include": "#template-expression" }]
     },
     "template-expression": {
       "name": "meta.embedded.expression.katari",
@@ -241,10 +227,7 @@
       "endCaptures": {
         "0": { "name": "punctuation.section.embedded.end.katari" }
       },
-      "patterns": [
-        { "include": "#balanced-braces" },
-        { "include": "#expression" }
-      ]
+      "patterns": [{ "include": "#balanced-braces" }, { "include": "#expression" }]
     },
     "balanced-braces": {
       "begin": "\\{",
@@ -255,10 +238,7 @@
       "endCaptures": {
         "0": { "name": "punctuation.section.brace.end.katari" }
       },
-      "patterns": [
-        { "include": "#balanced-braces" },
-        { "include": "#expression" }
-      ]
+      "patterns": [{ "include": "#balanced-braces" }, { "include": "#expression" }]
     },
     "string-escapes": {
       "name": "constant.character.escape.katari",
