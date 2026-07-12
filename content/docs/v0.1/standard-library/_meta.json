@@ -1,4 +1,17 @@
 {
   "label": "Standard Library",
-  "order": ["index", "mcp", "reflection"]
+  "order": [
+    "index",
+    "json",
+    "http",
+    "record",
+    "array",
+    "string",
+    "math",
+    "env",
+    "file",
+    "webhook",
+    "mcp",
+    "reflection"
+  ]
 }
