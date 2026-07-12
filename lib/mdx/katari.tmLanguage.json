@@ -34,15 +34,15 @@
     "declarations": {
       "patterns": [
         {
-          "match": "\\b(ext)\\s+(agent)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "match": "\\b(external|primitive)\\s+(agent)\\s+([A-Za-z_][A-Za-z0-9_]*)",
           "captures": {
             "1": { "name": "storage.modifier.external.katari" },
-            "2": { "name": "keyword.declaration.agent.katari" },
+            "2": { "name": "keyword.declaration.katari" },
             "3": { "name": "entity.name.function.katari" }
           }
         },
         {
-          "match": "\\b(agent|req)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "match": "\\b(agent|request)\\s+([A-Za-z_][A-Za-z0-9_]*)",
           "captures": {
             "1": { "name": "keyword.declaration.katari" },
             "2": { "name": "entity.name.function.katari" }
@@ -75,17 +75,30 @@
       "patterns": [
         {
           "name": "keyword.control.katari",
-          "match": "\\b(if|else|match|case|return|next|break|for|then|handle|par|in|with)\\b"
+          "match": "\\b(if|else|match|case|return|next|break|for|then|handler|use|parallel|in|with)\\b"
+        },
+        {
+          "comment": "`forever` is a positional word (only a loop head directly before `{`), so the lookahead keeps `retry.forever(...)` an ordinary identifier.",
+          "name": "keyword.control.katari",
+          "match": "\\bforever\\b(?=\\s*\\{)"
         },
         {
           "name": "keyword.declaration.katari",
-          "match": "\\b(agent|req|data|ext|let|var|import|as|from|type|where)\\b"
+          "match": "\\b(agent|request|data|external|primitive|let|var|import|as|from|type|of|extends)\\b"
         }
       ]
     },
     "types": {
-      "name": "support.type.primitive.katari",
-      "match": "\\b(integer|boolean|number|string|never|unknown)\\b"
+      "patterns": [
+        {
+          "name": "support.type.primitive.katari",
+          "match": "\\b(integer|boolean|number|string|file|never|unknown|array|record|all|io|pure)\\b"
+        },
+        {
+          "name": "support.type.attribute.katari",
+          "match": "\\b(public|private)\\b"
+        }
+      ]
     },
     "constants": {
       "name": "constant.language.katari",
