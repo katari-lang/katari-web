@@ -1,6 +1,6 @@
 ---
 title: Runtime
-description: 常駐サーバー — snapshot・durable execution・escalation の park・6 つの reactor。
+description: 常駐サーバー — snapshot・durable execution・escalation の park・7 つの reactor。
 ---
 
 `typescript/runtime` は IR を実行し、実行状態を永続化する常駐サーバー (Hono ベース、単一の Node
@@ -39,25 +39,27 @@ runtime はターン境界 (エフェクトを伴う leaf delegation) ごとに 
   再開する。in-flight だった外部呼び出し (FFI / http / mcp) は「完了したかどうか分からない」
   状態になり得るので、**at-most-once** で扱う: 再起動をまたいで進行中だった呼び出しは再実行せず、
   失敗として決着させる (katari 側の retry は言語レベルの選択であり、ランタイムが黙って再実行する
-  ことはない)。
+  ことはない)。`time` / `webhook` は照合すべき外部プロセスが無いので再起動を完全に生き延びる —
+  timer は永続化された deadline から re-arm し、endpoint は再登録される。
 - `finally` で armed した finalizer は、正常完了・キャンセルの直前に必ず (逆順で) 走る — 詳細は
   [finally]({docs}/{currentVersion}/language-reference/finally)。
 
 ## reactor
 
 `external agent` の呼び出しは、宣言の `from "reactor"` 節 (省略時は FFI) が指す reactor が
-実行する。runtime にはちょうど 6 つある:
+実行する。runtime にはちょうど 7 つある:
 
-| reactor   | 役割                                                                                            |
-| --------- | ----------------------------------------------------------------------------------------------- |
-| `core`    | コンパイル済み agent / closure の呼び出しを実行する (`OperationDelegate` の既定先)              |
-| `api`     | run の開始・cancel・escalation への回答という、外部イベントの起点                               |
-| `http`    | `http.fetch` / `post_json` — in-runtime の HTTP クライアント (sidecar 不要)                     |
-| `webhook` | `webhook.inbound` — 動的な公開 URL を発行し、POST を callback 呼び出しに変換する                |
-| `mcp`     | `mcp.provide` / `call` / `serve` — in-runtime の MCP クライアント / サーバー                    |
-| `ffi`     | `from` を省略した `external agent` — プロジェクトの TypeScript sidecar プロセスへ dispatch する |
+| reactor   | 役割                                                                                                                  |
+| --------- | --------------------------------------------------------------------------------------------------------------------- |
+| `core`    | コンパイル済み agent / closure の呼び出しを実行する (`OperationDelegate` の既定先)                                    |
+| `api`     | run の開始・cancel・escalation への回答という、外部イベントの起点                                                     |
+| `http`    | `http.fetch` / `post_json` — in-runtime の HTTP クライアント (sidecar 不要)                                           |
+| `webhook` | `webhook.inbound` — 動的な公開 URL を発行し、POST を callback 呼び出しに変換する                                      |
+| `mcp`     | `mcp.provide` / `call` / `serve` — in-runtime の MCP クライアント / サーバー                                          |
+| `time`    | `time.now` / `sleep` / `sleep_until` / `watch` — durable な時計とタイマー (deadline は永続化され再起動で re-arm する) |
+| `ffi`     | `from` を省略した `external agent` — プロジェクトの TypeScript sidecar プロセスへ dispatch する                       |
 
-`http` / `webhook` / `mcp` はいずれも「ランタイムに組み込まれた外部呼び出し」で、ユーザーが SDK を
+`http` / `webhook` / `mcp` / `time` はいずれも「ランタイムに組み込まれた外部呼び出し」で、ユーザーが SDK を
 install する必要がない。`ffi` だけがプロジェクト固有の sidecar プロセスを要求し (`@katari-lang/port`
 で書く)、`katari apply` がそれをバンドルして runtime に配る。sidecar のハンドラは inner delegation
 で katari 側の agent を呼び返せる (`context.call`)。

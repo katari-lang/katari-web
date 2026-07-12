@@ -58,8 +58,10 @@ type handler_of[T] = agent (value: T) -> T with io
 
 ## never / unknown / all / io / pure
 
-- `never` — 値が存在しない型。`throw` / `panic` の返り型で、そこに到達する式は他の枝と join
-  しても寄与しない。
+- `never` — 値が存在しない型。`throw` / `panic` の返り型、そして
+  [`forever { ... }`]({docs}/{currentVersion}/language-reference/syntax#forever) 式や
+  `time.watch` のような「決して戻らない」呼び出しの型で、そこに到達する式は他の枝と join しても
+  寄与しない。
 - `unknown` — 何でも受け入れる top 型 (値を使う前に絞り込みが要る)。
 - `all` — effect row の top (「あらゆる request を許す」)。`reflection.get_metadata` の引数型
   `agent never -> unknown with all` がその例 (どんな入出力・どんな effect の callable も受ける)。

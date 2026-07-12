@@ -49,9 +49,11 @@ agent area(value: circle) -> number {
 }
 ```
 
-`external agent` の `from "reactor"` 節は呼び出し先の reactor を名指す (`"http"` / `"webhook"` /
-`"mcp"`)。省略すると FFI sidecar 宛て — [`ffi.ktr`]({docs}/{currentVersion}/katari-toolchains/runtime)
-のような同名 `.ts` モジュールが実装を持つ。
+`external agent` の `from "reactor"` 節は呼び出し先の reactor を名指す。ユーザーモジュールで書けるのは
+省略 (= FFI sidecar 宛て — [`ffi.ktr`]({docs}/{currentVersion}/katari-toolchains/runtime) のような
+同名 `.ts` モジュールが実装を持つ) と `from "ffi"` だけ: 組み込み reactor 名 (`"http"` / `"webhook"` /
+`"mcp"` / `"time"`) はコンパイル済み stdlib の external 専用で、ユーザーモジュールの `from` に書くと
+**K3022** で拒否される (呼び出しが reactor の知らないキーで届いてしまうため)。
 
 ## ブロックと文
 
@@ -119,6 +121,44 @@ agent squares(count: integer) -> array[integer] {
   }
 }
 ```
+
+## forever
+
+`forever { <block> }` は終わりのないループ式 — 逐次 `for` の unbounded な兄弟。body を子スレッド
+として走らせ、完了したらその値を**破棄して**次のイテレーションを始める。1 つの instance の中の
+1 本の iterating thread なので、完了したイテレーションの frame は回収され、**durable な状態は
+イテレーション回数によらず flat** に保たれる (再帰でループすると失敗ごとに永続 frame が積もる —
+それを防ぐための構文である)。
+
+式の型は `never` — 値を決して yield しないので、`-> never` の呼び出しと同じくどこにでも適合する。
+`forever` 自身に脱出構文は**無い**: 抜けるのは他のすべてと同じ catch-and-break — body から request
+を perform し、囲みの `use handler` が `break` で handle した block ごと抜ける。イテレーションを
+またぐ状態も同じく、ループの外の `use handler (var ...)` に持たせる。
+
+```katari
+data ready(value: integer)
+data pending()
+
+request check() -> ready | pending
+request done(value: integer) -> never
+
+agent poll_until_ready() -> integer with check | io {
+  use handler {
+    request done(value: integer) -> never { break value }
+  }
+  forever {
+    match (check()) {
+      case ready(value => value) -> { done(value = value) }
+      case pending() -> { time.sleep(milliseconds = 1000) }
+    }
+  }
+}
+```
+
+`forever` は**予約語ではない** — 直後に `{` が続くときだけループとして認識される位置的な語で、
+`retry.forever(...)` のような識別子や `forever` という名前の agent 宣言は従来どおり有効。
+[`prelude.retry`]({docs}/{currentVersion}/standard-library/retry) の `forever` / `attended` は
+この構文と catch-and-break の合成そのものである。
 
 ## use / handler
 
