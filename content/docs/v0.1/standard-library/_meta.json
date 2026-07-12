@@ -10,6 +10,8 @@
     "math",
     "env",
     "file",
+    "time",
+    "retry",
     "webhook",
     "mcp",
     "reflection"

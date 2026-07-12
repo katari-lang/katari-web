@@ -20,6 +20,8 @@ prelude は default import されるサブモジュール群で、qualified に�
 | `math`       | 算術演算子を超える数値操作 (`abs` / `min` / `max` / `floor` / `round`)              |
 | `env`        | プロジェクトスコープの環境アクセス (`get_secret` / `get_all`)                       |
 | `file`       | file 値の内容・メタデータをランタイム内で読む (`read_base64` / `content_type`)      |
+| `time`       | durable な wall-clock 時刻 (`now` / `sleep` / `sleep_until` / `watch`)              |
+| `retry`      | 失敗回復の `use` provider (`exponential` / `forever` / `attended`)                  |
 | `webhook`    | 動的に生成される inbound HTTP エンドポイント (`inbound`)                            |
 | `mcp`        | MCP サーバーへのスコープ付き接続 (`provide` / `call`) と公開 (`serve`)、`auth` 直和 |
 | `reflection` | agent を第一級の inspectable な値として扱う (`get_metadata` / `call_agent`)         |
@@ -33,6 +35,8 @@ prelude は default import されるサブモジュール群で、qualified に�
   <DocCard href="{docs}/{currentVersion}/standard-library/math" />
   <DocCard href="{docs}/{currentVersion}/standard-library/env" />
   <DocCard href="{docs}/{currentVersion}/standard-library/file" />
+  <DocCard href="{docs}/{currentVersion}/standard-library/time" />
+  <DocCard href="{docs}/{currentVersion}/standard-library/retry" />
   <DocCard href="{docs}/{currentVersion}/standard-library/webhook" />
   <DocCard href="{docs}/{currentVersion}/standard-library/mcp" />
   <DocCard href="{docs}/{currentVersion}/standard-library/reflection" />
