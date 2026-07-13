@@ -11,7 +11,7 @@
     "env",
     "file",
     "time",
-    "retry",
+    "replay",
     "webhook",
     "mcp",
     "reflection"

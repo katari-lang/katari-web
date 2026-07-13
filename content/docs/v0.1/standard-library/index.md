@@ -1,30 +1,30 @@
 ---
 title: Standard Library
-description: prelude の各サブモジュールのリファレンス — シグネチャ・パラメータ・挙動・エラー。
+description: Reference for each prelude submodule's signatures, parameters, behavior, and errors.
 ---
 
-prelude は default import されるサブモジュール群で、qualified に呼ぶ (`json.parse`, `http.fetch`,
-`mcp.provide`, `reflection.get_metadata`, `record.get`)。演算子 (`+` `==` `&&` ...) が desugar する
-先や `throw[T]` そのものは prelude のトップレベルにあり、
-[Language Reference › Syntax]({docs}/{currentVersion}/language-reference/syntax) と
-[Effects]({docs}/{currentVersion}/language-reference/effects) で扱う。このセクションは各サブ
-モジュールの agent / 型のシグネチャ、パラメータ、挙動、エラーを列挙する。
+The prelude is a set of submodules that are default-imported and called qualified (`json.parse`,
+`http.fetch`, `mcp.provide`, `reflection.get_metadata`, `record.get`). The targets that operators
+(`+`, `==`, `&&`, ...) desugar to, and `throw[T]` itself, live at the top level of the prelude and
+are covered in [Language Reference › Syntax]({docs}/{currentVersion}/language-reference/syntax)
+and [Effects]({docs}/{currentVersion}/language-reference/effects). This section enumerates the
+agent and type signatures, parameters, behavior, and errors of each submodule.
 
-| モジュール   | 内容                                                                                |
-| ------------ | ----------------------------------------------------------------------------------- |
-| `json`       | `json` 直和型と、parse / stringify / encode / decode の総称的な変換                 |
-| `http`       | ランタイム組み込みの HTTP クライアント (`fetch` / `post_json`)                      |
-| `record`     | `record[T]` の操作 (`get` / `set` / `keys` / `entries` / `merge` ...)               |
-| `array`      | `array[T]` の操作 (`get` / `append` / `slice` / `flatten` / `range` ...)            |
-| `string`     | `string` の操作 (`split` / `join` / `replace` / `to_upper` ...)                     |
-| `math`       | 算術演算子を超える数値操作 (`abs` / `min` / `max` / `floor` / `round`)              |
-| `env`        | プロジェクトスコープの環境アクセス (`get_secret` / `get_all`)                       |
-| `file`       | file 値の内容・メタデータをランタイム内で読む (`read_base64` / `content_type`)      |
-| `time`       | durable な wall-clock 時刻 (`now` / `sleep` / `sleep_until` / `watch`)              |
-| `retry`      | 失敗回復の `use` provider (`exponential` / `forever` / `attended`)                  |
-| `webhook`    | 動的に生成される inbound HTTP エンドポイント (`inbound`)                            |
-| `mcp`        | MCP サーバーへのスコープ付き接続 (`provide` / `call`) と公開 (`serve`)、`auth` 直和 |
-| `reflection` | agent を第一級の inspectable な値として扱う (`get_metadata` / `call_agent`)         |
+| Module       | Contents                                                                                                   |
+| ------------ | ---------------------------------------------------------------------------------------------------------- |
+| `json`       | The `json` sum type and the generic parse / stringify / encode / decode conversions                        |
+| `http`       | The runtime's built-in HTTP client (`fetch` / `post_json`)                                                 |
+| `record`     | Operations on `record[T]` (`get` / `set` / `keys` / `entries` / `merge`, ...)                              |
+| `array`      | Operations on `array[T]` (`get` / `append` / `slice` / `flatten` / `range`, ...)                           |
+| `string`     | Operations on `string` (`split` / `join` / `replace` / `to_upper`, ...)                                    |
+| `math`       | Numeric operations beyond the arithmetic operators (`abs` / `min` / `max` / `floor` / `round`)             |
+| `env`        | Project-scoped environment access (`get_secret` / `get_all`)                                               |
+| `file`       | Reads the content and metadata of `file` values within the runtime (`read_base64` / `content_type`)        |
+| `time`       | Durable wall-clock time (`now` / `sleep` / `sleep_until` / `watch`)                                        |
+| `replay`     | The retry mechanism (`immediate` / `forever` / `exponential`), with the failure policy in a user converter |
+| `webhook`    | Dynamically generated inbound HTTP endpoints (`inbound`)                                                   |
+| `mcp`        | Scoped connections to MCP servers (`provide` / `call`), exposing one (`serve`), and the `auth` sum type    |
+| `reflection` | Treats agents as first-class inspectable values (`get_metadata` / `call_agent`)                            |
 
 <DocCards>
   <DocCard href="{docs}/{currentVersion}/standard-library/json" />
@@ -36,7 +36,7 @@ prelude は default import されるサブモジュール群で、qualified に�
   <DocCard href="{docs}/{currentVersion}/standard-library/env" />
   <DocCard href="{docs}/{currentVersion}/standard-library/file" />
   <DocCard href="{docs}/{currentVersion}/standard-library/time" />
-  <DocCard href="{docs}/{currentVersion}/standard-library/retry" />
+  <DocCard href="{docs}/{currentVersion}/standard-library/replay" />
   <DocCard href="{docs}/{currentVersion}/standard-library/webhook" />
   <DocCard href="{docs}/{currentVersion}/standard-library/mcp" />
   <DocCard href="{docs}/{currentVersion}/standard-library/reflection" />

@@ -1,25 +1,26 @@
 ---
 title: prelude.time
-description: durable な wall-clock 時刻 — now / sleep / sleep_until と、schedule を監視する watch。
+description: Durable wall-clock time, now / sleep / sleep_until, plus watch for observing a schedule.
 ---
 
-durable な wall-clock 時刻。呼び出しは runtime の `time` reactor に route する (`http.fetch` と同じ
-in-runtime — FFI sidecar なし)。default import 経由で `time.` qualified に呼ぶ。external 呼び出し
-なので io を行い、呼び出し側の effect 行に `io` が加わる。時刻はすべて **epoch ミリ秒**
-(1970-01-01T00:00:00Z からの整ミリ秒) の `number`。
+Durable wall-clock time. Calls route to the runtime's `time` reactor (in-runtime, the same as
+`http.fetch`; no FFI sidecar). Called qualified as `time.` via the default import. Because these
+are external calls they perform `io`, adding `io` to the caller's effect row. All times are
+`number`s in **epoch milliseconds** (whole milliseconds since 1970-01-01T00:00:00Z).
 
-## なぜ時計が reactor 経由なのか (replay 問題)
+## Why the clock goes through a reactor (the replay problem)
 
-runtime の replay 契約は「turn は durable な入力の決定的な関数」— commit されていない turn は
-再起動後に同じ入力から再実行される。素の prim が `Date.now()` を読むとこの契約が壊れる: replay
-された turn は初回と**違う**時刻を観測してしまう。`now` を reactor 経由にすると時計の読み取りが
-turn の**外**に出る: 時刻は呼び出し元の turn がただ消費するイベントとして届き、それを消費した
-commit が「観測した全てと一緒に」値を durable にする — 以降どの replay も再計算しない。その commit
-より前に再起動した場合は現在の時計から新しい時刻を解決するが、これは健全 (最初の時刻を durable に
-観測したものが何もないため)。同じ reactor が `sleep` / `watch` のタイマーも所有するので、deadline は
-永続化され再起動をまたいで re-arm される。
+The runtime's replay contract states that a turn is a deterministic function of durable inputs: an
+uncommitted turn re-executes from the same inputs after a restart. A bare primitive that reads
+`Date.now()` would break this contract, because a replayed turn would observe a **different** time
+than the first execution. Routing `now` through a reactor moves the clock read **outside** the
+turn: the time arrives as an event that the calling turn merely consumes, and the commit that
+consumes it makes the value durable along with everything else it observed, so no later replay
+recomputes it. A restart before that commit resolves a new time from the current clock, which is
+sound because nothing had yet durably observed a first time. The same reactor also owns the
+`sleep` / `watch` timers, so deadlines are persisted and re-armed across restarts.
 
-## 型
+## Types
 
 ### `time.interval`
 
@@ -27,8 +28,9 @@ commit が「観測した全てと一緒に」値を durable にする — 以�
 data interval(milliseconds: number)
 ```
 
-固定間隔: watch 開始から `milliseconds` ごとの occurrence (最初の occurrence は開始時ではなく
-1 間隔後)。`milliseconds` は正でなければならない。
+A fixed interval: an occurrence every `milliseconds` from the start of the watch (the first
+occurrence is one interval after the start, not at the start itself). `milliseconds` must be
+positive.
 
 ### `time.cron`
 
@@ -36,9 +38,10 @@ data interval(milliseconds: number)
 data cron(expression: string, timezone: string)
 ```
 
-cron スケジュール: 標準 cron `expression` (5 フィールド形、または先頭が秒の 6 フィールド形) の
-occurrence を、IANA `timezone` (例: `"Asia/Tokyo"`, `"UTC"`) で読む。**timezone は必須で、ambient な
-既定は無い** — 「毎日 09:00」は zone ごとに違う時刻を意味し、durable なスケジューラが推測してはならない。
+A cron schedule: occurrences of a standard cron `expression` (the 5-field form, or a 6-field form
+with a leading seconds field), read against an IANA `timezone` (for example `"Asia/Tokyo"`,
+`"UTC"`). **The timezone is required; there is no ambient default.** "Every day at 09:00" means a
+different instant in each zone, and a durable scheduler must not guess.
 
 ### `time.schedule`
 
@@ -46,9 +49,9 @@ occurrence を、IANA `timezone` (例: `"Asia/Tokyo"`, `"UTC"`) で読む。**ti
 type schedule = interval | cron
 ```
 
-各 occurrence がいつ発火するか。`watch` に渡す。
+When each occurrence fires. Passed to `watch`.
 
-## agent
+## Agents
 
 ### `time.now`
 
@@ -56,8 +59,9 @@ type schedule = interval | cron
 external agent now() -> number from "time"
 ```
 
-現在の wall-clock 時刻を epoch ミリ秒で返す。時刻は最初にそれを観測した処理と一緒に durable に
-なるので、下流のどこかが値を見た後は replay / recovery で決して変わらない。
+Returns the current wall-clock time in epoch milliseconds. The time becomes durable together with
+the processing that first observed it, so once something downstream has seen the value, it never
+changes across replay or recovery.
 
 ### `time.sleep`
 
@@ -65,9 +69,9 @@ external agent now() -> number from "time"
 external agent sleep(milliseconds: number) -> null from "time"
 ```
 
-`milliseconds` だけ待ってから `null` で resolve する。wake deadline (now + `milliseconds`) は
-永続化される: 再起動はタイマーを re-arm し、runtime のダウン中に過ぎた deadline は recovery で即座に
-resolve する。0 以下の `milliseconds` は即座に resolve する。
+Waits `milliseconds` and then resolves with `null`. The wake deadline (now + `milliseconds`) is
+persisted: a restart re-arms the timer, and a deadline that passed while the runtime was down
+resolves immediately at recovery. `milliseconds` of 0 or less resolves immediately.
 
 ### `time.sleep_until`
 
@@ -75,8 +79,9 @@ resolve する。0 以下の `milliseconds` は即座に resolve する。
 external agent sleep_until(time: number) -> null from "time"
 ```
 
-絶対 epoch ミリ秒 `time` まで待ってから `null` で resolve する。`sleep` と同じ durable な deadline
-だが、相対 delay ではなく絶対時刻に pin する — すでに過去の時刻は即座に resolve する。
+Waits until the absolute epoch millisecond `time` and then resolves with `null`. The deadline is
+durable in the same way as `sleep`, but it is pinned to an absolute instant rather than a relative
+delay; a `time` already in the past resolves immediately.
 
 ```katari
 agent timed() -> string {
@@ -96,10 +101,10 @@ external agent watch[effect E](
 ) -> never with E | io from "time"
 ```
 
-`schedule` の occurrence ごとに `deliver_to` を 1 回呼び、occurrence の予定 epoch ミリ秒を `time`
-として渡す。`watch` は自分からは決して resolve しない (`-> never`) — run が cancel されるまで走り、
-cancel されると in-flight の delivery を cancel して watch を畳む。`deliver_to` の effect `E` は
-呼び出し側の handler へそのまま流れる。
+Calls `deliver_to` once per occurrence of `schedule`, passing the occurrence's scheduled epoch
+millisecond as `time`. `watch` never resolves on its own (`-> never`): it runs until the run is
+canceled. Cancellation cancels any in-flight delivery and folds up the watch. The effect `E` of
+`deliver_to` flows through unchanged to the caller's handler.
 
 ```katari
 agent daily_report(time: number) -> null with io | prelude.throw[http.fetch_error] {
@@ -120,30 +125,35 @@ agent report_daemon() -> never with io | prelude.throw[http.fetch_error] {
 }
 ```
 
-**Durability の意味論:**
+**Durability semantics:**
 
-- **再起動 re-arm** — 次の occurrence は永続化され、再起動が re-arm する。
-- **missed tick は 1 回だけ catch-up** — runtime のダウン中に occurrence を 1 つ以上逃した場合、
-  recovery で **ちょうど 1 回** だけ即座に発火し (最も早い missed occurrence の予定時刻を渡す)、
-  以降は元のスケジュールに戻る。逃した分をすべて backfill することはない — 全 missed tick の
-  replay は下流を殺到させる。
-- **tick は at-least-once** — delivery と cursor 前進の境界は commit であり、その窓での crash は
-  同じ occurrence を recovery で再配達する。`deliver_to` は同じ予定時刻の繰り返しに耐えること —
-  予定 epoch ミリ秒が渡されるのは、必要なら dedupe できるようにするためである。
-- **delivery は直列** — 次の occurrence は現在の delivery が settle するまで arm されない。間隔より
-  遅い `deliver_to` は tick をキューに積むのではなく rate-limit する (in-flight は常に高々 1)。
-- **失敗は watch を殺す** — throw / panic する `deliver_to` は retry **されない**。失敗はそのまま
-  伝播して watch を殺す (呼び出し先の未処理の失敗一般と同じ)。復元性は呼び出しサイトで合成する —
-  [`retry.forever`]({docs}/{currentVersion}/standard-library/retry) で包むのが定形
-  (retry のページに完全な合成例がある)。
-- **不正な schedule は panic** — 壊れた cron 式・timezone や正でない interval は typed error では
-  なく panic (正しいプログラムは有効な schedule を渡す、という
-  [throw / panic の分界]({docs}/{currentVersion}/language-reference/effects))。
+- **Restart re-arm.** The next occurrence is persisted, and a restart re-arms it.
+- **A missed tick catches up exactly once.** If one or more occurrences were missed while the
+  runtime was down, recovery fires **exactly once** immediately (passing the scheduled time of the
+  earliest missed occurrence), then resumes the original schedule. It does not backfill every
+  missed occurrence; replaying every missed tick would flood downstream.
+- **Ticks are at-least-once.** The boundary between delivery and advancing the cursor is a commit,
+  and a crash in that window causes recovery to redeliver the same occurrence. `deliver_to` must
+  tolerate repeats of the same scheduled time; the scheduled epoch millisecond is passed precisely
+  so it can dedupe if needed.
+- **Delivery is serial.** The next occurrence is not armed until the current delivery settles. A
+  `deliver_to` slower than the interval is rate-limited rather than queued (at most one delivery is
+  ever in flight).
+- **A failure kills the watch.** A `deliver_to` that throws or panics is **not** retried. The
+  failure propagates and kills the watch, the same as any unhandled failure in a callee. Resilience
+  is composed at the call site: wrapping with
+  [`replay.forever`]({docs}/{currentVersion}/standard-library/replay) plus a converter that turns
+  the failure into `replay.interrupted` is the standard pattern (the replay page has a complete
+  composition example).
+- **An invalid schedule panics.** A malformed cron expression or timezone, or a non-positive
+  interval, is a panic rather than a typed error, consistent with the
+  [throw / panic distinction]({docs}/{currentVersion}/language-reference/effects) that a correct
+  program passes a valid schedule.
 
-## 関連
+## Related
 
 <DocCards>
-  <DocCard href="{docs}/{currentVersion}/standard-library/retry" />
+  <DocCard href="{docs}/{currentVersion}/standard-library/replay" />
   <DocCard href="{docs}/{currentVersion}/language-reference/effects" />
   <DocCard href="{docs}/{currentVersion}/katari-toolchains/runtime" />
 </DocCards>
