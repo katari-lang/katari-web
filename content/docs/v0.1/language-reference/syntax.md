@@ -1,88 +1,94 @@
 ---
 title: Syntax
-description: モジュール宣言、let / match / for / parallel / use / finally、部分適用の _、予約語。
+description: Module declarations, let / match / for / parallel / use / finally, the partial application hole _, and reserved words.
 ---
 
-Katari は brace 区切りで、概ね自由形式だが、改行が文の区切りとして働く (Go 風の
-"virtual semicolon")。ブロックの文は改行または `;` で区切り、演算子で終わる行は次行へ続く。
+Katari is brace-delimited and largely free-form, but a newline acts as a statement separator (a
+Go-style "virtual semicolon"). Statements in a block are separated by a newline or a `;`, and a
+line ending in an operator continues onto the next line.
 
-## モジュール
+## Modules
 
-**`module` キーワードは無い** — 1 ファイルが 1 モジュールで、モジュール名はパッケージ名 +
-ファイルパスから決まる (`ffi.ktr` は `ffi` モジュールで、そこにある `greet` は `ffi.greet`)。
-import は他モジュールの名前を持ち込む。
+There is **no `module` keyword**. Each file is one module, and the module name is determined by
+the package name plus the file path (`ffi.ktr` is the `ffi` module, and the `greet` defined there
+is `ffi.greet`). An import brings names from another module into scope.
 
 ```katari
-import { area, type shape } from basics   // 個別の名前 (値 / 型) を持ち込む
-import basics                              // モジュール全体を持ち込み、basics.area のように参照
-import basics as shapes                    // エイリアス
+import { area, type shape } from basics   // Bring in individual names (values / types)
+import basics                              // Bring in the whole module, referenced as basics.area
+import basics as shapes                    // Alias
 ```
 
-`import module.path` はドット区切りのパスを取れる。名前解決は default import される `prelude`
-(とそのサブモジュール `json` / `http` / `record` / ...) を除き、明示 import が必要。
+`import module.path` can take a dot-separated path. Name resolution requires an explicit import,
+except for `prelude` (and its submodules `json` / `http` / `record` / ...), which is imported by
+default.
 
-## トップレベル宣言
+## Top-level declarations
 
-| 宣言                                                             | 意味                                    |
-| ---------------------------------------------------------------- | --------------------------------------- |
-| `agent name[generics](params) -> T [with E] { body }`            | 呼び出し可能な agent (関数)             |
-| `private agent ...`                                              | モジュール外からは呼べない agent        |
-| `request name[generics](params) -> T`                            | request (effect の宣言のみ、本体は無い) |
-| `effect name[generics]`                                          | marker effect (後述)                    |
-| `external agent name[generics](params) -> T [with E] [from "R"]` | 宛先が reactor / FFI sidecar の agent   |
-| `primitive agent name[generics](params) -> T [with E]`           | コンパイラ組み込みの agent (stdlib 用)  |
-| `data name[generics](params)`                                    | 直和型の 1 constructor                  |
-| `type name[generics] = T`                                        | 型シノニム                              |
-| `import ...`                                                     | 他モジュールの名前を持ち込む            |
+| Declaration                                                      | Meaning                                                |
+| ---------------------------------------------------------------- | ------------------------------------------------------ |
+| `agent name[generics](params) -> T [with E] { body }`            | A callable agent (function)                            |
+| `private agent ...`                                              | An agent that cannot be called from outside the module |
+| `request name[generics](params) -> T`                            | A request (effect declaration only, no body)           |
+| `effect name[generics]`                                          | A marker effect (described below)                      |
+| `external agent name[generics](params) -> T [with E] [from "R"]` | An agent whose destination is a reactor / FFI sidecar  |
+| `primitive agent name[generics](params) -> T [with E]`           | A compiler builtin agent (for the stdlib)              |
+| `data name[generics](params)`                                    | One constructor of a sum type                          |
+| `type name[generics] = T`                                        | A type synonym                                         |
+| `import ...`                                                     | Brings names from another module into scope            |
 
-`agent` / `request` / `external agent` / `primitive agent` / `data` の直前には
-`@"..."` doc annotation を付けられる — 生成される JSON Schema の説明文になり、AI に見せる
-tool 定義や `reflection.get_metadata` の `description` に載る。
+A `@"..."` doc annotation can precede `agent` / `request` / `external agent` / `primitive agent` /
+`data`. It becomes the description in the generated JSON Schema, appearing in tool definitions
+shown to an AI and in the `description` returned by `reflection.get_metadata`.
 
 ```katari
-@"1 つの円を、半径で表す。"
+@"A single circle, represented by its radius."
 data circle(radius: number)
 
-@"円の面積。"
+@"The area of a circle."
 agent area(value: circle) -> number {
   3.14159 * value.radius * value.radius
 }
 ```
 
-`external agent` の `from "reactor"` 節は呼び出し先の reactor を名指す。ユーザーモジュールで書けるのは
-省略 (= FFI sidecar 宛て — [`ffi.ktr`]({docs}/{currentVersion}/katari-toolchains/runtime) のような
-同名 `.ts` モジュールが実装を持つ) と `from "ffi"` だけ: 組み込み reactor 名 (`"http"` / `"webhook"` /
-`"mcp"` / `"time"`) はコンパイル済み stdlib の external 専用で、ユーザーモジュールの `from` に書くと
-**K3022** で拒否される (呼び出しが reactor の知らないキーで届いてしまうため)。
+The `from "reactor"` clause on an `external agent` names the destination reactor. In a user
+module, the only options are to omit it, meaning it targets the FFI sidecar (implemented by a
+same-named `.ts` module such as
+[`ffi.ktr`]({docs}/{currentVersion}/katari-toolchains/runtime)), or to write `from "ffi"`
+explicitly. The builtin reactor names (`"http"` / `"webhook"` / `"mcp"` / `"time"`) are reserved
+for the compiled stdlib's externals; writing one of them in a user module's `from` is rejected
+with **K3022**, because the call would otherwise arrive at the reactor tagged with a key it
+doesn't recognize.
 
-## ブロックと文
+## Blocks and statements
 
-ブロック `{ ... }` は文の並びと、末尾の値になる式からなる。文には `let` / `var` (for / handler の
-状態) / ローカル `agent` 宣言 / `return` / `next` / `break` / `finally` / `use` があり、それ以外は
-式文になる。
+A block `{ ... }` consists of a sequence of statements followed by an expression whose value
+becomes the block's value. Statements include `let` / `var` (state for `for` / handlers), local
+`agent` declarations, `return`, `next`, `break`, `finally`, and `use`; anything else is an
+expression statement.
 
 ```katari
 agent example() -> integer {
-  let a = 1        // let: 不変束縛
+  let a = 1        // let: immutable binding
   let b = a + 1
-  b                // 末尾の式がブロックの値
+  b                // the trailing expression is the block's value
 }
 ```
 
 ## match
 
-`match (subject) { case pattern -> body ... }` は constructor でディスパッチする。パターンは:
+`match (subject) { case pattern -> body ... }` dispatches on the constructor. The patterns are:
 
-| パターン                       | 意味                                                                                                                          |
-| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
-| `_` / `_: T`                   | ワイルドカード (型で絞り込み可)                                                                                               |
-| `42` / `"s"` / `true` / `null` | リテラル                                                                                                                      |
-| `n` / `n: T`                   | 変数束縛                                                                                                                      |
-| `[p1, p2, ...]`                | タプルパターン                                                                                                                |
-| `{ x, y => p }`                | record パターン (`x` は `x => x` の糖衣)                                                                                      |
-| `point(x => px, y => py)`      | constructor パターン (フィールド分解)                                                                                         |
-| `point()`                      | フィールド無しの constructor パターン                                                                                         |
-| `integer(n)`                   | 型フィルタ (primitive tag のみ: `null` / `boolean` / `integer` / `number` / `string` / `file` / `array` / `record` / `agent`) |
+| Pattern                        | Meaning                                                                                                                         |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| `_` / `_: T`                   | Wildcard (can narrow by type)                                                                                                   |
+| `42` / `"s"` / `true` / `null` | Literal                                                                                                                         |
+| `n` / `n: T`                   | Variable binding                                                                                                                |
+| `[p1, p2, ...]`                | Tuple pattern                                                                                                                   |
+| `{ x, y => p }`                | Record pattern (`x` is sugar for `x => x`)                                                                                      |
+| `point(x => px, y => py)`      | Constructor pattern (destructures fields)                                                                                       |
+| `point()`                      | Constructor pattern with no fields                                                                                              |
+| `integer(n)`                   | Type filter (primitive tags only: `null` / `boolean` / `integer` / `number` / `string` / `file` / `array` / `record` / `agent`) |
 
 ```katari
 data circle(radius: number)
@@ -99,9 +105,10 @@ agent area(value: shape) -> number {
 
 ## for / parallel
 
-`for (pattern in source [, var name [: T] = init]...) { body } [then [(pattern)] { ... }]` は
-逐次イテレーション。body 内の `next value [with { name = expr, ... }]` が次要素へ進み (accumulator
-の `var` を更新する)、`break value` はループを打ち切る。`then` 節は最終結果を受け取る。
+`for (pattern in source [, var name [: T] = init]...) { body } [then [(pattern)] { ... }]` is
+sequential iteration. Inside the body, `next value [with { name = expr, ... }]` advances to the
+next element (updating the accumulator `var`s), and `break value` terminates the loop. The `then`
+clause receives the final result.
 
 ```katari
 agent sum(values: array[integer]) -> integer {
@@ -111,8 +118,9 @@ agent sum(values: array[integer]) -> integer {
 }
 ```
 
-`parallel for (...) { ... }` は同じ構文で、各要素を独立したスレッドで並列評価する。
-`parallel [e1, e2, ...]` は式のタプルを並列評価する (`for` ではなく固定要素数)。
+`parallel for (...) { ... }` uses the same syntax but evaluates each element on an independent
+thread, in parallel. `parallel [e1, e2, ...]` evaluates a tuple of expressions in parallel (a
+fixed number of elements, not a `for`).
 
 ```katari
 agent squares(count: integer) -> array[integer] {
@@ -124,47 +132,60 @@ agent squares(count: integer) -> array[integer] {
 
 ## forever
 
-`forever { <block> }` は終わりのないループ式 — 逐次 `for` の unbounded な兄弟。body を子スレッド
-として走らせ、完了したらその値を**破棄して**次のイテレーションを始める。1 つの instance の中の
-1 本の iterating thread なので、完了したイテレーションの frame は回収され、**durable な状態は
-イテレーション回数によらず flat** に保たれる (再帰でループすると失敗ごとに永続 frame が積もる —
-それを防ぐための構文である)。
+`forever [(var name [: T] = initial, ...)] { <block> }` is an unending loop expression — the
+unbounded sibling of the sequential `for`, in fact `for` minus its `{source, per-iteration value
+collection, then clause}`, with the **same** `{var state, next … with (…), break}` machinery. It
+runs the body as a child thread and, once it completes, **discards** its value and starts the next
+iteration. Because it is a single iterating thread within one instance, the frame of each completed
+iteration is reclaimed, so **durable state stays flat regardless of the number of iterations**
+(looping via recursion instead would accumulate a persistent frame per iteration; this syntax
+exists to prevent that).
 
-式の型は `never` — 値を決して yield しないので、`-> never` の呼び出しと同じくどこにでも適合する。
-`forever` 自身に脱出構文は**無い**: 抜けるのは他のすべてと同じ catch-and-break — body から request
-を perform し、囲みの `use handler` が `break` で handle した block ごと抜ける。イテレーションを
-またぐ状態も同じく、ループの外の `use handler (var ...)` に持たせる。
+`forever` owns exactly the two jumps a `for` body owns, resolving to the loop as their nearest
+target:
+
+- **`break value` exits the loop with that value** — the built-in exit, the same `break` machinery
+  a `for` uses. It is a lexical jump, not a performable request, so nothing outside the loop can
+  name or trigger it.
+- **`next [with (mods)]` advances to the next iteration**, updating the loop's `var` state through
+  the modifiers. Unlike `for`'s `next` it collects **no** value (there is no output array); falling
+  off the end of the body is an implicit `next` with the state unchanged.
+
+The expression **types as the union of its `break` values — `never` when it has none.** With no
+`break` the loop never yields, so `forever { ... }` fits anywhere a call to `-> never` would
+(including an agent body's trailing expression for any declared return); a `break value` makes the
+loop's type that value's.
 
 ```katari
 data ready(value: integer)
 data pending()
-
 request check() -> ready | pending
-request done(value: integer) -> never
 
 agent poll_until_ready() -> integer with check | io {
-  use handler {
-    request done(value: integer) -> never { break value }
-  }
-  forever {
+  forever (var waited = 0) {
     match (check()) {
-      case ready(value => value) -> { done(value = value) }
-      case pending() -> { time.sleep(milliseconds = 1000) }
+      case ready(value => value) -> { break value } // exit with the value
+      case pending() -> {
+        time.sleep(milliseconds = 1000)
+        next with { waited = waited + 1 } // re-iterate, advancing state
+      }
     }
   }
 }
 ```
 
-`forever` は**予約語ではない** — 直後に `{` が続くときだけループとして認識される位置的な語で、
-`retry.forever(...)` のような識別子や `forever` という名前の agent 宣言は従来どおり有効。
-[`prelude.retry`]({docs}/{currentVersion}/standard-library/retry) の `forever` / `attended` は
-この構文と catch-and-break の合成そのものである。
+`forever` is **not a reserved word**. It is recognized positionally as the loop only when
+immediately followed by `{`, so an identifier like `replay.forever(...)` or an agent declaration
+named `forever` remains valid as before. The providers in
+[`prelude.replay`]({docs}/{currentVersion}/standard-library/replay) are exactly this shape: the
+loop's `var` holds the backoff delay and attempt count, `next … with (…)` advances them, and
+`break` carries the success value out.
 
 ## use / handler
 
-`use provider` は provider を、続く残りの block を継続として一回適用する — 詳細は
-[Providers]({docs}/{currentVersion}/language-reference/providers) 参照。もっとも基本的な provider
-は handler リテラルそのもの:
+`use provider` applies the provider once, with the rest of the block that follows as its
+continuation. See [Providers]({docs}/{currentVersion}/language-reference/providers) for details.
+The most basic provider is the handler literal itself:
 
 ```katari
 request tick() -> integer
@@ -177,22 +198,24 @@ agent count_three() -> array[integer] with tick {
 }
 ```
 
-`handler [generics](var state = init, ...) { request handler... } [then ...]` はハンドラを式として
-組み立てる (状態変数、複数の request 節、`then` で最終状態を受け取れる)。`parallel handler` は
-並列に走るハンドラを作る。request 節の中では、囲みが `for` ならその `next` / `break` 、囲みが
-handler ならハンドラの `next` (resume) / `break` (discharge) が使える — どちらの意味になるかは
-直近の `for` / handler の位置で決まる。
+`handler [generics](var state = init, ...) { request handler... } [then ...]` builds a handler as
+an expression (with state variables, multiple request clauses, and a `then` clause that receives
+the final state). `parallel handler` builds a handler that runs in parallel. Inside a request
+clause, if the enclosing construct is a `for`, its `next` / `break` apply; if the enclosing
+construct is a handler, the handler's `next` (resume) / `break` (discharge) apply. Which meaning
+applies is determined by the position of the nearest enclosing `for` / handler.
 
 ## finally
 
-`finally { <block> }` は文で、値を返さない。評価すると block を現在の instance の finalizer
-スタックに積む (arming) — 詳細は [finally]({docs}/{currentVersion}/language-reference/finally) 参照。
+`finally { <block> }` is a statement and returns no value. Evaluating it pushes the block onto the
+current instance's finalizer stack (arming). See
+[finally]({docs}/{currentVersion}/language-reference/finally) for details.
 
-## 部分適用: `_`
+## Partial application: `_`
 
-呼び出しの名前付き引数のうち、値を書いたものは今固定され、`_` を書いたものは穴になり、残りの
-オプショナル引数は省略され defaulted のまま — 詳細は
-[Partial Application]({docs}/{currentVersion}/language-reference/partial-application) 参照。
+Among a call's named arguments, the ones given a value are fixed now, the ones written as `_`
+become holes, and the remaining optional arguments are omitted and stay defaulted. See
+[Partial Application]({docs}/{currentVersion}/language-reference/partial-application) for details.
 
 ```katari
 agent scale(factor: number, value: number) -> number { factor * value }
@@ -203,9 +226,10 @@ agent doubles(values: array[number]) -> array[number] {
 }
 ```
 
-## f-string
+## f-strings
 
-`f"...${expression}..."` はテンプレート文字列 — リテラルな断片と `${...}` の式が交互に並ぶ。
+`f"...${expression}..."` is a template string: literal fragments and `${...}` expressions
+alternate.
 
 ```katari
 agent greeting(name: string, count: integer) -> string {
@@ -213,24 +237,26 @@ agent greeting(name: string, count: integer) -> string {
 }
 ```
 
-## リテラルと式
+## Literals and expressions
 
-- 数値リテラルは小数部や指数部があれば `number`、無ければ `integer`。
-- 文字列リテラルは `"..."` (エスケープ: `\n` `\t` `\r` `\"` `\\` `\$` `\/`)。
-- 真偽値 `true` / `false`、`null`。
-- タプル `[e1, e2, ...]` (空 `[]` や単一要素 `[e]` も可)。
-- record リテラル `{ label = expr, ... }` (キーは識別子、または `"Content-Type"` のような引用文字列)。
-- 演算子は通常の優先順位: `!` / 単項 `-` (積み重ね可) > `* / %` > `++ + -` > 比較 (`<= >= < >`) >
-  `== !=` > `&&` > `||`。
+- A numeric literal is `number` if it has a fractional part or exponent, and `integer` otherwise.
+- A string literal is `"..."` (escapes: `\n` `\t` `\r` `\"` `\\` `\$` `\/`).
+- Booleans `true` / `false`, and `null`.
+- Tuples `[e1, e2, ...]` (empty `[]` and single-element `[e]` are also valid).
+- Record literals `{ label = expr, ... }` (keys are identifiers, or a quoted string such as
+  `"Content-Type"`).
+- Operators follow the usual precedence: `!` / unary `-` (can be stacked) > `* / %` > `++ + -` >
+  comparison (`<= >= < >`) > `== !=` > `&&` > `||`.
 
 ## generics
 
-`[A, effect E, attribute T, literal L extends Bound]` の形で、種類は 4 つ: 無印 (型)、`effect`
-(effect row 変数)、`attribute` (`public` / `private` のような attribute 変数)、`literal` (呼び出し側の
-文字列リテラル引数をそのシングルトン型に束縛する — TypeScript の `const` 型パラメータに相当)。
-`extends` で上界を書ける (`[T extends number]`)。
+Generics take the form `[A, effect E, attribute T, literal L extends Bound]`, and there are four
+kinds: unmarked (a type), `effect` (an effect row variable), `attribute` (an attribute variable,
+like `public` / `private`), and `literal` (binds the caller's string literal argument to its
+singleton type, equivalent to a TypeScript `const` type parameter). `extends` writes an upper
+bound (`[T extends number]`).
 
-## 予約語
+## Reserved words
 
 ```
 agent request external primitive data type import from as use handler
@@ -238,11 +264,11 @@ for parallel if else match case return next break var let finally then in with o
 true false null
 ```
 
-型だけの語 (`integer` `array` `record` `never` `unknown` `all` `io` `pure` ...) は予約語では
-ない — 型パーサが位置的に認識するので、式の識別子やモジュール名としても使える
-(`array.get` の `array` はモジュール名)。
+Type-only words (`integer` `array` `record` `never` `unknown` `all` `io` `pure` ...) are not
+reserved words. The type parser recognizes them positionally, so they can also be used as
+expression identifiers or module names (the `array` in `array.get` is a module name).
 
-## 関連
+## Related
 
 <DocCards>
   <DocCard href="{docs}/{currentVersion}/language-reference/types" />

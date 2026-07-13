@@ -1,40 +1,43 @@
 ---
 title: Types
-description: 基本型・record/union・effect row・never・private/public 属性・subtyping の実際。
+description: Basic types, record/union types, effect rows, never, private/public attributes, and how subtyping actually works.
 ---
 
-## 基本型
+## Basic types
 
-`null` / `boolean` / `integer` / `number` / `string` / `file` がスカラー。`integer` は `number` の
-部分型で、算術演算子は両オペランドが `integer` なら `integer` を保つ (`prelude.add[T extends
-number]` のような generic bound がこれを表す)。`file` はプロジェクトの blob ストアへの薄い参照 —
-[`prelude.file`]({docs}/{currentVersion}/standard-library/file) で内容を読む。
+The scalars are `null` / `boolean` / `integer` / `number` / `string` / `file`. `integer` is a
+subtype of `number`, and arithmetic operators preserve `integer` when both operands are `integer`
+(a generic bound such as `prelude.add[T extends number]` expresses this). `file` is a thin
+reference into the project's blob store; read its contents with
+[`prelude.file`]({docs}/{currentVersion}/standard-library/file).
 
-## コンテナ
+## Containers
 
-- `array[T]` — 配列。リテラルは `[e1, e2, ...]`、操作は
-  [`prelude.array`]({docs}/{currentVersion}/standard-library/array)。
-- `record[T]` — 同種の string キー付きマップ。リテラルではなく
-  [`prelude.record`]({docs}/{currentVersion}/standard-library/record) の操作で作る (JSON object の
-  entries や env の一覧がこの形)。
-- `[T1, T2, ...]` — タプル型。値は `[e1, e2]`、パターンも `[p1, p2]`。空 `[]` や単一要素 `[T]` も
-  タプルであり、`()` は単なるグルーピングでタプルを作らない。
+- `array[T]`: an array. Its literal is `[e1, e2, ...]`, and operations are in
+  [`prelude.array`]({docs}/{currentVersion}/standard-library/array).
+- `record[T]`: a homogeneous string-keyed map. It has no literal; it is built with operations from
+  [`prelude.record`]({docs}/{currentVersion}/standard-library/record) (the entries of a JSON
+  object, or a list of env vars, take this shape).
+- `[T1, T2, ...]`: a tuple type. Values look like `[e1, e2]`, and patterns look like `[p1, p2]`.
+  Empty `[]` and single-element `[T]` are also tuples; `()` is plain grouping and does not create
+  a tuple.
 
-## object 型
+## Object types
 
 ```katari
 type point = { x: number, y: number, label?: string }
 ```
 
-`{ label: T, ... }` は幅・深さ subtyping を持つ構造的な型で、`label?: T` は optional フィールド
-(欠けていてもよい)。agent のパラメータリストはこの糖衣: `agent (label: T, ...) -> R` は
-パラメータレコード 1 個の object 型に desugar する (空の `()` は空 object)。
+`{ label: T, ... }` is a structural type with width and depth subtyping, and `label?: T` is an
+optional field (it may be absent). An agent's parameter list is sugar for this:
+`agent (label: T, ...) -> R` desugars to a single object-typed parameter record (an empty `()` is
+an empty object).
 
-## data と直和型
+## data and sum types
 
-`data name(label: T, ...)` は 1 つの constructor を宣言し、値の生成 (`name(label = ...)`) と
-パターン (`name(label => p)`) の両方に使える。複数の `data` を `type` synonym で束ねると直和型に
-なる。
+`data name(label: T, ...)` declares a single constructor, usable both to construct a value
+(`name(label = ...)`) and as a pattern (`name(label => p)`). Bundling multiple `data` declarations
+with a `type` synonym forms a sum type.
 
 ```katari
 data circle(radius: number)
@@ -42,65 +45,73 @@ data rect(width: number, height: number)
 type shape = circle | rect
 ```
 
-`type union = a | b | c` は union 型一般 (直和型に限らず、任意の型の union)。
+`type union = a | b | c` denotes a union type in general, a union of any types, not only sum
+types.
 
-## agent 型
+## Agent types
 
 ```katari
 type transform = agent (value: number) -> number
 type handler_of[T] = agent (value: T) -> T with io
 ```
 
-`agent Param -> Return [with Effect]` — `Param` は上の object 型糖衣を含む型表現。effect 節は
-[Effects]({docs}/{currentVersion}/language-reference/effects) を参照。callable 値は 3 種 (コンパイル
-済み agent への named 参照、closure、runtime-minted な reactor-backed tool) あるが、この型はどれも
-一様に受ける。
+`agent Param -> Return [with Effect]`, where `Param` is a type expression that includes the
+object-type sugar described above. See [Effects]({docs}/{currentVersion}/language-reference/effects)
+for the effect clause. There are three kinds of callable values (a named reference to a compiled
+agent, a closure, and a runtime-minted reactor-backed tool), and this type accepts all three
+uniformly.
 
 ## never / unknown / all / io / pure
 
-- `never` — 値が存在しない型。`throw` / `panic` の返り型、そして
-  [`forever { ... }`]({docs}/{currentVersion}/language-reference/syntax#forever) 式や
-  `time.watch` のような「決して戻らない」呼び出しの型で、そこに到達する式は他の枝と join しても
-  寄与しない。
-- `unknown` — 何でも受け入れる top 型 (値を使う前に絞り込みが要る)。
-- `all` — effect row の top (「あらゆる request を許す」)。`reflection.get_metadata` の引数型
-  `agent never -> unknown with all` がその例 (どんな入出力・どんな effect の callable も受ける)。
-- `io` — 副作用がある (`external agent` の呼び出しが持ち込む) が、discharge できないマーカー
-  effect。`with io | ...` の形で行に乗る。
-- `pure` — effect を一切持たない (行が空)。
+- `never`: the type with no values. It is the return type of `throw` / `panic`, the type of calls
+  that "never return" such as `time.watch`, and the type of a
+  [`forever { ... }`]({docs}/{currentVersion}/language-reference/syntax#forever) loop that has no
+  `break` (a `forever` with `break value`s types as the union of those values instead); an
+  expression that reaches `never` does not contribute when joined with other branches.
+- `unknown`: the top type that accepts anything (the value must be narrowed before it can be
+  used).
+- `all`: the top of effect rows ("allows any request"). The argument type of
+  `reflection.get_metadata`, `agent never -> unknown with all`, is an example: it accepts a
+  callable with any input/output and any effect.
+- `io`: a marker effect that indicates a side effect is present (introduced by calls to an
+  `external agent`), but that cannot be discharged. It appears on a row as `with io | ...`.
+- `pure`: has no effects at all (an empty row).
 
-## 文字列リテラル型と `literal` generics
+## String literal types and `literal` generics
 
-`"fast"` は型位置では **その文字列ちょうどのシングルトン型** (`"fast" <: string`)。
-`[literal name extends string]` はジェネリック関数の呼び出し引数がリテラルなら、その
-シングルトン型に束縛する (TypeScript の `const` 型パラメータの類似物):
+`"fast"` in type position is **the singleton type of that exact string** (`"fast" <: string`).
+`[literal name extends string]` binds a generic function's call argument to its singleton type
+when that argument is a literal (an analogue of a TypeScript `const` type parameter):
 
 ```katari
 agent remember[literal name extends string](value: name) -> name { value }
 
 agent main() -> string {
-  let mode: "fast" | "slow" = remember(value = "fast")   // シングルトン "fast" を返す
-  let widened: string = mode                              // リテラル型は string に広がる (subtyping)
+  let mode: "fast" | "slow" = remember(value = "fast")   // returns the singleton "fast"
+  let widened: string = mode                              // literal types widen to string (subtyping)
   widened
 }
 ```
 
-動的な (非リテラルな) 引数は素の `string` に束縛される。[`prelude.mcp`]({docs}/{currentVersion}/standard-library/mcp)
-の `provide[literal URL, ...]` はこれを使って、リテラル `url` にサーバーごとのスコープを与える。
+A dynamic (non-literal) argument binds to plain `string`.
+[`prelude.mcp`]({docs}/{currentVersion}/standard-library/mcp)'s `provide[literal URL, ...]` uses
+this to give a literal `url` a per-server scope.
 
-## private / public 属性と情報流
+## private / public attributes and information flow
 
-`T of private` / `T of public` は値に貼る **attribute** で、`public <: private` (public な値は
-private が要求される場所にそのまま渡せるが、逆はできない)。private は「secret として汚染されている」
-ことを表し、一度 private になった値を含む複合値は全体が private になる。private な値がランタイムを
-出られるのは、宛先サーバーへの意図的な提出面 (`http.fetch` の header 値 / `body`) を通るときだけ —
-`url` / `method` のような漏出しうる sink は public のまま、という規則になっている。
+`T of private` / `T of public` are **attributes** attached to a value, with `public <: private`
+(a public value can be passed anywhere private is required, but not the reverse). Private marks a
+value as "tainted as a secret," and a composite value that contains even one private value
+becomes private as a whole. A private value can leave the runtime only by passing through an
+intentional submission surface to the destination server, such as the header values or `body` of
+`http.fetch`. The rule is that sinks that could leak a value, such as `url` / `method`, stay
+public.
 
 ```katari
 agent fetch_with_key() -> string with io | prelude.throw[env.missing_secret | http.fetch_error] {
   let key = env.get_secret(key = "API_KEY")   // string of private
   let response = http.fetch(
-    url = "https://api.example.com",           // url は public のまま (型エラーにならない)
+    url = "https://api.example.com",           // url stays public (not a type error)
     method = "GET",
     headers = record.set(target = record.empty(), key = "Authorization", value = "Bearer " ++ key),
     body = "",
@@ -109,29 +120,32 @@ agent fetch_with_key() -> string with io | prelude.throw[env.missing_secret | ht
 }
 ```
 
-`env.get_secret` / `mcp.headers` の値 / http の header・body が代表的な private-capable な位置。
-詳細は [`prelude.env`]({docs}/{currentVersion}/standard-library/env) と
-[`prelude.http`]({docs}/{currentVersion}/standard-library/http) を参照。`[attribute T]` という
-第 3 の generic 種は、型ではなく属性そのものを量化したい稀なケース向けにある。
+`env.get_secret`, the value of `mcp.headers`, and HTTP header/body values are the representative
+private-capable positions. See [`prelude.env`]({docs}/{currentVersion}/standard-library/env) and
+[`prelude.http`]({docs}/{currentVersion}/standard-library/http) for details. The third generic
+kind, `[attribute T]`, exists for the rare case of wanting to quantify over the attribute itself
+rather than a type.
 
-## effect row (概要)
+## effect row (overview)
 
-`with req1 | req2` は「この agent が行いうる request の集合」。行はリクエスト名でキーされたマップで、
-同じ名前への複数の instantiation は union で 1 エントリに合流する (`throw[a]` と `throw[b]` が
-混ざると `throw[a | b]` になる、1 エントリのまま)。`{...E, request[args]}` の形は union で join
-するのではなく、その 1 エントリを丸ごと上書きする override — 詳しくは
-[Effects]({docs}/{currentVersion}/language-reference/effects) と
-[Providers]({docs}/{currentVersion}/language-reference/providers) を参照。
+`with req1 | req2` is "the set of requests this agent may perform." A row is a map keyed by
+request name, and multiple instantiations of the same name merge into one entry by union (mixing
+`throw[a]` and `throw[b]` produces `throw[a | b]`, still a single entry). The form
+`{...E, request[args]}` does not join by union; it overrides that one entry entirely. See
+[Effects]({docs}/{currentVersion}/language-reference/effects) and
+[Providers]({docs}/{currentVersion}/language-reference/providers) for details.
 
-## 推論のいま
+## The current state of inference
 
-呼び出しの generic instantiation は引数から推論されるが、**結果の型にしか現れない generic は
-推論できない** (`json.decode[T]` / `json.parse_as[T]` / `reflection` の一部など) — 呼び出し側が
-明示的に `foo[T](...)` と書く必要があり、書かなければ K3016 で拒否される。`use provider(...)` の
-束縛 (`let x = use provider(...)`) も同様の理由で型注釈が必須 (K3013) — provider の結果型は継続の
-型から決まるので、束縛側から与えないと双方向に依存が回ってしまう。
+A call's generic instantiation is inferred from its arguments, but **a generic that appears only
+in the result type cannot be inferred** (as with `json.decode[T]` / `json.parse_as[T]` and some of
+`reflection`). The caller must write it explicitly as `foo[T](...)`; omitting it is rejected with
+K3016. Binding the result of `use provider(...)` (`let x = use provider(...)`) requires a type
+annotation for the same reason (K3013): the provider's result type is determined by the
+continuation's type, so without the annotation on the binding side, the dependency would run in
+both directions at once.
 
-## 関連
+## Related
 
 <DocCards>
   <DocCard href="{docs}/{currentVersion}/language-reference/effects" />
