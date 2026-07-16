@@ -4,7 +4,7 @@ import rehypeSlug from "rehype-slug";
 import rehypeAutolinkHeadings from "rehype-autolink-headings";
 import rehypePrettyCode from "rehype-pretty-code";
 import { createHighlighter, type LanguageRegistration } from "shiki";
-import katariGrammarRaw from "./katari.tmLanguage.json";
+import katariGrammarRaw from "@katari-lang/language/grammar";
 
 const katariGrammar: LanguageRegistration = {
   ...(katariGrammarRaw as unknown as LanguageRegistration),
