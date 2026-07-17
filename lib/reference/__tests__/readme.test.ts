@@ -13,9 +13,7 @@ describe("prepareReadme", () => {
 
   it("leaves fenced code blocks untouched", () => {
     const input = "# Title\n\n```sh\n# a shell comment\n```\n\n## After";
-    expect(prepareReadme(input)).toBe(
-      "## Title\n\n```sh\n# a shell comment\n```\n\n### After",
-    );
+    expect(prepareReadme(input)).toBe("## Title\n\n```sh\n# a shell comment\n```\n\n### After");
   });
 
   it("ignores hash marks that are not headings", () => {
