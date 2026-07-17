@@ -2,8 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
-import { getPackageDocs, listReferencePackages } from "@/lib/reference/data";
+import { compileMDX } from "next-mdx-remote/rsc";
+import { latestVersion } from "@/lib/content";
+import { mdxOptions } from "@/lib/mdx/options";
+import { getPackageDocs, getPackageReadme, listReferencePackages } from "@/lib/reference/data";
 import { buildModuleToPackage } from "@/lib/reference/links";
+import { demoteReadmeHeadings } from "@/lib/reference/readme";
+import { buildMdxComponents } from "@/components/mdx/components";
 import { SidebarScrollContainer } from "@/components/docs/sidebar-scroll-container";
 import { DeclarationCard } from "@/components/reference/declaration-card";
 
@@ -39,6 +44,21 @@ export default async function ReferencePackagePage({ params }: Props) {
   // 全パッケージの module 一覧から解決マップを作る — 宣言リンクはパッケージ横断。
   const moduleToPackage = buildModuleToPackage(listReferencePackages());
 
+  // パッケージ tarball の README を docs と同じ MDX パイプラインで冒頭の Overview に描く。
+  // katari コードブロックのハイライトも同じ経路で効く。ctx の (version, slug) は `{docs}`
+  // 変数リンクの解決用で、README がそれを使うことは想定しない — 最新 docs version を既定にする。
+  const readme = getPackageReadme(packageName);
+  const overview =
+    readme === undefined
+      ? null
+      : (
+          await compileMDX({
+            source: demoteReadmeHeadings(readme),
+            components: buildMdxComponents({ version: latestVersion(), slug: [] }),
+            options: { mdxOptions },
+          })
+        ).content;
+
   const sidebar = (
     <nav aria-label="Module navigation" className="space-y-6">
       <Link
@@ -56,6 +76,14 @@ export default async function ReferencePackagePage({ params }: Props) {
           {docs.package.name} <span className="text-muted-foreground">v{docs.package.version}</span>
         </p>
       </div>
+      {overview !== null && (
+        <a
+          href="#overview"
+          className="block text-sm font-display-text font-semibold text-muted-foreground transition-colors hover:text-foreground"
+        >
+          Overview
+        </a>
+      )}
       <div className="space-y-2">
         <p className="text-sm font-display-text font-semibold">Modules</p>
         <ul className="space-y-1 border-l border-border">
@@ -98,6 +126,17 @@ export default async function ReferencePackagePage({ params }: Props) {
               </p>
             </header>
             <div className="space-y-12">
+              {overview !== null && (
+                <section id="overview" className="scroll-mt-24">
+                  <div className="flex items-baseline justify-between gap-2 border-b border-border pb-2">
+                    <h2 className="text-2xl font-display-text font-semibold text-foreground">
+                      Overview
+                    </h2>
+                    <span className="text-xs text-subtle-foreground">from the package README</span>
+                  </div>
+                  <div className="prose-content mt-4">{overview}</div>
+                </section>
+              )}
               {docs.modules.map((module) => (
                 <section key={module.name} id={module.name} className="scroll-mt-24">
                   <div className="flex items-baseline justify-between gap-2 border-b border-border pb-2">

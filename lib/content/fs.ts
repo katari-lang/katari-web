@@ -9,6 +9,14 @@ export function readJsonIfExists(filePath: string): unknown | undefined {
   }
 }
 
+export function readTextIfExists(filePath: string): string | undefined {
+  try {
+    return fs.readFileSync(filePath, "utf8");
+  } catch {
+    return undefined;
+  }
+}
+
 export function listSubdirs(dir: string): string[] {
   if (!fs.existsSync(dir)) return [];
   return fs

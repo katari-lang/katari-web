@@ -15,7 +15,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import type { PackageDocs, ReferenceIndex } from "../lib/reference/types";
+import type { PackageDocs, ReferenceIndex, ReferenceIndexEntry } from "../lib/reference/types";
 
 const registryDir =
   process.env.KATARI_REGISTRY_DIR ?? path.join(process.cwd(), "..", "katari-registry");
@@ -107,7 +107,7 @@ async function generatePackageDocs(
   name: string,
   pin: PackagePin,
   workDir: string,
-): Promise<PackageDocs> {
+): Promise<{ docs: PackageDocs; readme: string | null }> {
   const tarballPath = path.join(workDir, `${name}.tar.gz`);
   const sourceDir = path.join(workDir, name);
   fs.writeFileSync(tarballPath, await fetchTarball(name, pin));
@@ -125,10 +125,12 @@ async function generatePackageDocs(
       `[reference] warning: registry pins ${name}@${pin.version} but its katari.toml says ${docs.package.version}`,
     );
   }
-  return docs;
+  const readmePath = path.join(sourceDir, "README.md");
+  const readme = fs.existsSync(readmePath) ? fs.readFileSync(readmePath, "utf8") : null;
+  return { docs, readme };
 }
 
-function writeDocs(docs: PackageDocs): { name: string; version: string; modules: string[] } {
+function writeDocs(docs: PackageDocs): Omit<ReferenceIndexEntry, "hasReadme"> {
   const outPath = path.join(outDir, `${docs.package.name}.json`);
   // Compact JSON: these files are committed, and pretty-printing multiplies them ~4x.
   fs.writeFileSync(outPath, `${JSON.stringify(docs)}\n`);
@@ -151,14 +153,26 @@ async function main() {
   const pins = parsePackagePins(fs.readFileSync(packageSetPath, "utf8"), packageSetPath);
 
   fs.mkdirSync(outDir, { recursive: true });
+  // The readme mirror is rebuilt from scratch, so a package that drops its README on a pin
+  // bump also drops its copy here.
+  const readmeDir = path.join(outDir, "readme");
+  fs.rmSync(readmeDir, { recursive: true, force: true });
+  fs.mkdirSync(readmeDir, { recursive: true });
   const workDir = fs.mkdtempSync(path.join(os.tmpdir(), "katari-reference-"));
   try {
     const index: ReferenceIndex = { packages: [] };
-    // The prelude leads the index; registry packages follow in name order.
-    index.packages.push(writeDocs(runKatariDocs(["--stdlib"], "prelude")));
+    // The prelude leads the index; registry packages follow in name order. The prelude comes
+    // from the compiler binary, not a tarball, so it has no README to mirror.
+    index.packages.push({ ...writeDocs(runKatariDocs(["--stdlib"], "prelude")), hasReadme: false });
     for (const name of [...pins.keys()].sort()) {
       const pin = requirePin(name, pins.get(name)!);
-      index.packages.push(writeDocs(await generatePackageDocs(name, pin, workDir)));
+      const { docs, readme } = await generatePackageDocs(name, pin, workDir);
+      if (readme !== null) {
+        const readmePath = path.join(readmeDir, `${name}.md`);
+        fs.writeFileSync(readmePath, readme);
+        console.log(`[reference] ${name}: README.md → ${path.relative(process.cwd(), readmePath)}`);
+      }
+      index.packages.push({ ...writeDocs(docs), hasReadme: readme !== null });
     }
     const indexPath = path.join(outDir, "index.json");
     fs.writeFileSync(indexPath, `${JSON.stringify(index, null, 2)}\n`);

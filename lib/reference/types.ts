@@ -105,5 +105,11 @@ export type PackageDocs = {
   modules: DocsModule[];
 };
 
-export type ReferenceIndexEntry = { name: string; version: string; modules: string[] };
+export type ReferenceIndexEntry = {
+  name: string;
+  version: string;
+  modules: string[];
+  // True when the package tarball ships a README.md, mirrored to content/reference/readme/.
+  hasReadme: boolean;
+};
 export type ReferenceIndex = { packages: ReferenceIndexEntry[] };

@@ -6,8 +6,9 @@ const moduleToPackage = buildModuleToPackage([
     name: "prelude",
     version: "0.1.0",
     modules: ["prelude", "prelude.json", "prelude.reflection"],
+    hasReadme: false,
   },
-  { name: "ai", version: "0.1.0", modules: ["ai", "ai.types"] },
+  { name: "ai", version: "0.1.0", modules: ["ai", "ai.types"], hasReadme: true },
 ]);
 
 describe("buildModuleToPackage", () => {

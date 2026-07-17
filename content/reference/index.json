@@ -19,7 +19,8 @@
         "prelude.string",
         "prelude.time",
         "prelude.webhook"
-      ]
+      ],
+      "hasReadme": false
     },
     {
       "name": "ai",
@@ -29,42 +30,48 @@
         "ai.gemini",
         "ai.openai",
         "ai.types"
-      ]
+      ],
+      "hasReadme": true
     },
     {
       "name": "calendar",
       "version": "0.1.0",
       "modules": [
         "calendar"
-      ]
+      ],
+      "hasReadme": true
     },
     {
       "name": "e2b",
       "version": "0.1.0",
       "modules": [
         "e2b"
-      ]
+      ],
+      "hasReadme": true
     },
     {
       "name": "imagegen",
       "version": "0.1.0",
       "modules": [
         "imagegen"
-      ]
+      ],
+      "hasReadme": true
     },
     {
       "name": "tavily",
       "version": "0.1.0",
       "modules": [
         "tavily"
-      ]
+      ],
+      "hasReadme": true
     },
     {
       "name": "web",
       "version": "0.1.0",
       "modules": [
         "web"
-      ]
+      ],
+      "hasReadme": true
     }
   ]
 }

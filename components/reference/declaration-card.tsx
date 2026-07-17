@@ -127,16 +127,31 @@ export async function DeclarationCard({
         </DetailSection>
       )}
 
-      {declaration.schema !== null && (
+      {declaration.schema !== null ? (
         <WireView
           schema={declaration.schema}
           requestHrefs={declaration.schema.requests.map((request) =>
             resolveDeclarationHref(moduleToPackage, request.descriptor.name),
           )}
         />
+      ) : (
+        showWireViewHint(declaration) && (
+          <p className="mt-4 text-xs italic text-subtle-foreground">
+            Wire view — the wire shape is fixed at the call site, where the generic parameters are
+            instantiated.
+          </p>
+        )
       )}
     </section>
   );
+}
+
+/** A wire view is attached only to monomorphic declarations, so for a generic one its absence
+ *  is by design, not a generation gap — say so instead of silently omitting the section. Type
+ *  synonyms and marker effects are not wire-callable values at all and stay silent. */
+function showWireViewHint(declaration: Declaration): boolean {
+  if (declaration.generics.length === 0) return false;
+  return declaration.kind !== "type_synonym" && declaration.kind !== "marker_effect";
 }
 
 /** The signature is surface syntax; `checkedType` is the semantic truth (inference and

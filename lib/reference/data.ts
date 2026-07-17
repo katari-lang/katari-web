@@ -4,7 +4,7 @@
 // of crashing unrelated builds and tests.
 
 import path from "node:path";
-import { readJsonIfExists } from "../content/fs";
+import { readJsonIfExists, readTextIfExists } from "../content/fs";
 import type { PackageDocs, ReferenceIndex, ReferenceIndexEntry } from "./types";
 
 const REFERENCE_ROOT =
@@ -22,6 +22,13 @@ export function listReferencePackages(): ReferenceIndexEntry[] {
   // The index is produced by our own generator; a version-checked cast keeps the hot path
   // free of a full structural validation over megabytes of JSON.
   return (raw as ReferenceIndex).packages;
+}
+
+/** The package's README.md as mirrored from its pinned tarball by the generator; undefined
+ *  when the package ships none (`hasReadme` on the index entry says the same thing). */
+export function getPackageReadme(name: string): string | undefined {
+  if (!/^[a-z0-9_-]+$/i.test(name)) return undefined;
+  return readTextIfExists(path.join(REFERENCE_ROOT, "readme", `${name}.md`));
 }
 
 export function getPackageDocs(name: string): PackageDocs | undefined {
