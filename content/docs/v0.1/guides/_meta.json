@@ -1,4 +1,11 @@
 {
   "label": "Guides",
-  "order": ["index", "mcp"]
+  "order": [
+    "packages",
+    "mcp",
+    "webhooks",
+    "scheduled-jobs",
+    "secrets-and-credentials",
+    "ffi-sidecars"
+  ]
 }

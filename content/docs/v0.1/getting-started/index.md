@@ -1,15 +1,29 @@
 ---
-title: Introduction
-description: What Katari is, and how to read this documentation section.
+title: What is Katari?
+description: A language for orchestrating AI agents, with typed effects and a durable runtime.
 ---
 
-Katari is a language for writing the orchestration logic of AI agents. The compiler translates
-`.ktr` source into a JSON intermediate representation (IR), which a long-running runtime server
-executes and persists. Calling one agent from another (delegation), running work in parallel, and
-asking a human a question (escalation) are all expressed directly in the language's syntax.
+Katari is a programming language for **orchestration**: the layer of a system that decides
+which agent runs, with what input, what happens when one asks a human a question, and what
+survives a crash. You write that layer as a typed program; a persistent runtime executes it.
+
+Three ideas carry the whole language:
+
+- **Agents are functions.** An agent takes a labelled record in and returns a value out, and
+  both sides carry a JSON schema. Anything can call it — another agent, an HTTP client, an AI
+  model that discovered it as a tool.
+- **Effects are visible.** An agent's signature tracks the requests it may perform
+  (`with ask`). A request with a handler in scope is a function call; a request with no
+  handler **escalates** — the run parks as an open question a human answers, minutes or days
+  later.
+- **Execution is durable.** The runtime persists every step. A run can wait on a webhook, a
+  cron occurrence, or an OAuth authorization, survive a server restart, and resume exactly
+  where it parked.
+
+## A taste
 
 ```katari
-@"Ask a human for a decision. The run waits until an answer arrives."
+@"Ask a human to weigh in; the run waits until this question is answered."
 request ask(question: string) -> string
 
 @"Review one source by asking a human what stands out in it."
@@ -18,7 +32,7 @@ agent review(source: string) -> string with ask {
   f"${source}: ${note}"
 }
 
-@"Review all sources in parallel and combine the results into one report."
+@"Review every source in parallel, then join the findings into one report."
 agent main(sources: array[string]) -> string with ask {
   let notes = parallel for (let source in sources) {
     next review(source = source)
@@ -27,25 +41,31 @@ agent main(sources: array[string]) -> string with ask {
 }
 ```
 
-The `with ask` clause in each signature is the effect row: it records in the type that these
-agents may perform the `ask` request. Nothing here handles `ask`, so it escalates out of the run.
-The runtime shows the blocked delegation tree on the run page, and `katari answer` (or the inbox
-in the console) answers each question.
+`parallel for` fans each source out to its own thread. Nothing handles `ask`, so every
+question escalates: the run parks, the console shows the blocked tree, and each answer —
+from the inbox or `katari answer` — resumes its thread. The compiler checked all of it: the
+effect row, the schemas, the join.
 
-## How to read this section
+## What ships with it
 
-1. [Installation]({docs}/{currentVersion}/getting-started/installation) sets up the CLI and the
-   runtime.
-2. [Quickstart]({docs}/{currentVersion}/getting-started/quickstart) scaffolds a project, deploys
-   it, and runs it, in about five minutes.
-3. After that, [Language Reference]({docs}/{currentVersion}/language-reference) covers syntax,
-   types, and effects; [Standard Library]({docs}/{currentVersion}/standard-library) documents the
-   signature of each prelude agent; and [Guides]({docs}/{currentVersion}/guides) covers integrating
-   external systems such as MCP.
+- A **compiler** that lowers Katari source to an IR, and a **runtime server** that executes
+  IR snapshots against PostgreSQL — runs, escalations, and schedules all persist.
+- A **standard library** (`http`, `json`, `time`, `webhook`, `mcp`, `oauth`, `replay`, …) and
+  a **package registry** — `ai` (model-agnostic tool-calling over Anthropic / Gemini /
+  OpenAI), `discord`, `slack`, `google_calendar`, `tavily`, and more. Every API is documented
+  in the [reference](/reference).
+- **MCP in both directions**: consume any MCP server's tools as typed agents, or serve your
+  agents as an MCP server.
+- **Tooling**: a CLI, an LSP with a VSCode extension, and an admin web console with a live
+  run trace.
 
-<DocCards>
-  <DocCard href="{docs}/{currentVersion}/getting-started/installation" />
-  <DocCard href="{docs}/{currentVersion}/getting-started/quickstart" />
-  <DocCard href="{docs}/{currentVersion}/language-reference" />
-  <DocCard href="{docs}/{currentVersion}/katari-toolchains" />
-</DocCards>
+## Where to go next
+
+- [Installation]({docs}/{currentVersion}/getting-started/installation) — the CLI and a local
+  runtime.
+- [Quickstart]({docs}/{currentVersion}/getting-started/quickstart) — a project running in
+  five minutes.
+- [Tutorial]({docs}/{currentVersion}/tutorial) — build a Discord bot that talks to a model
+  and uses your agents as tools.
+- [Concepts]({docs}/{currentVersion}/concepts/agents-and-delegation) — the execution model,
+  one idea at a time.

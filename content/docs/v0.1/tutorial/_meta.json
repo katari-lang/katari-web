@@ -1,0 +1,11 @@
+{
+  "label": "Tutorial: an AI Discord bot",
+  "order": [
+    "index",
+    "hello-agent",
+    "effects-and-escalation",
+    "talking-to-a-model",
+    "giving-the-model-tools",
+    "a-discord-bot"
+  ]
+}

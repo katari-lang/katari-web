@@ -1,0 +1,4 @@
+{
+  "label": "Toolchain",
+  "order": ["cli", "runtime", "editor"]
+}

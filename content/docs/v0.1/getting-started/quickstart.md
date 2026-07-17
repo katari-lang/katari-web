@@ -1,27 +1,33 @@
 ---
 title: Quickstart
-description: From katari init to katari run, including answering one escalation from the terminal.
+description: Scaffold a project, start a local runtime, run an agent, and answer its escalation.
 ---
 
-This page assumes [Installation]({docs}/{currentVersion}/getting-started/installation) is done.
-It scaffolds a project, deploys it, and runs it.
+You need the CLI and Docker from [Installation]({docs}/{currentVersion}/getting-started/installation).
+Everything here happens in one terminal.
 
-## 1. Scaffold a project
+## Scaffold a project
 
 ```sh
-katari init my-project
-cd my-project
+katari init hello --dir hello
+cd hello
 ```
 
-This generates `katari.toml` (project configuration), `compose.yaml` and `.env.example` (for the
-self-hosted runtime), and `src/main.ktr`:
+```
+  + README.md
+  + compose.yaml
+  + .env.example
+  + .gitignore
+  + katari.toml
+  + src/main.ktr
+Initialized hello
+hint: docker compose up -d && katari apply && katari run
+```
 
-```katari title="src/main.ktr"
-// Your first Katari program. `main` asks its operator a question: the `ask_name` request
-// escalates out of the run, and `katari run` prompts you for the answer right in the
-// terminal (or answer later with `katari answer`). Delete the request once you have real
-// inputs; it is here to show the human-in-the-loop flow end to end.
+`katari.toml` names the package and points at a runtime (`http://localhost:3000` by default).
+`src/main.ktr` defines one request and one agent:
 
+```katari
 request ask_name(prompt: string) -> string
 
 agent main() -> string with ask_name {
@@ -30,56 +36,136 @@ agent main() -> string with ask_name {
 }
 ```
 
-Nothing handles `ask_name`, so it stays on `main`'s effect row: calling it produces an escalation.
+Nothing handles `ask_name`, so calling it **escalates**: the question leaves the run and waits
+for a human. You are about to be that human.
 
-## 2. Start the runtime
+## Start a local runtime
+
+The scaffolded `compose.yaml` runs the runtime image, PostgreSQL, and an S3-compatible blob
+store. It needs two keys in `.env`:
 
 ```sh
+export KATARI_API_KEY=$(openssl rand -hex 32)
 cp .env.example .env
-echo "KATARI_API_KEY=$(openssl rand -hex 32)"       >> .env
+echo "KATARI_API_KEY=$KATARI_API_KEY" >> .env
 echo "KATARI_SECRET_KEY=$(openssl rand -base64 32)" >> .env
 docker compose up -d
 ```
 
-The admin console starts at [http://localhost:3000](http://localhost:3000) and asks for
-`KATARI_API_KEY` on first access. The CLI reads the key from `.env`.
+`KATARI_API_KEY` is the bearer token every caller authenticates with; `KATARI_SECRET_KEY`
+encrypts secret values at rest. The runtime refuses to boot without either.
 
-## 3. Deploy and run
+**Note:** the CLI reads `KATARI_API_KEY` from your shell environment, not from `.env` — that
+is why the `export` comes first. In a new terminal, export it again (the value is in `.env`).
+
+## Compile and deploy
+
+```sh
+katari check
+```
+
+```
+OK — 16 module(s), no errors
+```
+
+`check` compiles locally and reports diagnostics; nothing leaves your machine. `apply`
+compiles too, then uploads the result to the runtime as an immutable **snapshot**:
 
 ```sh
 katari apply
-katari run
 ```
 
-`katari apply` compiles the project and deploys it to the runtime as a new snapshot. `katari run`
-lets you pick an agent interactively (this project has only `main.main`). Selecting it turns the
-`ask_name` escalation into a terminal prompt:
-
 ```
-? What is your name? Katari
-```
-
-After you answer, the run completes and prints the result:
-
-```
-Hello, Katari!
+Creating project hello
+Deploying hello to http://localhost:3000
+  16 changed, 0 unchanged, 0 removed
+  + main
+  + prelude
+  ...
+Applied snapshot 980c94ce-fa15-45bb-ac6c-3f9b064ee87b to project hello
 ```
 
-Pressing `Ctrl-C` detaches from the run without stopping it; it keeps running on the runtime. To
-answer later, or from a different process, use `katari status <run>` to see the open question and
-`katari answer <escalation>` to answer it.
+## Run it
 
-## Next steps
+```sh
+katari run main.main
+```
 
-- Edit the `request` and `use handler` in `src/main.ktr` to build an agent that takes real input.
-  See [Syntax]({docs}/{currentVersion}/language-reference/syntax) for the language grammar and
-  [Effects]({docs}/{currentVersion}/language-reference/effects) for the effect model.
-- Use `katari add` to add a registry package to `[dependencies]` in `katari.toml`.
-- See [CLI]({docs}/{currentVersion}/katari-toolchains/cli) for the full list of day-to-day
-  commands.
+```
+Started run 3acbdecd-f74c-424f-bff9-33087242aec2 (Ctrl-C detaches; the run keeps going)
+  12:11:34 delegate api→core main.main [04fbd8f5]
+  12:11:34 delegate core→core main.ask_name [e233d5ab]
+  12:11:34 escalate core→core request main.ask_name [e233d5ab/362ed1d7]
+  12:11:34 escalate core→api request main.ask_name [04fbd8f5/42d264c0]
 
-<DocCards>
-  <DocCard href="{docs}/{currentVersion}/language-reference/syntax" />
-  <DocCard href="{docs}/{currentVersion}/language-reference/effects" />
-  <DocCard href="{docs}/{currentVersion}/katari-toolchains/cli" />
-</DocCards>
+The run is asking main.ask_name: {"prompt":"What is your name?"}
+? answer (string) Ada
+Answered; waiting on the run again...
+  12:11:34 escalateAck api→core [04fbd8f5/42d264c0]
+  12:11:34 escalateAck core→core [e233d5ab/362ed1d7]
+  12:11:34 delegateAck core→core [e233d5ab]
+  12:11:34 delegateAck core→api [04fbd8f5]
+"Hello, Ada!"
+```
+
+The trace streams live: the run delegates to `main.main`, hits `ask_name`, and escalates.
+`katari run` turns the open question into a terminal prompt; your answer resumes the run,
+and the result comes back.
+
+## Answer from outside the run
+
+That inline prompt is a convenience, not the model. The escalation is a durable row on the
+runtime — the run parks on it for as long as it takes. Start a run without waiting on it:
+
+```sh
+katari run main.main --detach
+katari ls escalations
+```
+
+```
+ID        RUN       REQUEST        QUESTION                         CREATED
+0affdd73  f51154d2  main.ask_name  {"prompt":"What is your name?"}  2026-07-17 12:09
+```
+
+Answer it — hours later, from another machine, id prefixes are enough:
+
+```sh
+katari answer 0affdd73 --value '"Grace"'
+katari status f51154d2
+```
+
+```
+Run           f51154d2-1403-45c5-bb23-0016daf6320d
+Name          main.main
+Agent         main.main
+State         done
+Snapshot      980c94ce-fa15-45bb-ac6c-3f9b064ee87b
+Argument      {}
+Result        "Hello, Grace!"
+...
+```
+
+## Look at the console
+
+Open [http://localhost:3000](http://localhost:3000) and paste your `KATARI_API_KEY` (it is in `.env`). The console
+shows the project you just deployed: its runs with their delegation trees and traces, the
+escalation inbox — where you could have answered `ask_name` instead — snapshots, env
+entries, and files. [The runtime]({docs}/{currentVersion}/toolchain/runtime) tours the
+screens.
+
+When you are done:
+
+```sh
+docker compose down
+```
+
+State lives in named Docker volumes, so `up -d` brings everything back — including any run
+still parked on a question. Add `-v` to wipe it.
+
+## Next
+
+- [Tutorial]({docs}/{currentVersion}/tutorial) — from here to a Discord bot that gives a
+  model your agents as tools.
+- [Escalation]({docs}/{currentVersion}/concepts/escalation) — what actually happened when
+  `ask_name` had no handler.
+- [The CLI]({docs}/{currentVersion}/toolchain/cli) — the commands you just used, and the rest.

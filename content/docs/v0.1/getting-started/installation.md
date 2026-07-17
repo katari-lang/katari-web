@@ -1,61 +1,63 @@
 ---
 title: Installation
-description: Install the CLI with npm and start a self-hosted runtime with docker compose.
+description: Install the CLI, get a runtime, and set up your editor.
 ---
 
-Katari has two parts: the **CLI**, which compiles and deploys a project, and the **runtime**,
-which executes it.
+Katari is three installable pieces: a **CLI** (compiler included) from npm, a **runtime
+server** you start with Docker Compose, and an optional **VSCode extension**.
 
-## CLI
+## Prerequisites
 
-`@katari-lang/cli` is a thin Node shim. The actual work is done by a prebuilt native binary
-shipped in a `@katari-lang/cli-<platform>` package, which npm/pnpm selects automatically as an
-optional dependency.
+- **Node.js 18+** with npm or pnpm — the CLI ships as an npm package.
+- **Docker** with the Compose plugin — the local runtime runs as a compose stack.
+
+## The CLI
 
 ```sh
-npm i -g @katari-lang/cli
-# or, per project
-pnpm add -D @katari-lang/cli
+npm install -g @katari-lang/cli
 ```
 
-Supported platforms are `linux-x64` and `darwin-arm64` (Intel Macs run it through Rosetta 2). On
-other platforms, download a prebuilt tarball from [Releases](https://github.com/katari-lang/katari/releases)
-or build from source with `stack build`.
+This puts `katari` on your PATH. It carries the whole toolchain: the compiler, project and
+dependency management, and every runtime client command. Verify it:
 
 ```sh
 katari --version
-katari --help
 ```
 
-## Runtime
+```
+katari 0.1.0
+```
 
-Deploying and running a project requires a runtime. `katari init` (see the next section,
-[Quickstart]({docs}/{currentVersion}/getting-started/quickstart)) generates a `compose.yaml` that
-starts a self-hosted stack of three services: Postgres, an S3-compatible blob store (SeaweedFS),
-and the runtime image.
+**Note:** the package installs a prebuilt binary for linux-x64 and darwin-arm64. On another
+platform, download a tarball from the
+[GitHub releases](https://github.com/katari-lang/katari/releases) or build from source with
+stack.
+
+## The runtime
+
+There is nothing separate to install. `katari init` scaffolds a `compose.yaml` that runs the
+published runtime image next to PostgreSQL and a blob store; `docker compose up -d` in your
+project directory is the whole setup. The [Quickstart]({docs}/{currentVersion}/getting-started/quickstart)
+walks through it, and [The runtime]({docs}/{currentVersion}/toolchain/runtime) covers what is
+inside the stack and how to self-host it for real.
+
+## The editor extension
+
+Install the **Katari** extension from the VSCode Marketplace, or from the command line:
 
 ```sh
-cp .env.example .env
-echo "KATARI_API_KEY=$(openssl rand -hex 32)"       >> .env
-echo "KATARI_SECRET_KEY=$(openssl rand -base64 32)" >> .env
-docker compose up -d
+code --install-extension yukikurage.katari-vscode
 ```
 
-- `KATARI_API_KEY`: the key the CLI and the admin console use as a Bearer token to authenticate.
-  The runtime will not start without it.
-- `KATARI_SECRET_KEY`: the at-rest encryption key for secret values (base64, 32 bytes). This key
-  is distinct from `KATARI_API_KEY`.
+It gives you `.ktr` syntax highlighting, diagnostics as you type, hover types, go-to-definition,
+and completion — the language server is bundled, so there is nothing else to install. Details in
+[The editor]({docs}/{currentVersion}/toolchain/editor).
 
-Once started, the admin console (`/`) and the JSON API (`/api/v1`) both listen on the same port
-(3000 by default). The CLI reads `[runtime].url` from `katari.toml` (default
-`http://localhost:3000`) and `KATARI_API_KEY` from `.env` to connect. To point the runtime at
-cloud blob storage instead, remove `BLOB_S3_ENDPOINT`, set real AWS credentials, and remove the
-`seaweedfs` service.
+## Next
 
-## Related
-
-<DocCards>
-  <DocCard href="{docs}/{currentVersion}/getting-started/quickstart" />
-  <DocCard href="{docs}/{currentVersion}/katari-toolchains/cli" />
-  <DocCard href="{docs}/{currentVersion}/katari-toolchains/runtime" />
-</DocCards>
+- [Quickstart]({docs}/{currentVersion}/getting-started/quickstart) — a project running in five
+  minutes.
+- [The CLI]({docs}/{currentVersion}/toolchain/cli) — every command, in the order you reach for
+  them.
+- [Tutorial]({docs}/{currentVersion}/tutorial) — build up to a Discord bot with model-driven
+  tools.
