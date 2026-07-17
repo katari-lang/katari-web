@@ -1,15 +1,15 @@
 ---
 title: prelude.file
-description: file 値の内容・メタデータをランタイム内で読む — read_base64 / content_type / size。
+description: Read the content and metadata of a file value inside the runtime, read_base64, content_type, and size.
 ---
 
-`file` はプロジェクトの blob ストアへの薄いハンドルで、値自体は参照 (identity) だけを運ぶ — bytes と
-メタデータはランタイム側に留まるので、プログラムは file をコストなしに受け渡しでき、ハンドルの
-中身が古くなったり偽造されたりすることもない。ここの 3 つの primitive は、内容やメタデータを実際に
-読む必要がある場面 (マルチモーダルモデルの `inline_data` 用の base64 など) の橋渡しをする。
-default import 経由で `file.` qualified に呼ぶ。
+`file` is a thin handle onto the project's blob store. The value itself carries only a reference
+(identity); the bytes and metadata stay on the runtime side, so a program can pass a file around
+at no cost, and a handle can never go stale or be forged. The three primitives here bridge to the
+cases that need to actually read the content or metadata, such as producing base64 for a
+multimodal model's `inline_data`. They are called qualified as `file.` via the default import.
 
-## agent
+## Agents
 
 ### `file.read_base64`
 
@@ -17,8 +17,9 @@ default import 経由で `file.` qualified に呼ぶ。
 primitive agent read_base64(value: file) -> string
 ```
 
-file の bytes を base64 エンコードした文字列 — マルチモーダルモデル API の inline 形。内容全体が
-1 つの文字列として実体化するので、サイズに注意する (大きなファイルはリクエストボディも大きくなる)。
+The file's bytes as a base64-encoded string, the inline form used by multimodal model APIs. The
+entire content is materialized as a single string, so size matters: a large file produces a large
+request body.
 
 ### `file.content_type`
 
@@ -26,8 +27,8 @@ file の bytes を base64 エンコードした文字列 — マルチモーダ�
 primitive agent content_type(value: file) -> string
 ```
 
-プロジェクトのファイルカタログに記録された MIME タイプ (例: `"image/png"`)。アップロード時に
-何も記録されていなければ `""`。
+The MIME type recorded in the project's file catalog (for example `"image/png"`). `""` if nothing
+was recorded at upload time.
 
 ### `file.size`
 
@@ -35,9 +36,9 @@ primitive agent content_type(value: file) -> string
 primitive agent size(value: file) -> integer
 ```
 
-ファイルのバイト数。プロジェクトのファイルカタログから読む (内容のダウンロードは発生しない)。
+The file's size in bytes. Read from the project's file catalog; no content download occurs.
 
-## 関連
+## Related
 
 <DocCards>
   <DocCard href="{docs}/{currentVersion}/katari-toolchains/cli" />

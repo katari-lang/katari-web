@@ -1,58 +1,62 @@
 ---
 title: Partial Application
-description: 引数の一部を今固定し、残りを穴 `_` として残した residual agent を作る。
+description: Fixing some arguments now and leaving the rest as holes `_` produces a residual agent.
 ---
 
-agent 呼び出しの引数の一部を今のスコープで固定し、残りを穴 (`_`) として残すと、その穴だけを
-受け取る **residual agent** が得られる。設定値やハンドラをあらかじめ束ねてから、繰り返し呼び出す
-コールバックに渡す、といった合成に使う。
+Fixing some of an agent call's arguments in the current scope and leaving the rest as holes (`_`)
+produces a **residual agent** that takes only those holes as parameters. This is used for
+composition such as binding configuration values or a handler ahead of time, then passing the
+result as a callback that gets called repeatedly.
 
-## 構文
+## Syntax
 
-名前付き引数のうち、値を書いたものは **今固定** され、`_` を書いたものは **穴** になる。結果は
-穴として残したパラメータだけを取る新しい agent である。
+Among the named arguments, the ones given a value are **fixed now**, and the ones written as `_`
+become **holes**. The result is a new agent that takes only the parameters left as holes.
 
 ```katari title="scale.ktr"
-@"倍率と値を掛ける。"
+@"Multiplies a factor and a value."
 agent scale(factor: number, value: number) -> number {
   factor * value
 }
 
-@"`scale(factor = 2.0, value = _)` は factor を今固定し、
-residual `agent (value: number) -> number` を返す。以降の呼び出しは穴だけを渡す。"
+@"`scale(factor = 2.0, value = _)` fixes factor now and returns
+a residual `agent (value: number) -> number`. Later calls pass only the hole."
 agent doubles(values: array[number]) -> array[number] {
   let double = scale(factor = 2.0, value = _)
   for (let value in values) { next double(value = value) }
 }
 ```
 
-`scale(factor = 2.0, value = _)` の型は `agent (value: number) -> number`。固定した `factor` は
-束縛時に評価され、residual を何度呼んでも再評価されない。
+The type of `scale(factor = 2.0, value = _)` is `agent (value: number) -> number`. The fixed
+`factor` is evaluated at binding time, and is not re-evaluated no matter how many times the
+residual is called.
 
-## オプショナルパラメータ
+## Optional parameters
 
-穴にも値にもしなかったオプショナルパラメータは **省略され、defaulted のまま** になる。residual は
-そのパラメータを一切運ばず、呼び出しごとに callee 側の default が residual を通して埋める。
+An optional parameter left neither a hole nor a value is **omitted and stays defaulted**. The
+residual does not carry that parameter at all; the callee's default fills it in through the
+residual on every call.
 
 ```katari title="decorate.ktr"
-@"`body` を `prefix` と、既定 `\"!\"` の `suffix` で飾る。"
+@"Decorates `body` with `prefix` and a `suffix` that defaults to `\"!\"`."
 agent decorate(prefix: string, body: string, suffix: string ?= "!") -> string {
   f"${prefix}${body}${suffix}"
 }
 
-@"`prefix` を固定、`body` を穴、`suffix` は省略 (穴でも値でもない)。
-residual は `body` だけを運び、`suffix` は callee の default が埋める。"
+@"Fixes `prefix`, holes `body`, and leaves `suffix` omitted (neither hole nor value).
+The residual carries only `body`; the callee's default fills in `suffix`."
 agent marked() -> string {
   let mark = decorate(prefix = ">> ", body = _)
   mark(body = "hello")   // ">> hello!"
 }
 ```
 
-- 値を書いた引数 — 束縛時に固定される。
-- `_` を書いた引数 — residual のパラメータになる。
-- 省略したオプショナル引数 — defaulted のまま。residual には現れず、各呼び出しで default が埋める。
+- Arguments given a value: fixed at binding time.
+- Arguments written as `_`: become parameters of the residual.
+- Omitted optional arguments: stay defaulted. They do not appear in the residual; the default
+  fills them in on each call.
 
-## 関連
+## Related
 
 <DocCards>
   <DocCard href="{docs}/{currentVersion}/language-reference/providers" />

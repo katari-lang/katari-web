@@ -1,12 +1,13 @@
 ---
 title: prelude.array
-description: array[T] の操作 — get / append / concat / slice / contains / flatten / range。
+description: Operations on array[T], get / append / concat / slice / contains / flatten / range.
 ---
 
-`array[T]` の、リテラルや `for` のマッピングだけでは足りない操作。default import 経由で `array.`
-qualified に呼ぶ。パラメータは一貫して `target` という名前 (`prelude.record` と揃えている)。
+Operations on `array[T]` that literals and `for` mapping alone do not cover. Called qualified as
+`array.` via default import. The parameter is consistently named `target` (matching
+`prelude.record`).
 
-## agent
+## Agents
 
 ### `array.get`
 
@@ -14,7 +15,7 @@ qualified に呼ぶ。パラメータは一貫して `target` という名前 (`
 primitive agent get[T](target: array[T], index: integer) -> T | null
 ```
 
-`index` (0-based) の要素。範囲外なら `null`。
+The element at `index` (0-based). Returns `null` if out of range.
 
 ### `array.length`
 
@@ -22,7 +23,7 @@ primitive agent get[T](target: array[T], index: integer) -> T | null
 primitive agent length(target: array[unknown]) -> integer
 ```
 
-要素数。
+The number of elements.
 
 ### `array.append`
 
@@ -30,7 +31,7 @@ primitive agent length(target: array[unknown]) -> integer
 primitive agent append[T](target: array[T], value: T) -> array[T]
 ```
 
-末尾に `value` を足したコピーを返す。
+Returns a copy with `value` appended at the end.
 
 ### `array.concat`
 
@@ -38,7 +39,7 @@ primitive agent append[T](target: array[T], value: T) -> array[T]
 primitive agent concat[T](left: array[T], right: array[T]) -> array[T]
 ```
 
-`left` に続けて `right` の要素を並べた配列。
+An array with `right`'s elements placed after `left`'s.
 
 ### `array.slice`
 
@@ -46,7 +47,8 @@ primitive agent concat[T](left: array[T], right: array[T]) -> array[T]
 primitive agent slice[T](target: array[T], start: integer, end: integer) -> array[T]
 ```
 
-`start` (含む) から `end` (含まない) までの要素、0-based、範囲外は境界にクランプされる。
+The elements from `start` (inclusive) to `end` (exclusive), 0-based; out-of-range bounds are
+clamped.
 
 ### `array.contains`
 
@@ -54,7 +56,7 @@ primitive agent slice[T](target: array[T], start: integer, end: integer) -> arra
 primitive agent contains[T](target: array[T], value: T) -> boolean
 ```
 
-`value` が要素の中にあるか (`==` と同じ構造的等価性)。
+Whether `value` is among the elements (the same structural equality as `==`).
 
 ### `array.index_of`
 
@@ -62,7 +64,7 @@ primitive agent contains[T](target: array[T], value: T) -> boolean
 primitive agent index_of[T](target: array[T], value: T) -> integer | null
 ```
 
-`value` に構造的に等しい最初の要素のインデックス。無ければ `null`。
+The index of the first element structurally equal to `value`. Returns `null` if none.
 
 ### `array.flatten`
 
@@ -70,8 +72,8 @@ primitive agent index_of[T](target: array[T], value: T) -> integer | null
 primitive agent flatten[T](target: array[array[T]]) -> array[T]
 ```
 
-ネストを 1 段外して要素を順に連結する。`for` のマッピングと組み合わせると filter イディオムになる:
-各要素を `[x]` か `[]` に map してから flatten する。
+Removes one level of nesting, concatenating the elements in order. Combined with `for` mapping, it
+forms the filter idiom: map each element to `[x]` or `[]`, then flatten.
 
 ### `array.reverse`
 
@@ -79,7 +81,7 @@ primitive agent flatten[T](target: array[array[T]]) -> array[T]
 primitive agent reverse[T](target: array[T]) -> array[T]
 ```
 
-要素を逆順にした配列。
+An array with the elements in reverse order.
 
 ### `array.range`
 
@@ -87,8 +89,8 @@ primitive agent reverse[T](target: array[T]) -> array[T]
 primitive agent range(start: integer, end: integer) -> array[integer]
 ```
 
-`start` (含む) から `end` (含まない) までの整数 — `for` の回数指定ループの元になる。
-`end <= start` なら空。
+The integers from `start` (inclusive) to `end` (exclusive); the basis for a `for` loop with a
+fixed count. Empty if `end <= start`.
 
 ### `array.empty`
 
@@ -96,9 +98,9 @@ primitive agent range(start: integer, end: integer) -> array[integer]
 primitive agent empty() -> array[never]
 ```
 
-空の配列。
+An empty array.
 
-## 関連
+## Related
 
 <DocCards>
   <DocCard href="{docs}/{currentVersion}/standard-library/record" />

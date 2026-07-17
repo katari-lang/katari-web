@@ -1,19 +1,22 @@
 ---
 title: Language Overview
-description: Katari 言語仕様の入口 — 構文・型・effect と、それぞれを深掘りする各ページ。
+description: Entry point to the Katari language reference, covering syntax, types, and effects, with links to the pages that go deeper on each.
 ---
 
-Katari は agent 間の delegation・並列実行・capability の受け渡しをそのまま構文で表す言語である。
-このセクションは言語仕様のリファレンス。まずどこから読むかの案内:
+Katari is a language that expresses delegation between agents, parallel execution, and the
+passing of capabilities directly in its syntax. This section is the language reference. Here is
+where to start:
 
-- **構文が知りたい** → [Syntax]({docs}/{currentVersion}/language-reference/syntax) — 宣言・
-  `match` / `for` / `parallel`・`use` / `finally`・部分適用の `_`。
-- **型システムが知りたい** → [Types]({docs}/{currentVersion}/language-reference/types) — 基本型・
-  object 型・direct union・private/public 属性・effect row の型の形。
-- **副作用のモデルが知りたい** → [Effects]({docs}/{currentVersion}/language-reference/effects) —
-  `request` / `use handler`、escalation、`throw[T]` と `panic` の使い分け。
+- **To learn the syntax**, see [Syntax]({docs}/{currentVersion}/language-reference/syntax):
+  declarations, `match` / `for` / `parallel`, `use` / `finally`, and the partial application hole
+  `_`.
+- **To learn the type system**, see [Types]({docs}/{currentVersion}/language-reference/types):
+  basic types, object types, direct unions, private/public attributes, and the shape of effect
+  row types.
+- **To learn the effect model**, see [Effects]({docs}/{currentVersion}/language-reference/effects):
+  `request` / `use handler`, escalation, and the distinction between `throw[T]` and `panic`.
 
-個々のトピックを深掘りするページも独立して読める:
+Each topic also has its own page that can be read independently:
 
 <DocCards>
   <DocCard href="{docs}/{currentVersion}/language-reference/syntax" />
@@ -24,6 +27,6 @@ Katari は agent 間の delegation・並列実行・capability の受け渡し�
   <DocCard href="{docs}/{currentVersion}/language-reference/finally" />
 </DocCards>
 
-prelude 各サブモジュールの正確なシグネチャは
-[Standard Library]({docs}/{currentVersion}/standard-library)、外部統合の手引きは
-[Guides]({docs}/{currentVersion}/guides) を参照。
+For the exact signature of each prelude submodule, see
+[Standard Library]({docs}/{currentVersion}/standard-library); for guides to integrating external
+systems, see [Guides]({docs}/{currentVersion}/guides).

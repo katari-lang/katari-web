@@ -1,37 +1,40 @@
 ---
 title: Providers (use)
-description: use 文で capability を導入する — handler リテラルから、引数を取る provider agent まで一様な適用形式。
+description: The use statement introduces a capability, a single application form spanning handler literals up through provider agents that take arguments.
 ---
 
-`use handler { ... }` は、その後の block に capability を導入する。同じ導入をパラメータ化して
-関数 (provider) に切り出せば、設定込みの capability をアプリのルートで積み重ねて合成できる —
-`use gemini_provider(model = ..., api_key = ...)` のように。
+`use handler { ... }` introduces a capability to the block that follows. Parameterizing that same
+introduction and factoring it out into a function (a provider) lets capabilities with
+configuration be stacked and composed at the app's root, as in
+`use gemini_provider(model = ..., api_key = ...)`.
 
-## use は適用形式
+## use is an application form
 
-`use <provider>` の provider に許される形は次の 4 つで、意味は常に一つ —
-**provider を「書いた引数 ∪ continuation」に一回適用する**。continuation は `use` の後に続く残りの
-block である。
+The provider in `use <provider>` may take one of four forms, and the meaning is always the same:
+**the provider is applied once to "the written arguments union the continuation."** The
+continuation is the rest of the block that follows the `use`.
 
-| 形                   | 例                                                     |
-| -------------------- | ------------------------------------------------------ |
-| handler リテラル     | `use handler { request tick() -> integer { next 0 } }` |
-| (qualified) 名前     | `use my_provider`                                      |
-| 明示インスタンス化   | `use my_provider[integer]`                             |
-| 適用 `callee(args…)` | `use my_provider(base = 1)`                            |
+| Form                        | Example                                                |
+| --------------------------- | ------------------------------------------------------ |
+| Handler literal             | `use handler { request tick() -> integer { next 0 } }` |
+| (Qualified) name            | `use my_provider`                                      |
+| Explicit instantiation      | `use my_provider[integer]`                             |
+| Application `callee(args…)` | `use my_provider(base = 1)`                            |
 
-bare 形 (名前・インスタンス化) は零引数の適用である。フィールド読みや `match` など、それ以外の式は
-**K3011** で拒否される — `let p = <式>` に束ねてから `use p`、または `use <式>(args…)` と書き直す。
-形によって意味が変わる余地はない。
+The bare forms (name, instantiation) are applications with zero arguments. Any other expression,
+such as a field read or a `match`, is rejected with **K3011**. Bind it to `let p = <expr>` and
+then write `use p`, or rewrite it as `use <expr>(args…)`. There is no room for the meaning to vary
+by form.
 
-## provider はただの agent
+## A provider is just an agent
 
-provider は `continuation` パラメータを持つ普通の agent である。`continuation` は `use` 適用内の
-**予約ラベル** で、明示的に渡すと拒否される (K3019)。もっとも単純な provider は continuation に値を
-供給するだけで、R と effect E について generic に書ける。
+A provider is an ordinary agent with a `continuation` parameter. `continuation` is a **reserved
+label** within a `use` application, and passing it explicitly is rejected (K3019). The simplest
+provider only supplies a value to the continuation, and can be written generically over the
+result type R and effect E.
 
 ```katari title="supply.ktr"
-@"config 引数 + continuation を 1 つのパラメータレコードに持つ provider。"
+@"Provider with a config argument plus continuation, in a single parameter record."
 agent supply[R, effect E](
   base: integer,
   continuation: agent (value: integer) -> R with E,
@@ -45,19 +48,20 @@ agent supplied() -> integer {
 }
 ```
 
-`use supply(base = 10)` は `supply(base = 10, continuation = <残りの block>)` として一回適用される。
-continuation の結果型 R と effect E は、この単一の呼び出しサイトから推論される。continuation が行う
-request は、推論された E に乗って囲みの agent へ流れる。
+`use supply(base = 10)` is applied once, as `supply(base = 10, continuation = <the rest of the
+block>)`. The continuation's result type R and effect E are inferred from this single call site.
+Requests the continuation performs ride on the inferred E and flow to the enclosing agent.
 
-## capability を導入する provider
+## A provider that introduces a capability
 
-continuation が使う request を provider が handler で discharge すると、provider は capability を
-導入する。continuation のシグネチャにその request を宣言し、provider の内側で処理する。
+When a provider discharges, with a handler, a request that the continuation uses, the provider
+introduces a capability. The request is declared on the continuation's signature, and handled
+inside the provider.
 
 ```katari title="key_provider.ktr"
 request get_key() -> string of private
 
-@"api_key を `get_key` capability として continuation に導入する provider。"
+@"Provider that introduces api_key to the continuation as the `get_key` capability."
 agent key_provider(
   api_key: string of private,
   continuation: agent (value: null) -> string with get_key,
@@ -75,20 +79,20 @@ agent client() -> string {
 }
 ```
 
-`use key_provider(api_key = ...)` の後の block が continuation になり、その中で `get_key` が使える。
-provider の handler がそれを discharge するので、`client` の外へは escalate しない。
+The block after `use key_provider(api_key = ...)` becomes the continuation, and `get_key` can be
+used within it. The provider's handler discharges it, so it does not escalate outside `client`.
 
-## use の束縛と注釈
+## Binding and annotating use
 
-`let x = use provider(...)` は continuation の **値** を束縛する (continuation が受け取る `value`)。
-この形は型注釈が必須で、無いと **K3013** になる。
+`let x = use provider(...)` binds the continuation's **value** (the `value` the continuation
+receives). This form requires a type annotation; without one, it is **K3013**.
 
 ```katari
 let start: integer = use supply(base = 10)   // OK
-// let start = use supply(base = 10)          // K3013: 注釈が必要
+// let start = use supply(base = 10)          // K3013: annotation required
 ```
 
-## 関連
+## Related
 
 <DocCards>
   <DocCard href="{docs}/{currentVersion}/language-reference/effects" />

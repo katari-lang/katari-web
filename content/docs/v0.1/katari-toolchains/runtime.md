@@ -1,78 +1,84 @@
 ---
 title: Runtime
-description: 常駐サーバー — snapshot・durable execution・escalation の park・7 つの reactor。
+description: The long-running server, snapshots, durable execution, escalation park, and the seven reactors.
 ---
 
-`typescript/runtime` は IR を実行し、実行状態を永続化する常駐サーバー (Hono ベース、単一の Node
-プロセス)。JSON API (`/api/v1`、CLI がここに繋ぐ) と、そこに焼き込まれた admin web console
-(`/`) を同じポートで両方サーブする。
+`typescript/runtime` is the long-running server that executes IR and persists execution state
+(Hono-based, a single Node process). It serves both the JSON API (`/api/v1`, which the CLI
+connects to) and the admin web console baked into it (`/`) on the same port.
 
-## 階層: project / snapshot / instance
+## Hierarchy: project / snapshot / instance
 
-- **project** — デプロイ・隔離の最上位単位 (1 project = 1 app)。明示的に削除するまで残る。
-- **snapshot** — code version。中身は module 名 → module hash の manifest で、実体の IR は
-  content-addressed な module store が持つ。`katari apply` は変更のあった module の IR だけを
-  アップロードし (差分は転送の最適化に過ぎず、コミットされる snapshot は常に **完全な** manifest)、
-  project の head を新しい snapshot へ前進させる。`katari project rollback` で head を古い
-  snapshot に戻せる。
-- **instance** — 走行中の 1 agent activation。`delegate` で召喚され、状態 (scope) と finalizer
-  スタックを持ち、`return` / cancel で消える。
+- **project**: the top-level unit of deployment and isolation (one project equals one app). It
+  persists until explicitly deleted.
+- **snapshot**: a code version. Its content is a manifest mapping module name to module hash; the
+  actual IR is held by a content-addressed module store. `katari apply` uploads only the IR for
+  modules that changed (the diff is purely a transfer optimization; the snapshot that gets
+  committed always has a **complete** manifest), and advances the project's head to the new
+  snapshot. `katari project rollback` moves the head back to an older snapshot.
+- **instance**: one running agent activation. It is summoned by `delegate`, holds state (a scope)
+  and a finalizer stack, and disappears on `return` or cancel.
 
-## instance は起動時の snapshot を pin する
+## An instance pins the snapshot it started with
 
-走行中の instance は起動時の snapshot を pin し、生きている間ずっとその版の一貫した世界を見る —
-依存 module を新しい snapshot にデプロイしても、既存の instance には影響しない。この保証は
-特別な機構なしに成り立つ: instance 内で新しい agent を呼ぶ (`delegate`) たびに、**呼び出し元
-instance 自身の snapshot がそのままスタンプされる**。head を見るのは instance が外部トリガ
-(run の開始、webhook の配信など) で生まれる瞬間だけで、以降の内部 delegation は自分の snapshot を
-継承し続ける。
+A running instance pins the snapshot it started with and sees a consistent view of that version
+for as long as it lives. Deploying a dependency module in a new snapshot does not affect an
+existing instance. This guarantee holds without any special mechanism: each time an instance calls
+a new agent (`delegate`), **the calling instance's own snapshot is stamped onto it directly**. The
+head is consulted only at the moment an instance is born from an external trigger (the start of a
+run, a webhook delivery, and so on); every internal delegation after that inherits its own
+snapshot.
 
-## durable execution
+## Durable execution
 
-runtime はターン境界 (エフェクトを伴う leaf delegation) ごとに instance の状態を永続化する。
-これにより:
+The runtime persists instance state at each turn boundary (a leaf delegation that performs an
+effect). This gives:
 
-- **escalation は park する** — 未処理の `request` が run の外まで達すると、run はそのまま
-  待機状態になり、`katari answer` や console から回答が来るまでプロセスを消費しない。
-  ([Effects]({docs}/{currentVersion}/language-reference/effects) の escalation を参照。)
-- **再起動から復元する** — プロセスが落ちても、次回起動時に永続化された instance グラフから
-  再開する。in-flight だった外部呼び出し (FFI / http / mcp) は「完了したかどうか分からない」
-  状態になり得るので、**at-most-once** で扱う: 再起動をまたいで進行中だった呼び出しは再実行せず、
-  失敗として決着させる (katari 側の retry は言語レベルの選択であり、ランタイムが黙って再実行する
-  ことはない)。`time` / `webhook` は照合すべき外部プロセスが無いので再起動を完全に生き延びる —
-  timer は永続化された deadline から re-arm し、endpoint は再登録される。
-- `finally` で armed した finalizer は、正常完了・キャンセルの直前に必ず (逆順で) 走る — 詳細は
-  [finally]({docs}/{currentVersion}/language-reference/finally)。
+- **Escalations park.** When an unhandled `request` reaches all the way out of a run, the run
+  enters a waiting state and consumes no process resources until an answer arrives from
+  `katari answer` or the console. (See escalation in
+  [Effects]({docs}/{currentVersion}/language-reference/effects).)
+- **It restores from a restart.** If the process goes down, it resumes from the persisted instance
+  graph on next startup. An external call that was in flight (FFI / http / mcp) can end up in a
+  state where it is unknown whether it completed, so it is treated as **at-most-once**: a call that
+  was in progress across a restart is not re-executed and is settled as a failure instead
+  (retrying is a language-level choice made by katari code, not something the runtime does
+  silently). `time` and `webhook` have no external process to reconcile against, so they survive a
+  restart completely: a timer re-arms from its persisted deadline, and an endpoint is
+  re-registered.
+- A finalizer armed with `finally` always runs, in reverse order, immediately before normal
+  completion or cancellation. See [finally]({docs}/{currentVersion}/language-reference/finally) for
+  details.
 
-## reactor
+## Reactor
 
-`external agent` の呼び出しは、宣言の `from "reactor"` 節 (省略時は FFI) が指す reactor が
-実行する。runtime にはちょうど 7 つある:
+A call to an `external agent` is executed by the reactor named in the declaration's
+`from "reactor"` clause (FFI if omitted). The runtime has exactly seven:
 
-| reactor   | 役割                                                                                                                  |
-| --------- | --------------------------------------------------------------------------------------------------------------------- |
-| `core`    | コンパイル済み agent / closure の呼び出しを実行する (`OperationDelegate` の既定先)                                    |
-| `api`     | run の開始・cancel・escalation への回答という、外部イベントの起点                                                     |
-| `http`    | `http.fetch` / `post_json` — in-runtime の HTTP クライアント (sidecar 不要)                                           |
-| `webhook` | `webhook.inbound` — 動的な公開 URL を発行し、POST を callback 呼び出しに変換する                                      |
-| `mcp`     | `mcp.provide` / `call` / `serve` — in-runtime の MCP クライアント / サーバー                                          |
-| `time`    | `time.now` / `sleep` / `sleep_until` / `watch` — durable な時計とタイマー (deadline は永続化され再起動で re-arm する) |
-| `ffi`     | `from` を省略した `external agent` — プロジェクトの TypeScript sidecar プロセスへ dispatch する                       |
+| reactor   | Role                                                                                                                       |
+| --------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `core`    | Executes calls to compiled agents / closures (the default target of `OperationDelegate`)                                   |
+| `api`     | The entry point for external events: starting a run, cancel, and answering escalations                                     |
+| `http`    | `http.fetch` / `post_json`, an in-runtime HTTP client (no sidecar needed)                                                  |
+| `webhook` | `webhook.inbound`, issues a dynamic public URL and turns a POST into a callback call                                       |
+| `mcp`     | `mcp.provide` / `call` / `serve`, an in-runtime MCP client / server                                                        |
+| `time`    | `time.now` / `sleep` / `sleep_until` / `watch`, a durable clock and timers (deadlines are persisted and re-arm on restart) |
+| `ffi`     | An `external agent` with `from` omitted, dispatches to the project's TypeScript sidecar process                            |
 
-`http` / `webhook` / `mcp` / `time` はいずれも「ランタイムに組み込まれた外部呼び出し」で、ユーザーが SDK を
-install する必要がない。`ffi` だけがプロジェクト固有の sidecar プロセスを要求し (`@katari-lang/port`
-で書く)、`katari apply` がそれをバンドルして runtime に配る。sidecar のハンドラは inner delegation
-で katari 側の agent を呼び返せる (`context.call`)。
+`http`, `webhook`, `mcp`, and `time` are all external calls built into the runtime; the user does
+not need to install an SDK. Only `ffi` requires a project-specific sidecar process (written with
+`@katari-lang/port`), which `katari apply` bundles and delivers to the runtime. A sidecar handler
+can call back into a katari-side agent through an inner delegation (`context.call`).
 
-## デプロイ (self-hosted)
+## Deployment (self-hosted)
 
-`katari init` が生成する `compose.yaml` は Postgres・S3 互換の blob ストア (SeaweedFS)・runtime
-イメージ (`ghcr.io/katari-lang/katari:<version>`) の 3 サービスを立てる。runtime は
-`KATARI_API_KEY` (CLI / console が Bearer で認証する) と `KATARI_SECRET_KEY` (secret の at-rest
-暗号化キー) が無いと起動しない。詳細な手順は
-[Installation]({docs}/{currentVersion}/getting-started/installation) を参照。
+The `compose.yaml` generated by `katari init` starts three services: Postgres, an S3-compatible
+blob store (SeaweedFS), and the runtime image (`ghcr.io/katari-lang/katari:<version>`). The runtime
+will not start without `KATARI_API_KEY` (which the CLI and console authenticate with as a Bearer
+token) and `KATARI_SECRET_KEY` (the at-rest encryption key for secrets). See
+[Installation]({docs}/{currentVersion}/getting-started/installation) for detailed steps.
 
-## 関連
+## Related
 
 <DocCards>
   <DocCard href="{docs}/{currentVersion}/language-reference/effects" />

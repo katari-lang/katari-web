@@ -1,26 +1,26 @@
 ---
 title: Katari Toolchains
-description: compiler / runtime / lsp / cli の全体像 — .ktr からデプロイ・実行・編集支援まで。
+description: An overview of the compiler, runtime, lsp, and cli, from .ktr to deployment, execution, and editor support.
 ---
 
-Katari のツールチェインは 4 つのコンポーネントからなる。
+The Katari toolchain consists of four components.
 
 ```
-.ktr ソース ──[compiler]──▶ IR (JSON, module 単位) ──[katari apply]──▶ [runtime] ──▶ instance の実行
+.ktr source ──[compiler]──▶ IR (JSON, per module) ──[katari apply]──▶ [runtime] ──▶ instance execution
      ▲                                                                       │
-     └──[lsp]── エディタ (hover / completion / definition / references) ◀────┘ (診断は compiler を再利用)
+     └──[lsp]── editor (hover / completion / definition / references) ◀────┘ (diagnostics reuse the compiler)
 ```
 
-| コンポーネント                                                 | 実体                 | 役割                                                               |
-| -------------------------------------------------------------- | -------------------- | ------------------------------------------------------------------ |
-| [Compiler]({docs}/{currentVersion}/katari-toolchains/compiler) | `haskell/compiler`   | `.ktr` を module 単位の IR JSON にコンパイルし、diagnostics を出す |
-| [Runtime]({docs}/{currentVersion}/katari-toolchains/runtime)   | `typescript/runtime` | IR を実行・永続化する常駐サーバー                                  |
-| [LSP]({docs}/{currentVersion}/katari-toolchains/lsp)           | `haskell/lsp`        | エディタ向けの hover / completion / definition / references        |
-| [CLI]({docs}/{currentVersion}/katari-toolchains/cli)           | `haskell/cli`        | プロジェクトの scaffold・コンパイル・デプロイ・run の管理          |
+| Component                                                      | Implementation       | Role                                                             |
+| -------------------------------------------------------------- | -------------------- | ---------------------------------------------------------------- |
+| [Compiler]({docs}/{currentVersion}/katari-toolchains/compiler) | `haskell/compiler`   | Compiles `.ktr` into per-module IR JSON and produces diagnostics |
+| [Runtime]({docs}/{currentVersion}/katari-toolchains/runtime)   | `typescript/runtime` | The long-running server that executes and persists IR            |
+| [LSP]({docs}/{currentVersion}/katari-toolchains/lsp)           | `haskell/lsp`        | Hover / completion / definition / references for editors         |
+| [CLI]({docs}/{currentVersion}/katari-toolchains/cli)           | `haskell/cli`        | Scaffolds, compiles, deploys, and manages runs for a project     |
 
-コンパイラと LSP は Haskell (同じ diagnostics 基盤を共有する)、ランタイムは TypeScript
-(Node 上の Hono サーバー)。CLI は Haskell 本体を npm 経由でも配布する
-([Installation]({docs}/{currentVersion}/getting-started/installation) 参照)。
+The compiler and the LSP are written in Haskell and share the same diagnostics infrastructure. The
+runtime is written in TypeScript, as a Hono server on Node. The CLI distributes its Haskell binary
+through npm as well (see [Installation]({docs}/{currentVersion}/getting-started/installation)).
 
 <DocCards>
   <DocCard href="{docs}/{currentVersion}/katari-toolchains/compiler" />

@@ -1,20 +1,21 @@
 ---
 title: finally
-description: instance の終了時に必ず走る finalizer を積む文 — 正常完了でもキャンセルでも走り、panic では走らない。
+description: The statement that arms a finalizer guaranteed to run when an instance ends, on normal completion and on cancellation, but not on panic.
 ---
 
-長寿命の agent instance には、正常終了でもキャンセルでも最後に必ず走らせたい後始末がある
-(確保したリソースの解放、外部への「もう使わない」通知など)。`finally` は Go の `defer` に相当する
-専用の **文** で、その後始末を漏れなく表現する。
+A long-lived agent instance can have cleanup that must run at the very end regardless of whether
+it terminates normally or is canceled (releasing an acquired resource, notifying an external
+system that it is no longer in use, and so on). `finally` is a dedicated **statement** equivalent
+to Go's `defer`, and expresses that cleanup without gaps.
 
-## 構文と意味
+## Syntax and meaning
 
-`finally { <block> }` は文であり、値を返さない。評価すると、その block を現在の instance の
-**finalizer スタックに積む** (arming)。body はパラメータを持たず、囲みスコープを通常の parent chain
-越しに読む。
+`finally { <block> }` is a statement, and returns no value. Evaluating it pushes the block onto
+the current instance's **finalizer stack** (arming). The body takes no parameters, and reads the
+enclosing scope through the normal parent chain.
 
 ```katari title="finalizers.ktr"
-@"後始末に使う capability — それを使う finalizer の内側で提供し、discharge する。"
+@"Capability used for cleanup, provided and discharged inside the finalizer that uses it."
 request cleanup() -> null
 
 agent run() -> string {
@@ -29,47 +30,55 @@ agent run() -> string {
 }
 ```
 
-## 発火のタイミングと順序
+## Firing order and timing
 
-armed finalizer は、instance が自分の terminal を ack する直前に **arming の逆順** で走る。
-同じ `finally` を二度通れば (ループ body など) 二度積まれる — これはスタック規律である。
+An armed finalizer runs in **the reverse order of arming**, immediately before the instance acks
+its own terminal. Passing through the same `finally` twice (as in a loop body) arms it twice; this
+is stack discipline.
 
-| 状況                                              | finalizer は走るか                                |
-| ------------------------------------------------- | ------------------------------------------------- |
-| 正常完了 (delegate ack の直前)                    | 走る                                              |
-| キャンセル到着 (cancel ack の直前)                | 走る                                              |
-| panic (instance 異常終了)                         | 走らない                                          |
-| ハンドラ待ちで停止中 (キャンセルがまだ来ていない) | 走らない (キャンセルが実際に到着してはじめて走る) |
+| Situation                                                         | Does the finalizer run?                                        |
+| ----------------------------------------------------------------- | -------------------------------------------------------------- |
+| Normal completion (immediately before the delegate ack)           | Runs                                                           |
+| Cancellation arrives (immediately before the cancel ack)          | Runs                                                           |
+| Panic (abnormal instance termination)                             | Does not run                                                   |
+| Suspended waiting on a handler (cancellation has not yet arrived) | Does not run (it runs only once cancellation actually arrives) |
 
-正常完了の ack もキャンセルの ack も、どちらも terminal を確定させる一手前で同じ finalizer スタックを
-消化する。panic は後始末の前提 (スコープが健全) を壊しているので、意図的に走らせない。
+Both the normal-completion ack and the cancellation ack drain the same finalizer stack, one step
+before the terminal is finalized. Panic breaks the precondition for cleanup, that the scope is
+sound, so finalizers are deliberately not run.
 
-## io 限定規則 (K3021)
+## The io-only rule (K3021)
 
-finalizer body の **残余 effect row は `io` の範囲内** でなければならない。finalizer は、親がすでに
-この instance のキャンセルを待っている最中に走り得る。`io` は sibling reactor に流れて親を経由しない
-が、request (escalation) は親を経由して proxy されるため、finalizer からの escalation はその待ちと
-デッドロックし得る。これを避けるため、残余に残る request をコンパイル時に禁じる (K3021)。
+A finalizer body's **residual effect row must stay within `io`**. A finalizer can run while the
+parent is already waiting on this instance's cancellation. `io` flows to a sibling reactor without
+passing through the parent, but a request (an escalation) is proxied through the parent, so an
+escalation from a finalizer could deadlock against that wait. To prevent this, requests remaining
+in the residual are forbidden at compile time (K3021).
 
-- body 内で `use handler` により **ローカルに処理された** request は残余に現れないので OK
-  (上の例の `cleanup` はこれ)。
-- 制御 escape (`return` / `break` / `next`) も、終了時には行き先が無いので残余に残れば K3021。
-- 検査は既存の推論が計算する **残余 row にだけ** `⊆ io` を課す。
+- A request **handled locally** in the body by a `use handler` does not appear in the residual, so
+  it is fine (`cleanup` in the example above is this case).
+- Control escapes (`return` / `break` / `next`) also have nowhere to go at termination, so they
+  trigger K3021 if they remain in the residual.
+- The check imposes `⊆ io` only on the **residual row** that the existing inference already
+  computes.
 
-正しい finalizer が行い得る effect は `io` に限られるので、それが囲みの effect row に寄与するのも
-`io` だけである (`finally` の body が io を行う agent は、その row に `io` を持つ)。
+Because the effects a correct finalizer can perform are limited to `io`, that is also the only
+thing it contributes to the enclosing effect row (an agent whose `finally` body performs io
+carries `io` on its row).
 
-## 原子性と panic
+## Atomicity and panic
 
-- finalizer 実行中の turn は、キャンセルが到着しても割り込まれず、1 つの atomic commit として畳まれる
-  (既存の turn batching に乗る)。到着したキャンセルは実行後まで保留され、最終的な ack は変換される —
-  finalizer を二重に走らせない。
-- finalizer 自身が panic したら、それは instance の panic として扱う (後始末の失敗は握り潰さない)。
-- 既知のトレードオフ: finalizer が `io` (外部呼び出し) でハングすると、その finalizer は割り込めない —
-  instance の terminal はその io の完了を待つ。長時間の外部処理は finalizer ではなく通常の body 側に
-  置く。
+- A turn during which a finalizer is executing is not interrupted even if a cancellation arrives,
+  and folds into a single atomic commit (riding on the existing turn batching). A cancellation
+  that arrives is held until after execution completes, and the eventual ack is translated
+  accordingly; a finalizer is never run twice.
+- If a finalizer itself panics, it is treated as a panic of the instance (a failure in cleanup is
+  not swallowed).
+- Known trade-off: if a finalizer hangs on `io` (an external call), that finalizer cannot be
+  interrupted, and the instance's terminal waits for that io to complete. Long-running external
+  work belongs in the ordinary body, not in a finalizer.
 
-## 関連
+## Related
 
 <DocCards>
   <DocCard href="{docs}/{currentVersion}/language-reference/providers" />

@@ -1,24 +1,24 @@
 ---
 title: Introduction
-description: Katari は agent オーケストレーションを書くための言語 — このセクションの読み方。
+description: What Katari is, and how to read this documentation section.
 ---
 
-Katari は AI agent のオーケストレーションロジックを書くための言語である。`.ktr` ソースは
-コンパイラが JSON の中間表現 (IR) にコンパイルし、常駐する runtime サーバーがそれを実行・永続化
-する。agent 同士の呼び出し (delegation)、並列実行、人間への質問 (escalation) が、すべて言語の
-構文としてそのまま書ける。
+Katari is a language for writing the orchestration logic of AI agents. The compiler translates
+`.ktr` source into a JSON intermediate representation (IR), which a long-running runtime server
+executes and persists. Calling one agent from another (delegation), running work in parallel, and
+asking a human a question (escalation) are all expressed directly in the language's syntax.
 
 ```katari
-@"人間に判断を仰ぐ。回答が来るまで run は待つ。"
+@"Ask a human for a decision. The run waits until an answer arrives."
 request ask(question: string) -> string
 
-@"1 つのソースについて、人間に何が重要かを尋ねてレビューする。"
+@"Review one source by asking a human what stands out in it."
 agent review(source: string) -> string with ask {
   let note = ask(question = f"What stands out in ${source}?")
   f"${source}: ${note}"
 }
 
-@"すべてのソースを並列にレビューし、結果を 1 つの report にまとめる。"
+@"Review all sources in parallel and combine the results into one report."
 agent main(sources: array[string]) -> string with ask {
   let notes = parallel for (let source in sources) {
     next review(source = source)
@@ -27,20 +27,21 @@ agent main(sources: array[string]) -> string with ask {
 }
 ```
 
-各シグネチャの `with ask` が effect row — この agent 群が `ask` という request を行いうることを
-型で追跡する。`ask` を handle するものが無いので、run の外へ escalate する: runtime は run ページに
-ブロックされた delegation tree を表示し、`katari answer` (またはコンソールの inbox) が各質問に
-回答する。
+The `with ask` clause in each signature is the effect row: it records in the type that these
+agents may perform the `ask` request. Nothing here handles `ask`, so it escalates out of the run.
+The runtime shows the blocked delegation tree on the run page, and `katari answer` (or the inbox
+in the console) answers each question.
 
-## このセクションの読み方
+## How to read this section
 
-1. [Installation]({docs}/{currentVersion}/getting-started/installation) — CLI と runtime を
-   用意する。
-2. [Quickstart]({docs}/{currentVersion}/getting-started/quickstart) — プロジェクトを 1 つ
-   scaffold し、デプロイして実行するまでを 5 分で辿る。
-3. そのあとは [Language Reference]({docs}/{currentVersion}/language-reference) で構文・型・effect
-   を、[Standard Library]({docs}/{currentVersion}/standard-library) で prelude の各 agent の
-   シグネチャを、[Guides]({docs}/{currentVersion}/guides) で MCP のような外部統合の手引きを読む。
+1. [Installation]({docs}/{currentVersion}/getting-started/installation) sets up the CLI and the
+   runtime.
+2. [Quickstart]({docs}/{currentVersion}/getting-started/quickstart) scaffolds a project, deploys
+   it, and runs it, in about five minutes.
+3. After that, [Language Reference]({docs}/{currentVersion}/language-reference) covers syntax,
+   types, and effects; [Standard Library]({docs}/{currentVersion}/standard-library) documents the
+   signature of each prelude agent; and [Guides]({docs}/{currentVersion}/guides) covers integrating
+   external systems such as MCP.
 
 <DocCards>
   <DocCard href="{docs}/{currentVersion}/getting-started/installation" />

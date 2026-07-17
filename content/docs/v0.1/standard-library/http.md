@@ -1,26 +1,28 @@
 ---
 title: prelude.http
-description: ランタイム組み込みの HTTP クライアント (fetch / post_json) — header と body の private-capable な提出面。
+description: The runtime's built-in HTTP client (fetch / post_json); header and body values form a private-capable submission surface.
 ---
 
-ランタイム組み込みの HTTP クライアント。呼び出しは runtime の `http` reactor に route する
-(FFI sidecar なし — `mcp` / `webhook` と同じ「runtime 内蔵の外部呼び出し」)。default import 経由で
-`http.` qualified に呼ぶ。external 呼び出しなので io を行い、呼び出し側の effect 行に `io` が
-加わる。
+The runtime's built-in HTTP client. Calls route to the runtime's `http` reactor (no FFI sidecar;
+the same "external call built into the runtime" pattern as `mcp` and `webhook`). It is called
+qualified as `http.` via default import. Because it is an external call, it performs `io`, adding
+`io` to the caller's effect row.
 
-## private の情報流: 宛先サーバーへの提出面だけが通す
+## Information flow for private values: only the submission surface to the destination server lets them through
 
-private な値がランタイムを出てよいのは、**リクエストの宛先サーバーへ向かうときだけ**。その意図的な
-提出面 — header の値 **と** `body` — は `string of private` で、secret (認証トークン、フォーム
-エンコードされた `refresh_token` など) をそのまま渡せる。両方とも 1 箇所の transport 境界で reveal
-され、そこでリクエストはプログラムが名指した唯一のサーバーへ発つ。
+A private value is allowed to leave the runtime only **when it is headed to the request's
+destination server**. That deliberate submission surface, header values **and** `body`, is typed
+as `string of private`, so a secret (an auth token, a form-encoded `refresh_token`, and the like)
+can be passed through directly. Both are revealed at a single transport boundary, at which point
+the request departs to the one server the program named.
 
-`url` と `method` は public な `string` のまま — private を渡すと型エラーになる。URL はログ・
-キャッシュ・プロキシ・`Referer` ヘッダに漏れる、つまり宛先サーバー以外の場所にも流れるからだ。
-レスポンスは public (declassify 済み) — サーバーの応答であって secret の関数ではないので、
-private な body を持つリクエストの応答も汚染されない。
+`url` and `method` remain public `string`s; passing a private value produces a type error. The URL
+can leak into logs, caches, proxies, and the `Referer` header, meaning it flows to places other
+than the destination server. The response is public (already declassified): it is the server's
+response rather than a function of a secret, so the response to a request with a private body is
+not tainted either.
 
-## 型
+## Types
 
 ### `http.fetch_error`
 
@@ -28,8 +30,9 @@ private な body を持つリクエストの応答も汚染されない。
 data fetch_error(message: string)
 ```
 
-リクエストが完結しなかった: DNS 失敗、接続拒否、タイムアウト、途中でのランタイム再起動。`fetch` が
-投げる。応答が届いた場合は (どんな `status` でも) エラーではない — `status` で分岐する。
+The request did not complete: DNS failure, connection refused, timeout, or a runtime restart
+mid-flight. Thrown by `fetch`. If a response arrives, it is not an error regardless of `status`;
+branch on `status` instead.
 
 ### `http.status_error`
 
@@ -37,10 +40,10 @@ data fetch_error(message: string)
 data status_error(status: integer, body: string)
 ```
 
-JSON API が非 2xx を返した。`post_json` が投げる (生の `fetch` は届いた応答をエラー扱いしない —
-この wrapper だけが JSON API の作法を前提にする)。
+The JSON API returned a non-2xx status. Thrown by `post_json` (the raw `fetch` does not treat an
+arrived response as an error; only this wrapper assumes JSON API conventions).
 
-## agent
+## Agents
 
 ### `http.fetch`
 
@@ -53,10 +56,10 @@ external agent fetch(
 ) -> { status: integer, headers: record[string], body: string } with prelude.throw[fetch_error] from "http"
 ```
 
-`url` に `method` (`"GET"` / `"POST"` など) でリクエストする。各 header 値と `body` は secret でよい
-(両方とも `url` のサーバーにのみ提出され、`url` と `method` は public のまま)。応答の `status`・
-`headers` (名前は小文字化、重複ヘッダは `", "` で join)・`body` テキストを返す。リクエストが完結
-しなければ `fetch_error` を投げる。
+Sends a request to `url` with `method` (`"GET"`, `"POST"`, and so on). Each header value and `body`
+may be secret (both are submitted only to the server at `url`, while `url` and `method` remain
+public). Returns the response's `status`, `headers` (names lowercased, duplicate headers joined
+with `", "`), and `body` text. If the request does not complete, it throws `fetch_error`.
 
 ```katari
 agent get_item(token: string) -> string with io | prelude.throw[http.fetch_error] {
@@ -73,7 +76,7 @@ agent get_item(token: string) -> string with io | prelude.throw[http.fetch_error
 }
 ```
 
-- **Throws** `fetch_error` (リクエストが完結しなかった)。
+- **Throws** `fetch_error` (the request did not complete).
 
 ### `http.post_json`
 
@@ -96,10 +99,11 @@ agent post_json(
 }
 ```
 
-`body` を `application/json` として `url` に POST する。`body` と各 header 値は secret でよい (両方
-`url` のサーバーにのみ提出される)。`Content-Type: application/json` を既定で加えるが、呼び出し側が
-同じキーを持てばそちらが勝つ。応答の body テキストを返す。JSON API 統合の一撃呼び出し: body を
-Katari で `json` として組み、POST し、応答を Katari で `json` として読む。
+POSTs `body` to `url` as `application/json`. `body` and each header value may be secret (both are
+submitted only to the server at `url`). It adds `Content-Type: application/json` by default, but
+the caller's own value for the same key wins. Returns the response body text. A one-shot call for
+JSON API integration: build the body as `json` in Katari, POST it, and read the response as `json`
+in Katari.
 
 ```katari
 agent respond(prompt: string, api_key: string of private) -> string with io | prelude.throw[http.status_error | http.fetch_error] {
@@ -109,9 +113,9 @@ agent respond(prompt: string, api_key: string of private) -> string with io | pr
 }
 ```
 
-- **Throws** `status_error` (非 2xx 応答)、`fetch_error` (リクエストが完結しなかった)。
+- **Throws** `status_error` (a non-2xx response), `fetch_error` (the request did not complete).
 
-## 関連
+## Related
 
 <DocCards>
   <DocCard href="{docs}/{currentVersion}/standard-library/json" />

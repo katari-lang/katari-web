@@ -1,26 +1,26 @@
 ---
 title: Quickstart
-description: katari init から katari run まで — escalation に端末で回答する最初の一往復。
+description: From katari init to katari run, including answering one escalation from the terminal.
 ---
 
-[Installation]({docs}/{currentVersion}/getting-started/installation) を済ませた前提で、
-プロジェクトを 1 つ scaffold してデプロイし、実行するまでを辿る。
+This page assumes [Installation]({docs}/{currentVersion}/getting-started/installation) is done.
+It scaffolds a project, deploys it, and runs it.
 
-## 1. scaffold する
+## 1. Scaffold a project
 
 ```sh
 katari init my-project
 cd my-project
 ```
 
-`katari.toml` (プロジェクト設定)・`compose.yaml` / `.env.example` (自前 runtime 用)・`src/main.ktr`
-が生成される。`src/main.ktr` の中身:
+This generates `katari.toml` (project configuration), `compose.yaml` and `.env.example` (for the
+self-hosted runtime), and `src/main.ktr`:
 
 ```katari title="src/main.ktr"
 // Your first Katari program. `main` asks its operator a question: the `ask_name` request
 // escalates out of the run, and `katari run` prompts you for the answer right in the
 // terminal (or answer later with `katari answer`). Delete the request once you have real
-// inputs — it is here to show the human-in-the-loop flow end to end.
+// inputs; it is here to show the human-in-the-loop flow end to end.
 
 request ask_name(prompt: string) -> string
 
@@ -30,10 +30,9 @@ agent main() -> string with ask_name {
 }
 ```
 
-`ask_name` を handle するものがどこにも無いので、`main` の effect row にそのまま乗る —
-呼び出すと escalation になる。
+Nothing handles `ask_name`, so it stays on `main`'s effect row: calling it produces an escalation.
 
-## 2. runtime を立てる
+## 2. Start the runtime
 
 ```sh
 cp .env.example .env
@@ -42,42 +41,42 @@ echo "KATARI_SECRET_KEY=$(openssl rand -base64 32)" >> .env
 docker compose up -d
 ```
 
-admin console が [http://localhost:3000](http://localhost:3000) で立つ (初回アクセス時に
-`KATARI_API_KEY` を訊かれる)。
-CLI は `.env` からキーを読む。
+The admin console starts at [http://localhost:3000](http://localhost:3000) and asks for
+`KATARI_API_KEY` on first access. The CLI reads the key from `.env`.
 
-## 3. デプロイして実行する
+## 3. Deploy and run
 
 ```sh
 katari apply
 katari run
 ```
 
-`katari apply` はプロジェクトをコンパイルし、新しい snapshot として runtime にデプロイする。
-`katari run` は agent を対話的に選べる (このプロジェクトでは `main.main` だけ) — 選ぶと
-`ask_name` の escalation がそのまま端末のプロンプトになる:
+`katari apply` compiles the project and deploys it to the runtime as a new snapshot. `katari run`
+lets you pick an agent interactively (this project has only `main.main`). Selecting it turns the
+`ask_name` escalation into a terminal prompt:
 
 ```
 ? What is your name? Katari
 ```
 
-答えると run が完了し、結果が表示される:
+After you answer, the run completes and prints the result:
 
 ```
 Hello, Katari!
 ```
 
-`Ctrl-C` で detach しても run は runtime 側で走り続ける。回答が遅れる、あるいは別プロセスから
-回答したい場合は `katari status <run>` で open question を確認し、`katari answer <escalation>`
-で答えられる。
+Pressing `Ctrl-C` detaches from the run without stopping it; it keeps running on the runtime. To
+answer later, or from a different process, use `katari status <run>` to see the open question and
+`katari answer <escalation>` to answer it.
 
-## 次は
+## Next steps
 
-- `src/main.ktr` の `request` / `use handler` を書き換えて、実際の入力を渡す agent に育てる —
-  構文は [Syntax]({docs}/{currentVersion}/language-reference/syntax)、effect の考え方は
-  [Effects]({docs}/{currentVersion}/language-reference/effects) を参照。
-- `katari.toml` の `[dependencies]` に registry のパッケージを足すには `katari add`。
-- 日々使うコマンドの一覧は [CLI]({docs}/{currentVersion}/katari-toolchains/cli)。
+- Edit the `request` and `use handler` in `src/main.ktr` to build an agent that takes real input.
+  See [Syntax]({docs}/{currentVersion}/language-reference/syntax) for the language grammar and
+  [Effects]({docs}/{currentVersion}/language-reference/effects) for the effect model.
+- Use `katari add` to add a registry package to `[dependencies]` in `katari.toml`.
+- See [CLI]({docs}/{currentVersion}/katari-toolchains/cli) for the full list of day-to-day
+  commands.
 
 <DocCards>
   <DocCard href="{docs}/{currentVersion}/language-reference/syntax" />

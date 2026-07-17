@@ -1,24 +1,24 @@
 ---
 title: Effects
-description: request と use handler、escalation (open question として park)、throw / panic の二本立て。
+description: request and use handler, escalation (parking as an open question), and the throw / panic split.
 ---
 
-Katari の副作用は request/handler モデルで表面化する: `request` が effect を宣言し、`use handler`
-がその実装を導入し、宣言されているのに手元で discharge されない request は **escalation** として
-呼び出し元へ、最終的には run の外へ上がる。
+Katari's side effects surface through the request/handler model: a `request` declares an effect,
+a `use handler` introduces its implementation, and a request that is declared but not discharged
+locally propagates as an **escalation** to the caller, and ultimately out of the run.
 
-## request の宣言
+## Declaring a request
 
 ```katari
-@"1 回ごとに次のカウンタ値を返す capability。"
+@"A capability that returns the next counter value each time it is called."
 request tick() -> integer
 ```
 
-`request name[generics](params) -> T` は本体を持たない — 実装は呼び出し側のスコープにある
-`use handler` が供給する。宣言した agent のシグネチャに `with tick` のように現れ、これが
-**effect row** のエントリになる。
+`request name[generics](params) -> T` has no body; its implementation is supplied by a
+`use handler` in the calling scope. It appears in the declaring agent's signature as, for example,
+`with tick`, which is an entry in the **effect row**.
 
-## handler で実装する
+## Implementing with a handler
 
 ```katari
 request tick() -> integer
@@ -31,15 +31,16 @@ agent count_three() -> array[integer] with tick {
 }
 ```
 
-`use handler { request name(params) [-> T] { body } ... }` は続く block (継続) に capability を
-導入する。`(var counter = 0)` は handler 自身の状態変数 — 呼ばれるたびに body が走り、
-`next value [with { counter = ... }]` が呼び出し元へ値を返しつつ状態を更新して次の呼び出しへ備える。
-`break value` は handler を discharge して block 自体を終了させる (`then` があればそちらへ)。
-状態を持たない handler は `(var ...)` を省略してよい (前出の `tick` のように)。
+`use handler { request name(params) [-> T] { body } ... }` introduces a capability to the block
+that follows (the continuation). `(var counter = 0)` is the handler's own state variable: the body
+runs each time it is called, and `next value [with { counter = ... }]` returns a value to the
+caller while updating the state in preparation for the next call. `break value` discharges the
+handler and terminates the block itself (or goes to `then`, if present). A handler with no state
+may omit `(var ...)`, as `tick` does above.
 
-`use` は provider の一回適用として定義されている一般構文で、`handler` リテラルはその 1 形態 —
-設定を取る provider agent への一般化は
-[Providers]({docs}/{currentVersion}/language-reference/providers) を参照。
+`use` is a general construct defined as a single application of a provider, and the `handler`
+literal is one form of it. See [Providers]({docs}/{currentVersion}/language-reference/providers)
+for the generalization to provider agents that take configuration.
 
 ## marker effect
 
@@ -47,20 +48,22 @@ agent count_three() -> array[integer] with tick {
 effect scoped[resource]
 ```
 
-`effect name[generics]` は **オペレーションを持たない** capability マーカー: 一度も perform
-されず、handle もされず、lowering で消える。effect row に乗って「このスコープの中でしか呼べない」
-という静的な gate を表す (呼び出しを許可するかどうかだけの判定に使い、実行時には何もしない)。
-[`prelude.mcp`]({docs}/{currentVersion}/standard-library/mcp) の `scope[URL]` がその実例 —
-`provide` が継続の行にこれを mint し、自分の結果行から discharge するので、スコープが閉じた後は
-そのマーカーを持つ呼び出しが型検査を通らなくなる。
+`effect name[generics]` is a capability marker **with no operations**: it is never performed,
+never handled, and disappears during lowering. It rides on the effect row to represent a static
+gate meaning "can only be called within this scope" (used purely to decide whether a call is
+permitted, and does nothing at runtime). `scope[URL]` in
+[`prelude.mcp`]({docs}/{currentVersion}/standard-library/mcp) is a concrete example: `provide`
+mints it onto the continuation's row and discharges it from its own result row, so once the scope
+closes, a call carrying that marker no longer passes type checking.
 
 ## escalation
 
-`use handler` で discharge されない request は、そのまま囲みの effect row に残って上へ伝播する。
-どの agent も handle しないまま run の root まで達すると、**escalation** として run の外に出る —
-run は「open question」を抱えたまま park し、runtime のコンソール (Escalations inbox) や
-`katari answer` (詳細は [CLI]({docs}/{currentVersion}/katari-toolchains/cli)) で答えるまで
-そこで待つ。並行して動く複数の delegation はそれぞれ独立した escalation を持てる。
+A request not discharged by a `use handler` remains on the enclosing effect row and propagates
+upward. If it reaches the run's root without any agent handling it, it exits the run as an
+**escalation**: the run parks while holding an "open question," and waits there until it is
+answered from the runtime console (the Escalations inbox) or with `katari answer` (see
+[CLI]({docs}/{currentVersion}/katari-toolchains/cli) for details). Multiple delegations running
+concurrently can each hold their own independent escalation.
 
 ```katari
 request ask(question: string) -> string
@@ -75,20 +78,21 @@ agent panel(first: string, second: string) -> array[string] with ask {
 }
 ```
 
-`panel` を実行すると、2 つの並列な `consult` それぞれが `ask` で park する — run ページの
-delegation tree に、どの agent が何を尋ねているか (`main` → `panel` → 2 つの `consult`) が
-そのまま表示される。両方に回答すると run が完了する。
+Running `panel` causes each of the two parallel `consult`s to park on `ask`. The run page's
+delegation tree shows exactly which agent is asking what (`main`, then `panel`, then the two
+`consult`s). Answering both allows the run to complete.
 
-## throw[T] — 型付きエラー
+## throw[T]: typed errors
 
 ```katari
 request throw[T](error: T) -> never
 ```
 
-`throw` は prelude の generic な request 1 つで、ペイロード型 `T` は失敗する操作のそばに宣言する
-ドメイン固有の `data` (`json.parse_error`、`http.fetch_error`、`env.missing_secret` など)。
-`-> never` は「resume できない」ことを型で保証する — handler は `next` できず、`break` で handle を
-抜けるか、re-throw するしかない (catch-and-break)。
+`throw` is a single generic request in the prelude, and its payload type `T` is a domain-specific
+`data` declared next to the operation that fails (`json.parse_error`, `http.fetch_error`,
+`env.missing_secret`, and so on). `-> never` guarantees at the type level that it "cannot be
+resumed": a handler cannot `next`; it can only exit the handle with `break`, or re-throw
+(catch-and-break).
 
 ```katari
 data not_even(value: integer)
@@ -104,52 +108,54 @@ agent half(value: integer) -> integer with prelude.throw[not_even] {
 agent describe_half(value: integer) -> string {
   use handler {
     request prelude.throw(error: not_even) -> never {
-      break f"${string.to_string(value = error.value)} is odd — no half"
+      break f"${string.to_string(value = error.value)} is odd, no half"
     }
   }
   f"half=${string.to_string(value = half(value = value))}"
 }
 ```
 
-同じスコープで複数の `throw` が起きても行のエントリは 1 つに合流する — `throw[a]` と `throw[b]`
-が混ざれば `throw[a | b]` になる。handler はそのペイロード注釈でどの型を discharge するか宣言し、
-**合流した union をすべて処理するか、何も処理しないか** のどちらかしかない (一部だけを handle して
-残りを re-throw するなら `match` で分けて再度 `prelude.throw` する)。catch し忘れた `throw` は run
-を失敗させる。
+Even if multiple `throw`s occur within the same scope, the row still merges to one entry: mixing
+`throw[a]` and `throw[b]` produces `throw[a | b]`. A handler declares, through its payload
+annotation, which type it discharges, and there are only two options: **handle the entire merged
+union, or handle none of it** (to handle only part of it and re-throw the rest, branch with
+`match` and call `prelude.throw` again). A `throw` that is not caught fails the run.
 
-## panic — ランタイム自身の失敗チャネル
+## panic: the runtime's own failure channel
 
-`panic` は prelude に**宣言が無い** — プログラムから raise することはできない。非網羅的な
-`match`、ゼロ除算、FFI インフラの異常、エンジンの backstop といった「プログラムやデプロイが壊れて
-いる」ことを示す不変条件違反でランタイムが起こす。ハンドルしなければ run はそのまま失敗する。
+`panic` has **no declaration** in the prelude, so a program cannot raise it. The runtime raises it
+for invariant violations that indicate "the program or the deployment is broken," such as a
+non-exhaustive `match`, division by zero, an FFI infrastructure failure, or an engine backstop. If
+it is not handled, the run fails outright.
 
-宣言がなくても、`panic` という**予約されたハンドラ名**で捕まえることはできる (ambient — raise は
-できないが handle はできる):
+Even without a declaration, it can be caught under the **reserved handler name** `panic` (it is
+ambient: it cannot be raised, but it can be handled):
 
 ```katari
 agent survive_panic() -> string {
   use handler {
     request panic(msg: string) { break f"panic caught: ${msg}" }
   }
-  let boom = 1 / 0   // ゼロ除算は throw ではなく panic
+  let boom = 1 / 0   // Division by zero is a panic, not a throw
   "unreachable"
 }
 ```
 
-`throw` と `panic` の使い分けは「正しいプログラムがこの失敗に実行時に出会って、まともに続行
-できるか」で決める。できる (`json.parse` の不正なテキスト、`http.fetch` の接続断) なら `throw` に
-ドメインエラーの `data` を添える。できない (壊れた不変条件) なら panic のままにする。
+The choice between `throw` and `panic` is decided by whether "a correct program that encounters
+this failure at runtime can meaningfully continue." If it can (invalid text for `json.parse`, a
+broken connection for `http.fetch`), attach a domain-error `data` to a `throw`. If it cannot (a
+broken invariant), leave it as a panic.
 
-| 操作                                  | 失敗                            | 経路                                      |
-| ------------------------------------- | ------------------------------- | ----------------------------------------- |
-| `json.parse` / `parse_as`             | 不正なテキスト / スキーマ不適合 | `throw[json.parse_error \| decode_error]` |
-| `http.fetch`                          | 接続が完結しない                | `throw[http.fetch_error]`                 |
-| `env.get_secret`                      | キー未設定                      | `throw[env.missing_secret]`               |
-| `reflection.call_agent`               | callable でない / 引数不適合    | `throw[reflection.call_error]`            |
-| ゼロ除算 (`/` `%`)                    | —                               | panic                                     |
-| 非網羅的な `match`、エンジン backstop | —                               | panic                                     |
+| Operation                               | Failure                          | Path                                      |
+| --------------------------------------- | -------------------------------- | ----------------------------------------- |
+| `json.parse` / `parse_as`               | Invalid text / schema mismatch   | `throw[json.parse_error \| decode_error]` |
+| `http.fetch`                            | Connection does not complete     | `throw[http.fetch_error]`                 |
+| `env.get_secret`                        | Key not set                      | `throw[env.missing_secret]`               |
+| `reflection.call_agent`                 | Not callable / argument mismatch | `throw[reflection.call_error]`            |
+| Division by zero (`/` `%`)              | N/A                              | panic                                     |
+| Non-exhaustive `match`, engine backstop | N/A                              | panic                                     |
 
-## 関連
+## Related
 
 <DocCards>
   <DocCard href="{docs}/{currentVersion}/language-reference/providers" />

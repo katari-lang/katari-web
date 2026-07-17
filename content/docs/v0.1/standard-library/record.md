@@ -1,13 +1,13 @@
 ---
 title: prelude.record
-description: 同種の string キー付きマップ record[T] の操作 — get / set / remove / keys / entries / merge。
+description: Operations on record[T], a homogeneous string-keyed map, get / set / remove / keys / entries / merge.
 ---
 
-`record[T]` (パース済み JSON オブジェクトの entries、env の一覧などが持つ形) の操作。default import
-経由で `record.` qualified に呼ぶ。パラメータは一貫して `target` という名前 (`prelude.array` と
-揃えている)。
+Operations on `record[T]` (the shape held by the entries of a parsed JSON object, an environment
+listing, and the like). Called qualified as `record.` via default import. The parameter is
+consistently named `target` (matching `prelude.array`).
 
-## agent
+## Agents
 
 ### `record.get`
 
@@ -15,7 +15,7 @@ description: 同種の string キー付きマップ record[T] の操作 — get 
 primitive agent get[T](target: record[T], key: string) -> T | null
 ```
 
-`key` の下の値を読む。`key` が無ければ `null`。
+Reads the value under `key`. Returns `null` if `key` is absent.
 
 ### `record.set`
 
@@ -23,7 +23,7 @@ primitive agent get[T](target: record[T], key: string) -> T | null
 primitive agent set[T](target: record[T], key: string, value: T) -> record[T]
 ```
 
-`key` の下に `value` を持つコピーを返す (既存エントリを置き換える)。
+Returns a copy with `value` under `key` (replacing any existing entry).
 
 ### `record.remove`
 
@@ -31,7 +31,7 @@ primitive agent set[T](target: record[T], key: string, value: T) -> record[T]
 primitive agent remove[T](target: record[T], key: string) -> record[T]
 ```
 
-`key` を持たないコピーを返す (`key` が無ければ無変更)。
+Returns a copy without `key` (unchanged if `key` is absent).
 
 ### `record.keys`
 
@@ -39,7 +39,7 @@ primitive agent remove[T](target: record[T], key: string) -> record[T]
 primitive agent keys(target: record[unknown]) -> array[string]
 ```
 
-すべてのキーをソート順で返す。
+Returns all keys in sorted order.
 
 ### `record.has`
 
@@ -47,7 +47,7 @@ primitive agent keys(target: record[unknown]) -> array[string]
 primitive agent has(target: record[unknown], key: string) -> boolean
 ```
 
-`key` が存在するか。
+Whether `key` exists.
 
 ### `record.size`
 
@@ -55,7 +55,7 @@ primitive agent has(target: record[unknown], key: string) -> boolean
 primitive agent size(target: record[unknown]) -> integer
 ```
 
-エントリ数。
+The number of entries.
 
 ### `record.entries`
 
@@ -63,8 +63,8 @@ primitive agent size(target: record[unknown]) -> integer
 primitive agent entries[T](target: record[T]) -> array[[string, T]]
 ```
 
-すべてのエントリを `[key, value]` ペアの配列として、キーのソート順で返す — record の `for`-iterable
-なビュー。
+Returns all entries as an array of `[key, value]` pairs in sorted key order: the `for`-iterable
+view of a record.
 
 ### `record.values`
 
@@ -76,8 +76,9 @@ agent values[T](target: record[T]) -> array[T] {
 }
 ```
 
-すべての値を、`keys` の対となる形でキーのソート順で返す。`entries` を直接 `for` で辿るので、
-値の読みは常に total (キーごとに `get` して欠損を扱う、という一手間がない)。
+Returns all values in sorted key order, in the form that pairs with `keys`. Because it iterates
+`entries` directly with `for`, reading values is always total; there is no extra step of calling
+`get` per key and handling absence.
 
 ### `record.merge`
 
@@ -85,9 +86,9 @@ agent values[T](target: record[T]) -> array[T] {
 primitive agent merge[T](left: record[T], right: record[T]) -> record[T]
 ```
 
-両方の record のエントリを 1 つにする。キーが重複したら **right の値が勝つ** (レイヤ化した
-設定を呼び出しごとに拡張する、デフォルト値の上書き方向)。`http.post_json` の header マージが
-この形。
+Combines the entries of both records into one. When a key appears in both, **the value from
+`right` wins** (the direction that lets a call extend layered configuration and override default
+values). The header merge in `http.post_json` follows this shape.
 
 ### `record.empty`
 
@@ -95,9 +96,9 @@ primitive agent merge[T](left: record[T], right: record[T]) -> record[T]
 primitive agent empty() -> record[never]
 ```
 
-空の record。
+An empty record.
 
-## 関連
+## Related
 
 <DocCards>
   <DocCard href="{docs}/{currentVersion}/standard-library/array" />

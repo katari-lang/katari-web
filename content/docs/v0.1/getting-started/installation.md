@@ -1,25 +1,26 @@
 ---
 title: Installation
-description: CLI を npm でインストールし、docker compose で自前の runtime を立てる。
+description: Install the CLI with npm and start a self-hosted runtime with docker compose.
 ---
 
-Katari は 2 つのものを用意する: プロジェクトをコンパイル・デプロイする **CLI** と、それを実行する
-**runtime**。
+Katari has two parts: the **CLI**, which compiles and deploys a project, and the **runtime**,
+which executes it.
 
 ## CLI
 
-`@katari-lang/cli` は薄い Node シムで、実体は `@katari-lang/cli-<platform>` パッケージが運ぶ
-プリビルドのネイティブバイナリ (npm/pnpm が optionalDependency として自動選択する)。
+`@katari-lang/cli` is a thin Node shim. The actual work is done by a prebuilt native binary
+shipped in a `@katari-lang/cli-<platform>` package, which npm/pnpm selects automatically as an
+optional dependency.
 
 ```sh
 npm i -g @katari-lang/cli
-# または per-project に
+# or, per project
 pnpm add -D @katari-lang/cli
 ```
 
-対応プラットフォームは `linux-x64` / `darwin-arm64` (Intel mac は Rosetta 2 経由)。それ以外の
-環境では [Releases](https://github.com/katari-lang/katari/releases) からビルド済みの tarball を
-落とすか、`stack build` でソースからビルドする。
+Supported platforms are `linux-x64` and `darwin-arm64` (Intel Macs run it through Rosetta 2). On
+other platforms, download a prebuilt tarball from [Releases](https://github.com/katari-lang/katari/releases)
+or build from source with `stack build`.
 
 ```sh
 katari --version
@@ -28,10 +29,10 @@ katari --help
 
 ## Runtime
 
-プロジェクトをデプロイして実行するには runtime が要る。`katari init` (次の
-[Quickstart]({docs}/{currentVersion}/getting-started/quickstart) 参照) が生成する `compose.yaml`
-は、Postgres・S3 互換の blob ストア (SeaweedFS)・runtime イメージの 3 サービスからなる自前の
-スタックを立てる。
+Deploying and running a project requires a runtime. `katari init` (see the next section,
+[Quickstart]({docs}/{currentVersion}/getting-started/quickstart)) generates a `compose.yaml` that
+starts a self-hosted stack of three services: Postgres, an S3-compatible blob store (SeaweedFS),
+and the runtime image.
 
 ```sh
 cp .env.example .env
@@ -40,17 +41,18 @@ echo "KATARI_SECRET_KEY=$(openssl rand -base64 32)" >> .env
 docker compose up -d
 ```
 
-- `KATARI_API_KEY` — CLI と admin console が Bearer トークンとして認証に使う鍵。無いと runtime は
-  起動しない。
-- `KATARI_SECRET_KEY` — secret 値の at-rest 暗号化キー (base64, 32 bytes)。`KATARI_API_KEY` とは
-  別の鍵。
+- `KATARI_API_KEY`: the key the CLI and the admin console use as a Bearer token to authenticate.
+  The runtime will not start without it.
+- `KATARI_SECRET_KEY`: the at-rest encryption key for secret values (base64, 32 bytes). This key
+  is distinct from `KATARI_API_KEY`.
 
-起動すると admin console (`/`) と JSON API (`/api/v1`) が同じポート (既定 3000) で立ち上がる。
-CLI は `katari.toml` の `[runtime].url` (既定 `http://localhost:3000`) と `.env` の
-`KATARI_API_KEY` を読んでそこに繋ぐ。クラウドの blob ストレージに向けたい場合は
-`BLOB_S3_ENDPOINT` を外して実際の AWS 認証情報を設定し、`seaweedfs` サービスを削除する。
+Once started, the admin console (`/`) and the JSON API (`/api/v1`) both listen on the same port
+(3000 by default). The CLI reads `[runtime].url` from `katari.toml` (default
+`http://localhost:3000`) and `KATARI_API_KEY` from `.env` to connect. To point the runtime at
+cloud blob storage instead, remove `BLOB_S3_ENDPOINT`, set real AWS credentials, and remove the
+`seaweedfs` service.
 
-## 関連
+## Related
 
 <DocCards>
   <DocCard href="{docs}/{currentVersion}/getting-started/quickstart" />

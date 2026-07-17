@@ -1,34 +1,35 @@
 ---
 title: LSP
-description: エディタ向けの hover / completion / definition / references と、デバウンスされた診断。
+description: Hover, completion, definition, and references for editors, plus debounced diagnostics.
 ---
 
-`haskell/lsp` (`katari-lsp`) は compiler と診断基盤を共有する Language Server Protocol の実装。
-VSCode 拡張 (`typescript/vscode`) がこれを起動して繋ぐ — 拡張自体はシンタックスハイライトに加え、
-`katari.check` / `katari.build` のようなコマンドパレット項目を提供する。
+`haskell/lsp` (`katari-lsp`) is a Language Server Protocol implementation that shares its
+diagnostics infrastructure with the compiler. The VSCode extension (`typescript/vscode`) launches
+it and connects to it. The extension itself provides syntax highlighting as well as command palette
+entries such as `katari.check` and `katari.build`.
 
-## 提供する機能
+## Features provided
 
-| 機能        | 内容                                                                                                                                                                             |
-| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Hover       | カーソル位置の式のソース断片と型を 1 行で表示し、トップレベル参照なら qualified 名も添える                                                                                       |
-| Completion  | 3 モード: `ident.` の直後はモジュール / object のメンバー一覧、開いた `(` の中は呼び出し先のパラメータ ラベル一覧 (使用済みラベルは除く)、それ以外はスコープに見えているもの全部 |
-| Definition  | カーソル位置のシンボルの定義箇所へジャンプ (依存パッケージも含む cross-module 解決)                                                                                              |
-| References  | ワークスペース全体でのシンボルの全出現箇所 (定義自体も 1 つの occurrence として含む)                                                                                             |
-| Diagnostics | 編集のたびにバッファを更新し、150ms デバウンスした再コンパイルの診断を publish する                                                                                              |
+| Feature     | Description                                                                                                                                                                                                        |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Hover       | Shows the source fragment and type of the expression at the cursor on one line, adding the qualified name if it is a top-level reference                                                                           |
+| Completion  | Three modes: right after `ident.`, the member list of the module or object; inside an open `(`, the list of parameter labels of the callee (excluding labels already used); otherwise, everything visible in scope |
+| Definition  | Jumps to the definition of the symbol at the cursor (cross-module resolution, including dependency packages)                                                                                                       |
+| References  | All occurrences of the symbol across the whole workspace (the definition itself counts as one occurrence)                                                                                                          |
+| Diagnostics | Updates the buffer on every edit and publishes diagnostics from a recompile debounced by 150ms                                                                                                                     |
 
-Completion の候補フィルタリング (前方一致など) はエディタ側が行う — サーバーは各モードの候補
-セット全体を返す。
+Filtering of completion candidates (such as prefix matching) is done by the editor. The server
+returns the entire candidate set for each mode.
 
-## 再コンパイルの仕組み
+## How recompilation works
 
-`didOpen` / `didChange` / `didClose` はまずバッファのオーバーレイを更新し、150ms デバウンスした
-ワークスペース再コンパイルをスケジュールする。再コンパイルはプロジェクトをディスクから
-(バッファのオーバーレイを重ねて) 読み直すので、ファイルの作成・削除・依存の変更は
-無効化すべきキャッシュを気にせず自然に拾われる。ディスク上のファイル変更 (`workspace/didChangeWatchedFiles`)
-も同じ再コンパイルをトリガーする。
+`didOpen` / `didChange` / `didClose` first update the buffer overlay, then schedule a workspace
+recompile debounced by 150ms. Because the recompile rereads the project from disk (with buffer
+overlays applied on top), file creation, deletion, and dependency changes are picked up naturally
+without needing to worry about invalidating a cache. File changes on disk
+(`workspace/didChangeWatchedFiles`) trigger the same recompile.
 
-## 関連
+## Related
 
 <DocCards>
   <DocCard href="{docs}/{currentVersion}/katari-toolchains/compiler" />

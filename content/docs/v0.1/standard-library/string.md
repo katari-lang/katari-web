@@ -1,13 +1,13 @@
 ---
 title: prelude.string
-description: string の操作 — length / split / join / slice / contains / replace / to_upper など。
+description: Operations on string, length / split / join / slice / contains / replace / to_upper, and more.
 ---
 
-`string` の、連結 (`++` / f-string) だけでは足りない操作。default import 経由で `string.` qualified
-に呼ぶ。インデックスは Unicode コードポイント単位であり UTF-16 unit ではない — BMP 外の文字も
-1 として数える。
+Operations on `string` that concatenation (`++` / f-strings) alone does not cover. Called
+qualified as `string.` via default import. Indexes are in Unicode code points, not UTF-16 units; a
+character outside the BMP still counts as 1.
 
-## agent
+## Agents
 
 ### `string.length`
 
@@ -15,7 +15,7 @@ description: string の操作 — length / split / join / slice / contains / rep
 primitive agent length(value: string) -> integer
 ```
 
-Unicode コードポイント数。
+The number of Unicode code points.
 
 ### `string.split`
 
@@ -23,7 +23,7 @@ Unicode コードポイント数。
 primitive agent split(value: string, separator: string) -> array[string]
 ```
 
-`separator` の出現の間の部分文字列。空の `separator` はコードポイントごとに分割する。
+The substrings between occurrences of `separator`. An empty `separator` splits by code point.
 
 ### `string.join`
 
@@ -31,7 +31,7 @@ primitive agent split(value: string, separator: string) -> array[string]
 primitive agent join(parts: array[string], separator: string) -> string
 ```
 
-`parts` を `separator` を挟んで連結する。
+Concatenates `parts`, interspersed with `separator`.
 
 ### `string.slice`
 
@@ -39,7 +39,8 @@ primitive agent join(parts: array[string], separator: string) -> string
 primitive agent slice(value: string, start: integer, end: integer) -> string
 ```
 
-`start` (含む) から `end` (含まない) までのコードポイント、0-based、範囲外はクランプされる。
+The code points from `start` (inclusive) to `end` (exclusive), 0-based; out-of-range bounds are
+clamped.
 
 ### `string.contains` / `string.starts_with` / `string.ends_with`
 
@@ -49,7 +50,7 @@ primitive agent starts_with(value: string, search: string) -> boolean
 primitive agent ends_with(value: string, search: string) -> boolean
 ```
 
-`search` が含まれるか / 先頭にあるか / 末尾にあるか。
+Whether `search` is contained, at the start, or at the end.
 
 ### `string.index_of`
 
@@ -57,7 +58,7 @@ primitive agent ends_with(value: string, search: string) -> boolean
 primitive agent index_of(value: string, search: string) -> integer | null
 ```
 
-`search` が最初に出現するコードポイントのインデックス。出現しなければ `null`。
+The code-point index of the first occurrence of `search`. Returns `null` if it does not occur.
 
 ### `string.replace`
 
@@ -65,8 +66,8 @@ primitive agent index_of(value: string, search: string) -> integer | null
 primitive agent replace(value: string, search: string, replacement: string) -> string
 ```
 
-`search` のすべての出現 (リテラルなテキスト、パターンではない) を `replacement` に置き換える。
-空の `search` は無変更を返す。
+Replaces every occurrence of `search` (literal text, not a pattern) with `replacement`. An empty
+`search` returns the value unchanged.
 
 ### `string.trim`
 
@@ -74,7 +75,7 @@ primitive agent replace(value: string, search: string, replacement: string) -> s
 primitive agent trim(value: string) -> string
 ```
 
-先頭・末尾の空白を除いた文字列。
+The string with leading and trailing whitespace removed.
 
 ### `string.to_upper` / `string.to_lower`
 
@@ -83,7 +84,7 @@ primitive agent to_upper(value: string) -> string
 primitive agent to_lower(value: string) -> string
 ```
 
-Unicode の既定の大文字・小文字化 (ロケール無し)。
+Unicode's default case conversion (locale-independent).
 
 ### `string.to_string`
 
@@ -91,8 +92,8 @@ Unicode の既定の大文字・小文字化 (ロケール無し)。
 primitive agent to_string(value: null | boolean | number | string) -> string
 ```
 
-スカラー値をその文字列表現にする (整数は小数点なしで描画される)。複合値には代わりに
-`json.stringify(value = json.encode(value = ...))` を使う。
+Renders a scalar value as its string representation (an integer renders without a decimal point).
+For composite values, use `json.stringify(value = json.encode(value = ...))` instead.
 
 ### `string.to_integer` / `string.to_number`
 
@@ -101,11 +102,12 @@ primitive agent to_integer(value: string) -> integer | null
 primitive agent to_number(value: string) -> number | null
 ```
 
-文字列を base-10 整数 / 数値として読む (それぞれ整数でない・数値でない場合は `null` —
-数モデルが正確に保持できない大きさの整数も含む)。パディングされた入力には `trim` と組み合わせる。
-診断付きのパースには代わりに `json.parse_as[integer]` / `json.parse_as[number]` を使う。
+Reads a string as a base-10 integer / number (returning `null` when it is not an integer or not a
+number respectively, including an integer whose magnitude the numeric model cannot represent
+exactly). Combine with `trim` for padded input. For parsing with diagnostics, use
+`json.parse_as[integer]` / `json.parse_as[number]` instead.
 
-## 関連
+## Related
 
 <DocCards>
   <DocCard href="{docs}/{currentVersion}/standard-library/array" />

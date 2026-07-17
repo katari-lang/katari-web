@@ -1,13 +1,14 @@
 ---
 title: prelude.math
-description: 算術演算子を超える数値操作 — abs / min / max と floor / ceil / round の丸め三兄弟。
+description: Numeric operations beyond the arithmetic operators, abs / min / max and the rounding trio floor / ceil / round.
 ---
 
-算術演算子 (`+` `-` `*` `/` `%`) を超える数値操作。default import 経由で `math.` qualified に呼ぶ。
-丸め三兄弟 (`floor` / `ceil` / `round`) は言語で唯一の `number -> integer` 変換であり (`/` は常に
-`number` を返す)、除算した量に対する整数演算はここを通る。
+Numeric operations beyond the arithmetic operators (`+`, `-`, `*`, `/`, `%`). Called qualified as
+`math.` via default import. The rounding trio (`floor` / `ceil` / `round`) are the only `number ->
+integer` conversions in the language (`/` always returns `number`), so integer arithmetic on a
+divided quantity passes through here.
 
-## agent
+## Agents
 
 ### `math.abs`
 
@@ -15,7 +16,7 @@ description: 算術演算子を超える数値操作 — abs / min / max と flo
 primitive agent abs[T extends number](value: T) -> T
 ```
 
-絶対値。integer を保つ。
+The absolute value. Preserves `integer`.
 
 ### `math.min` / `math.max`
 
@@ -24,7 +25,7 @@ primitive agent min[T extends number](left: T, right: T) -> T
 primitive agent max[T extends number](left: T, right: T) -> T
 ```
 
-小さい方 / 大きい方。両オペランドが integer なら integer を保つ。
+The smaller / larger of the two. Preserves `integer` if both operands are `integer`.
 
 ### `math.floor`
 
@@ -32,7 +33,8 @@ primitive agent max[T extends number](left: T, right: T) -> T
 primitive agent floor(value: number) -> integer
 ```
 
-value 以下で最大の整数。non-finite な値は起こり得ない (除算が non-finite を生まないため)。
+The largest integer less than or equal to `value`. A non-finite value cannot occur, because
+division never produces a non-finite result.
 
 ### `math.ceil`
 
@@ -40,7 +42,7 @@ value 以下で最大の整数。non-finite な値は起こり得ない (除算�
 primitive agent ceil(value: number) -> integer
 ```
 
-value 以上で最小の整数。
+The smallest integer greater than or equal to `value`.
 
 ### `math.round`
 
@@ -48,9 +50,10 @@ value 以上で最小の整数。
 primitive agent round(value: number) -> integer
 ```
 
-最も近い整数 (0 から離れる方向への四捨五入 — 小学校で習う規則。銀行丸めではない)。
+The nearest integer (rounding away from zero, the rule taught in grade school, not banker's
+rounding).
 
-## 関連
+## Related
 
 <DocCards>
   <DocCard href="{docs}/{currentVersion}/standard-library/string" />

@@ -1,14 +1,14 @@
 ---
 title: prelude.webhook
-description: 動的に生成される inbound HTTP エンドポイント — inbound(callback, subscriber)。
+description: A dynamically generated inbound HTTP endpoint, inbound(callback, subscriber).
 ---
 
-`http.fetch` の逆向き: プログラムが外の世界を呼ぶのではなく、外の世界がプログラムを呼ぶ。呼び出しは
-runtime の `webhook` reactor に route する (`http.fetch` / `mcp.*` と同じく in-runtime — FFI sidecar
-なし)。default import 経由で `webhook.` qualified に呼ぶ。external 呼び出しなので io を行い、
-呼び出し側の effect 行に `io` が加わる。
+The reverse of `http.fetch`: instead of the program calling the outside world, the outside world
+calls the program. Calls route to the runtime's `webhook` reactor (in-runtime, like `http.fetch` /
+`mcp.*`; no FFI sidecar). Called qualified as `webhook.` via the default import. Because these are
+external calls they perform `io`, adding `io` to the caller's effect row.
 
-## agent
+## Agents
 
 ### `webhook.inbound`
 
@@ -19,16 +19,17 @@ external agent inbound[R, effect E](
 ) -> R with E from "webhook"
 ```
 
-`subscriber` が走っている間だけ生きる、推測不能な公開 URL を発行する。その URL への POST は
-すべて `callback` の呼び出しに変換される — JSON body が引数になり (`callback` の入力スキーマに
-適合しなければ 400 で拒否され、`callback` は走らない)、`callback` の結果が JSON 応答になる。URL の
-所持が唯一の credential — bearer 認証の API 面の外に mount され、他の誰にも呼べない。
+Issues an unguessable public URL that lives only as long as `subscriber` is running. Every POST to
+that URL is converted into a call to `callback`: the JSON body becomes the arguments (a body that
+does not conform to `callback`'s input schema is rejected with 400 and `callback` never runs), and
+`callback`'s result becomes the JSON response. Possessing the URL is the only credential; it is
+mounted outside the bearer-authenticated API surface, and no one else can call it.
 
-`subscriber` が URL の生存期間を所有する: 発行された URL を受け取り、典型的には外部サービス
-(カレンダーの push 通知 API、リポジトリの webhook 設定 — 通常は FFI 経由) にそれを登録して、
-配信が流れるべき間 生き続ける。`subscriber` が return すると URL は失効し、その結果が `inbound` の
-結果になる。run を cancel すると `subscriber` を cancel し (その FFI cleanup が走る)、同じ経路で
-URL を失効させる。
+`subscriber` owns the URL's lifetime: it receives the issued URL, typically registers it with an
+external service (a calendar push-notification API, a repository's webhook configuration, usually
+via FFI), and stays alive for as long as deliveries should flow. When `subscriber` returns, the URL
+is revoked and its result becomes `inbound`'s result. Canceling the run cancels `subscriber`
+(running its FFI cleanup) and revokes the URL through the same path.
 
 ```katari title="webhook.ktr"
 agent double(value: integer) -> integer {
@@ -55,10 +56,10 @@ agent main() -> string {
 }
 ```
 
-再起動を跨いで配信中だった HTTP 待機は失われる (プロバイダのリトライが再配達する) が、URL 自体は
-durable — `subscriber` が settle するまで再起動を生き延びる。
+An HTTP wait that was in flight across a restart is lost (the provider's own retry redelivers it),
+but the URL itself is durable: it survives restarts until `subscriber` settles.
 
-## 関連
+## Related
 
 <DocCards>
   <DocCard href="{docs}/{currentVersion}/standard-library/http" />

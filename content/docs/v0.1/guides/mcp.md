@@ -1,59 +1,66 @@
 ---
 title: MCP Integration
-description: MCP サーバーのツールをスコープ付きで呼び出し、自分の agent を MCP サーバーとして公開する。
+description: Call an MCP server's tools with scopes, and publish an agent as an MCP server.
 ---
 
-[Model Context Protocol](https://modelcontextprotocol.io) の統合は、外部ツールを AI フローに
-合成する標準的な経路である。Katari の MCP はランタイム組み込み — `http.fetch` と同じく、runtime の
-`mcp` reactor が MCP クライアント / サーバーを兼ね、ユーザーが SDK を install する必要はない。
-両方向を扱える: outbound は `mcp.provide` でサーバーのツールをプログラムに差し込み、inbound は
-`mcp.serve` で自分の agent を MCP サーバーとして公開する。
+Integrating [Model Context Protocol](https://modelcontextprotocol.io) is the standard way to
+compose external tools into an AI flow. MCP support in Katari is built into the runtime: like
+`http.fetch`, the runtime's `mcp` reactor acts as both an MCP client and an MCP server, so no SDK
+needs to be installed. Both directions are supported: outbound, `mcp.provide` plugs a server's
+tools into a program; inbound, `mcp.serve` publishes an agent as an MCP server.
 
-各 agent の正確なシグネチャは [Standard Library › mcp]({docs}/{currentVersion}/standard-library/mcp)、
-CLI サブコマンドは [CLI › mcp]({docs}/{currentVersion}/katari-toolchains/cli#mcp) を参照。
+For the exact signature of each agent, see
+[Standard Library › mcp]({docs}/{currentVersion}/standard-library/mcp); for the CLI subcommands,
+see [CLI › mcp]({docs}/{currentVersion}/katari-toolchains/cli#mcp).
 
-## サーバーに接続する
+## Connecting to a server
 
-ツールは**値ではなく生きた能力**であり、接続より長生きしてはならない — `provide` が走っている間だけ
-存在する。だから `mcp.provide(url, auth)` は [`use` provider]({docs}/{currentVersion}/language-reference/providers)
-であって、単なる関数ではない: サーバーをリストし、続く block に **toolbox** (ツール名をキーとする
-agent のレコード) をスコープとして渡し、block を抜けるとスコープを閉じる。ツールを block の外へ返そう
-とすると、ツールが運ぶスコープを discharge する場所が無くなり**型エラー**になる。
+A tool is a **live capability, not a value**, and must not outlive the connection: it exists only
+while `provide` is running. This is why `mcp.provide(url, auth)` is a
+[`use` provider]({docs}/{currentVersion}/language-reference/providers), not a plain function: it
+lists the server and passes a **toolbox** (a record of agents keyed by tool name) into the
+following block as a scope, closing the scope when the block exits. Returning a tool out of the
+block leaves nowhere for the scope it carries to be discharged, which is a **type error**.
 
 ```katari title="connect.ktr"
-// 匿名アクセス — 空のヘッダ。
+// Anonymous access, with empty headers.
 let tools : mcp.toolbox[string] = use mcp.provide(url = url, auth = mcp.headers(values = record.empty()))
 
-// bearer key — secret をヘッダ値に (secret は tool 値の中まで private のまま生きる)。
+// Bearer key: the secret goes into a header value (the secret stays private all the way into the tool value).
 let headers = record.set(target = record.empty(), key = "Authorization", value = "Bearer " ++ key)
 let tools : mcp.toolbox[string] = use mcp.provide(url = url, auth = mcp.headers(values = headers))
 
-// OAuth — `katari mcp login` で out-of-band に確立した named credential を参照するだけ。
+// OAuth: just references a named credential established out-of-band with `katari mcp login`.
 let tools : mcp.toolbox[string] = use mcp.provide(url = url, auth = mcp.oauth(name = "github"))
 ```
 
-`use` の binder (`tools`) には**明示の型注釈が必須** — 無いと **K3013** になる (`use` の一般規則)。
-`auth` は直和で認証方式を選ぶ: `mcp.headers` はヘッダ値に secret (`string of private`) を許し、匿名も
-bearer key もこの 1 コンストラクタで表す。secret は tool 値の中で private のまま (保存時は封印、ユーザー
-可視の境界では redact) 保たれ、サーバーにのみ reveal される。`mcp.oauth` が参照するトークン素材は
-プログラムに一切現れない — 名前だけを渡す。
+The `use` binder (`tools`) requires an **explicit type annotation**; without one it is **K3013**
+(the general rule for `use`). The `auth` parameter is a sum type that selects the authentication
+method: `mcp.headers` allows a secret (`string of private`) as a header value, and both anonymous
+access and bearer keys are represented with this single constructor. The secret stays private
+inside the tool value (sealed at rest, redacted at any user-visible boundary) and is revealed only
+to the server. The token material that `mcp.oauth` references never appears in the program at all;
+only a name is passed.
 
-型 `mcp.toolbox[URL]` の `URL` は**スコープ**を表す。リテラルな url は url ごとのスコープ
-(`mcp.scope["https://..."]`) を与え、dynamic な (非リテラルの) url は最も広いスコープ
-`mcp.scope[string]` に格下げする。上の例は `url` 変数なので `mcp.toolbox[string]` になっている。
-url ごとのスコープは、複数のサーバーを衝突なく合成するための鍵である (後述)。
+In the type `mcp.toolbox[URL]`, `URL` represents a **scope**. A literal url gives a per-url scope
+(`mcp.scope["https://..."]`); a dynamic (non-literal) url is downgraded to the broadest scope,
+`mcp.scope[string]`. In the example above, `url` is a variable, so the result is
+`mcp.toolbox[string]`. A per-url scope is the key to composing multiple servers without collision
+(covered below).
 
-## ツールを動的に呼ぶ
+## Calling tools dynamically
 
-ツールは runtime が鋳造した agent 値で、サーバーが宣言した名前 / 説明 / 入力スキーマを運ぶ —
-**ツールは agent である**。だから `prelude.reflection` の 2 つのプリミティブでそのまま扱える:
-`get_metadata` が公開シグネチャを読み、`call_agent` が runtime-built の引数でディスパッチする。引数は
-サーバーに届く前に入力スキーマで検証され、不適合は `reflection.call_error` を投げる。これは AI ツール
-ループがコンパイル済み agent に対して使うのと同じ機構で、MCP ツールも見分けがつかない形で流れる。
+A tool is an agent value minted by the runtime, carrying the name, description, and input schema
+declared by the server: **a tool is an agent**. It can therefore be handled directly with the two
+primitives in `prelude.reflection`: `get_metadata` reads the public signature, and `call_agent`
+dispatches it with runtime-built arguments. Arguments are validated against the input schema
+before they reach the server; a mismatch throws `reflection.call_error`. This is the same
+mechanism an AI tool loop uses against a compiled agent, so MCP tools flow through it
+indistinguishably.
 
 ```katari title="mcp_demo.ktr"
-@"サーバーをリストし、ツール名を報告し、`add` ツールを動的ディスパッチで呼ぶ — すべて `provide`
-スコープの中で。"
+@"Lists the server, reports the tool names, and calls the `add` tool via dynamic dispatch; all of
+this happens inside the `provide` scope."
 agent main(url: string) -> string {
   use handler {
     request prelude.throw(error: mcp.server_error | mcp.auth_error | reflection.call_error) -> never {
@@ -72,19 +79,20 @@ agent main(url: string) -> string {
 }
 ```
 
-`record.values(target = tools)` は toolbox のツールを flat な配列で返す — AI ループにまとめて渡す形。
-呼び出しはすべて `provide` の block の中にある: ツールの呼び出しは `mcp.scope` を raise し、`provide`
-が return するときにそれが discharge されるので、ツールは block の外へ逃げられない。
+`record.values(target = tools)` returns the toolbox's tools as a flat array, the form used to pass
+them all to an AI loop together. All the calls above sit inside the `provide` block: calling a
+tool raises `mcp.scope`, and it is discharged when `provide` returns, so a tool cannot escape the
+block.
 
-## 複数のサーバーを合成する
+## Composing multiple servers
 
-`provide` をネストすると、内側と外側のスコープが **union でマージ**する — 両方のサーバーのツールが
-同じ block で生き、各ツールは自分のサーバーに対して走る。これが url ごとのスコープの狙いである:
-リテラル url がそれぞれ別のスコープを持つので、2 つの `provide` が衝突しない。
+Nesting `provide` calls merges the inner and outer scopes as a **union**: tools from both servers
+live in the same block, and each tool runs against its own server. This is the purpose of per-url
+scopes: because each literal url has its own distinct scope, two `provide` calls do not collide.
 
 ```katari title="two_servers.ktr"
-@"2 つの MCP サーバーを 1 つのスコープに合成する: `provide` のネストがスコープを union でマージし、
-どちらのサーバーのツールも走る。リテラル url が各サーバーに url ごとのスコープを与える。"
+@"Composes two MCP servers into one scope: nesting `provide` merges the scopes as a union, so
+tools from either server run. A literal url gives each server its own per-url scope."
 agent main() -> string {
   use handler {
     request prelude.throw(error: mcp.server_error | mcp.auth_error | reflection.call_error) -> never {
@@ -107,17 +115,19 @@ agent main() -> string {
 }
 ```
 
-## ツールを直接呼ぶ
+## Calling tools directly
 
-listing も鋳造も要らない静的な呼び出しには `mcp.call` を使う。これは
-[`katari mcp pull`](#型付きバインディングを生成する) が生成するバインディングの土台でもある。
-`mcp.call[literal URL, T]` は 2 つの generic を取る: リテラルな `URL` (スコープを url ごとに束縛する) と、
-返りの**デコード先** `T`。`arguments` はリテラルな `json` ツリー (パラメータごとに `json.encode` で組む)
-で、返りはサーバーの応答を **`T` に対してデコード**する — `json.decode[T]` と同じく、`structuredContent`
-を `T` の wire form として読み (ファイルは本物の `file` handle に復元)、不適合は `json.decode_error` を
-投げる。`T` は結果にしか現れず推論できないので**明示 instantiate が必須**、`URL` は引数から推論されるが
-明示 `[...]` の arity には数えられる (all-or-nothing) ので、呼び出し側は両方書く。スコープはこの agent
-自身の行に乗る — 呼び出し側が同じ記述子の `provide` スコープの中で走らせる。
+For static calls that need neither listing nor minting, use `mcp.call`. This is also the
+underlying mechanism for the bindings generated by
+[`katari mcp pull`](#generating-typed-bindings). `mcp.call[literal URL, T]` takes two generics: a
+literal `URL` (which binds the scope per url), and `T`, the **decode target** for the return
+value. `arguments` is a literal `json` tree (built per parameter with `json.encode`), and the
+return value **decodes the server's response against `T`**: like `json.decode[T]`, it reads
+`structuredContent` as the wire form of `T` (restoring files to real `file` handles), throwing
+`json.decode_error` on mismatch. `T` appears only in the result and cannot be inferred, so it
+**must be instantiated explicitly**; `URL` is inferred from the arguments but still counts toward
+the arity of the explicit `[...]` (all-or-nothing), so callers write both. The scope rides on this
+agent's own line: the caller must run it inside a `provide` scope for the same url.
 
 ```katari title="direct.ktr"
 type get_issue_output = { title: string, number: integer, state: string }
@@ -133,25 +143,27 @@ agent get_issue(number: integer) -> get_issue_output with io | mcp.scope["https:
 }
 ```
 
-`T` を `json.json` にインスタンス化すれば、応答を生の `json` ツリーとして受けられる (codegen が
-`outputSchema` をマップできないときの選択)。呼び出し前に引数を検証しない (鋳造されたツールと違う)
-ので、拒否は `server_error` になる。
+Instantiating `T` as `json.json` receives the response as a raw `json` tree (the choice codegen
+falls back to when it cannot map `outputSchema`). Arguments are not validated before the call
+(unlike a minted tool), so a rejection surfaces as `server_error`.
 
-## エージェントを公開する
+## Publishing an agent
 
-`mcp.serve` は `webhook.inbound` の MCP 版で、渡した agent 群を MCP サーバーとして公開する。runtime が
-推測不能な capability URL を鋳造し、`subscriber` が生きている間そこでツールを serve する。レコードの
-キーが公開ツール名、agent の宣言シグネチャが advertise されるスキーマになる。URL の所持が唯一の
-credential — bearer 認証の API 面の外に mount され、subscriber が return する (または run が cancel
-される) と URL は失効する。
+`mcp.serve` is the MCP counterpart of `webhook.inbound`: it publishes a group of agents passed to
+it as an MCP server. The runtime mints an unguessable capability URL and serves tools there for as
+long as `subscriber` is alive. The record's keys become the published tool names, and each agent's
+declared signature becomes the advertised schema. Possession of the URL is the sole credential: it
+is mounted outside the bearer-authenticated API surface, and the URL expires when `subscriber`
+returns (or the run is canceled).
 
 ```katari title="serve.ktr"
 agent double(value: integer) -> integer {
   value * 2
 }
 
-@"URL を受け取り、呼び出すべき相手 (AI セッション、チームメイトの MCP クライアント) に渡し、
-serve すべき間 生き続ける。return するとその結果が `serve` の結果になる。"
+@"Receives the URL, hands it to whoever should call it (an AI session, a teammate's MCP client),
+and stays alive for as long as it should be served. Returning makes its result the result of
+`serve`."
 agent publisher(url: string) -> string {
   f"serving at ${url}"
 }
@@ -161,27 +173,30 @@ agent main() -> string {
 }
 ```
 
-`serve` は `toolbox[string]` を要求する。エントリ型 `tool[string]` は**自己完結な callable の TOP 型**
-なので、**effect を handle し終えた任意の agent がそのまま coerce する** — ユーザー側に儀式は要らない。
-外へ escalate する request を持つ agent を公開したいなら、まず handle してからレコードに入れる。
+`serve` requires a `toolbox[string]`. The entry type `tool[string]` is the **top type for
+self-contained callables**, so **any agent whose effects have already been handled coerces to it
+directly**, with no ceremony required on the user's side. To publish an agent that has a request
+escalating outward, handle it first, then place it into the record.
 
-## 型付きバインディングを生成する
+## Generating typed bindings
 
-実行時の動的な鋳造ではなく、**コンパイル時に** 型付きの Katari モジュールとしてツールを固定したい場合は
-`katari mcp pull` を使う。生成物は自己完結の `.ktr` モジュール 1 個 — サーバーのツール 1 つにつき型付き
-ラッパー agent が 1 つ、それらを `provide` スコープにクローズした `with_tools` provider が返る。再生成は
-ファイルを上書きする (生成物は成果物であり、手編集しない)。
+To fix tools as a typed Katari module **at compile time**, instead of minting them dynamically at
+runtime, use `katari mcp pull`. The output is a single self-contained `.ktr` module: one typed
+wrapper agent per tool on the server, plus a `with_tools` provider that closes them into a
+`provide` scope. Regenerating overwrites the file (the output is a build artifact and is not
+hand-edited).
 
 ```sh
 katari mcp pull --url https://github.example.com/mcp --out src/github.ktr --oauth
 ```
 
-`with_tools` も `use` provider なので、消費側は `mcp.provide` と同じ形になる: binder に型注釈を付け、
-以降の block で型付きの `tools` を使う。ラッパーは各々 `mcp.call` を静的経路で呼ぶので、スコープは
-`with_tools` の中で開いて閉じ、`tools.get_issue(...)` は普通の dot アクセスとして型が付く。
+`with_tools` is also a `use` provider, so consuming it takes the same form as `mcp.provide`:
+annotate the binder's type, then use the typed `tools` in the following block. Each wrapper calls
+`mcp.call` through the static path, so the scope opens and closes inside `with_tools`, and
+`tools.get_issue(...)` is typed as an ordinary dot access.
 
 ```katari title="src/main.ktr"
-import github   // `--out src/github.ktr` で生成したモジュール
+import github   // module generated by `--out src/github.ktr`
 
 agent main() -> string {
   let tools : {
@@ -192,19 +207,19 @@ agent main() -> string {
 }
 ```
 
-サーバーの JSON Schema が完全にマップできるパラメータ / 出力は型付きになり (上の `get_issue_output`)、
-マップできない部分を含むものは `json.json` に fallback する。フラグとマッピング規則は
-[CLI › mcp pull]({docs}/{currentVersion}/katari-toolchains/cli#mcp-pull) を参照。
+Parameters and outputs whose JSON Schema fully maps become typed (as with `get_issue_output`
+above); any that include an unmappable part fall back to `json.json`. For flags and mapping rules,
+see [CLI › mcp pull]({docs}/{currentVersion}/katari-toolchains/cli#mcp-pull).
 
-## エラー
+## Errors
 
-MCP の外部呼び出しは 2 つの typed throw に統一される (typed `mcp.call` は加えて `json.decode_error`)。
-`server_error` と `auth_error` は質的に異なる。
+External MCP calls are unified under two typed throws (a typed `mcp.call` additionally has
+`json.decode_error`). `server_error` and `auth_error` differ in kind.
 
-| エラー             | 契約                                                                                                                                                                                          |
-| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `mcp.server_error` | リスト / ツール呼び出しの拒否、または transport 失敗。**retry すれば再接続する** (接続断・restart 中断を含む)。閉じたスコープの外で呼んだツールも、閉じたスコープ名を添えてこれで拒否される。 |
-| `mcp.auth_error`   | `oauth` credential の不在、または refresh で直らない期限切れ。**retry では直らない** — `katari mcp login` を再実行する。                                                                      |
+| Error              | Contract                                                                                                                                                                                                                                       |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `mcp.server_error` | A rejected list/tool call, or a transport failure. **Retrying reconnects** (this covers a dropped connection or a restart interruption). A tool called outside its now-closed scope is also rejected with this error, naming the closed scope. |
+| `mcp.auth_error`   | A missing `oauth` credential, or an expiry that a refresh cannot fix. **Retrying does not fix this**; re-run `katari mcp login`.                                                                                                               |
 
 ```katari
 use handler {
@@ -213,7 +228,7 @@ use handler {
 }
 ```
 
-## 関連
+## Related
 
 <DocCards>
   <DocCard href="{docs}/{currentVersion}/standard-library/mcp" />

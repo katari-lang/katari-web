@@ -1,18 +1,19 @@
 ---
 title: prelude.env
-description: プロジェクトスコープの環境アクセス — get_secret (private, throw) と get_all (public)。
+description: Project-scoped environment access, get_secret (private, throw) and get_all (public).
 ---
 
-プロジェクトスコープの環境アクセス。ランタイムが起動時にプロジェクトの `env_entries` ストアへ
-束縛する host primitive で、default import 経由で `env.` qualified に呼ぶ。secret とそれ以外で
-読み方を分けている: secret はキーごとに `get_secret` で読み、結果は `string of private`
-(user-facing な境界を越えられない — header や FFI 呼び出しのような sink にのみ渡せる)。secret
-でないエントリは `get_all` でまとめて公開 (public) な `string` として読む。
+Project-scoped environment access. This is a host primitive that the runtime binds to the
+project's `env_entries` store at startup, called qualified as `env.` via the default import.
+Reading is split between secrets and everything else: secrets are read one key at a time with
+`get_secret`, and the result is `string of private` (it cannot cross a user-facing boundary; it
+can only be passed to a sink such as a header or an FFI call). Entries that are not secrets are
+read together with `get_all` as a public `string`.
 
-secret の設定・一覧・削除は CLI 側の操作 —
-[CLI › env]({docs}/{currentVersion}/katari-toolchains/cli#env) を参照。
+Setting, listing, and deleting secrets are CLI operations. See
+[CLI › env]({docs}/{currentVersion}/katari-toolchains/cli#env).
 
-## 型
+## Types
 
 ### `env.missing_secret`
 
@@ -20,11 +21,11 @@ secret の設定・一覧・削除は CLI 側の操作 —
 data missing_secret(key: string, message: string)
 ```
 
-`key` の下に secret なエントリが設定されていない。`get_secret` が投げる — オプショナルな設定・
-既定値へのフォールバックのように、プログラムが回復し得る想定内の失敗としてモデル化されている。
-catch しなければ run は失敗する。
+No secret entry is configured under `key`. Thrown by `get_secret`. It is modeled as an expected
+failure the program can recover from, such as an optional setting falling back to a default. If
+uncaught, the run fails.
 
-## agent
+## Agents
 
 ### `env.get_secret`
 
@@ -32,9 +33,9 @@ catch しなければ run は失敗する。
 primitive agent get_secret(key: string) -> string of private with prelude.throw[missing_secret]
 ```
 
-`key` の secret エントリを private な文字列として読む (値は secret として汚染されており、
-user-facing な境界に流れられない)。キーが無ければ `missing_secret` を投げる (`key` を運ぶので、
-どの secret が不在かで分岐できる)。
+Reads the secret entry for `key` as a private string (the value is tainted as secret and cannot
+flow to a user-facing boundary). Throws `missing_secret` if the key is absent (it carries `key`,
+so callers can branch on which secret is missing).
 
 ```katari
 agent optional_api_key() -> string of private {
@@ -45,7 +46,7 @@ agent optional_api_key() -> string of private {
 }
 ```
 
-- **Throws** `missing_secret` (`key` の下にエントリが無い)。
+- **Throws** `missing_secret` (no entry under `key`).
 
 ### `env.get_all`
 
@@ -53,9 +54,9 @@ agent optional_api_key() -> string of private {
 primitive agent get_all() -> record[string]
 ```
 
-secret でないすべての env エントリを、env のキーをキーとする public な文字列の record として読む。
+Reads every non-secret env entry as a record of public strings keyed by the env key.
 
-## 関連
+## Related
 
 <DocCards>
   <DocCard href="{docs}/{currentVersion}/language-reference/types" />

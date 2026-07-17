@@ -1,11 +1,11 @@
 ---
 title: Guides
-description: 特定のタスクを Katari で実現するための手引き。
+description: Guides for accomplishing specific tasks with Katari.
 ---
 
-特定の外部統合やワークフローを Katari で組むための手引き。言語そのものの仕様は
-[Language Reference]({docs}/{currentVersion}/language-reference)、prelude の各 agent のシグネチャは
-[Standard Library]({docs}/{currentVersion}/standard-library) を参照。
+Guides for building specific external integrations and workflows with Katari. For the language
+specification itself, see [Language Reference]({docs}/{currentVersion}/language-reference); for the
+signature of each prelude agent, see [Standard Library]({docs}/{currentVersion}/standard-library).
 
 <DocCards>
   <DocCard href="{docs}/{currentVersion}/guides/mcp" />
