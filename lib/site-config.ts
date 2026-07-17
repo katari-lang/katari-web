@@ -12,7 +12,10 @@ export const siteConfig = {
   github: "https://github.com/katari-lang/katari",
   // ヘッダーのナビ。docs 以外のページが増えたら追記。
   // `{latest}` は render 時に最新バージョンに展開される (Header / Footer 共通)。
-  nav: [{ label: "Docs", href: "/docs/{latest}/getting-started" }],
+  nav: [
+    { label: "Docs", href: "/docs/{latest}/getting-started" },
+    { label: "Reference", href: "/reference" },
+  ],
   // フッターの link 群。
   footerLinks: [
     {

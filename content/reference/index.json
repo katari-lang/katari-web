@@ -1,0 +1,70 @@
+{
+  "packages": [
+    {
+      "name": "prelude",
+      "version": "0.1.0-rc8",
+      "modules": [
+        "prelude",
+        "prelude.array",
+        "prelude.env",
+        "prelude.file",
+        "prelude.http",
+        "prelude.json",
+        "prelude.math",
+        "prelude.mcp",
+        "prelude.oauth",
+        "prelude.record",
+        "prelude.reflection",
+        "prelude.replay",
+        "prelude.string",
+        "prelude.time",
+        "prelude.webhook"
+      ]
+    },
+    {
+      "name": "ai",
+      "version": "0.1.0",
+      "modules": [
+        "ai",
+        "ai.gemini",
+        "ai.openai",
+        "ai.types"
+      ]
+    },
+    {
+      "name": "calendar",
+      "version": "0.1.0",
+      "modules": [
+        "calendar"
+      ]
+    },
+    {
+      "name": "e2b",
+      "version": "0.1.0",
+      "modules": [
+        "e2b"
+      ]
+    },
+    {
+      "name": "imagegen",
+      "version": "0.1.0",
+      "modules": [
+        "imagegen"
+      ]
+    },
+    {
+      "name": "tavily",
+      "version": "0.1.0",
+      "modules": [
+        "tavily"
+      ]
+    },
+    {
+      "name": "web",
+      "version": "0.1.0",
+      "modules": [
+        "web"
+      ]
+    }
+  ]
+}

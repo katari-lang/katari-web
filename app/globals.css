@@ -199,3 +199,32 @@ html.dark [data-rehype-pretty-code-figure] pre code span {
   font-family: var(--font-dm-mono), ui-monospace, monospace;
   color: var(--foreground);
 }
+
+/* === /reference signature blocks =========================================
+ * shiki を直接使う (rehype-pretty-code を通らない) ので、pretty-code と同じ
+ * dual-theme CSS 変数切り替えをここで行う。見た目はコードブロックに揃える。
+ */
+.reference-code pre {
+  padding: 0.625rem 0.875rem;
+  background-color: color-mix(in oklab, var(--muted) 50%, transparent) !important;
+  overflow-x: auto;
+  font-family: var(--font-dm-mono), ui-monospace, monospace;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  width: 100%;
+  border: 1px solid var(--border);
+}
+
+.reference-code pre code span {
+  color: var(--shiki-light) !important;
+  font-style: var(--shiki-light-font-style) !important;
+  font-weight: var(--shiki-light-font-weight) !important;
+  text-decoration: var(--shiki-light-text-decoration) !important;
+}
+
+html.dark .reference-code pre code span {
+  color: var(--shiki-dark) !important;
+  font-style: var(--shiki-dark-font-style) !important;
+  font-weight: var(--shiki-dark-font-weight) !important;
+  text-decoration: var(--shiki-dark-text-decoration) !important;
+}

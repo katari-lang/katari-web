@@ -17,6 +17,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "search-index": "tsx scripts/build-search-index.ts",
+    "generate:reference": "tsx scripts/generate-reference.ts",
     "cf:dev": "wrangler dev",
     "cf:deploy": "pnpm build && wrangler deploy",
     "cf:preview": "wrangler versions upload"

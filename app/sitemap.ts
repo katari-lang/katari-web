@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import { latestVersion, listAllSlugs, listVersions } from "@/lib/content";
+import { listReferencePackages } from "@/lib/reference/data";
 import { siteConfig } from "@/lib/site-config";
 
 // `output: "export"` で静的生成するため。
@@ -12,7 +13,15 @@ export default function sitemap(): MetadataRoute.Sitemap {
   const staticEntries: MetadataRoute.Sitemap = [
     { url: `${base}/`, lastModified, changeFrequency: "monthly", priority: 1 },
     { url: `${base}/docs`, lastModified, changeFrequency: "weekly", priority: 0.9 },
+    { url: `${base}/reference`, lastModified, changeFrequency: "weekly", priority: 0.9 },
   ];
+
+  const referenceEntries: MetadataRoute.Sitemap = listReferencePackages().map((entry) => ({
+    url: `${base}/reference/${entry.name}`,
+    lastModified,
+    changeFrequency: "weekly",
+    priority: 0.7,
+  }));
 
   const versionEntries: MetadataRoute.Sitemap = listVersions().map((version) => ({
     url: `${base}/docs/${version}`,
@@ -28,5 +37,5 @@ export default function sitemap(): MetadataRoute.Sitemap {
     priority: version === latestVersion() ? 0.7 : 0.4,
   }));
 
-  return [...staticEntries, ...versionEntries, ...docEntries];
+  return [...staticEntries, ...referenceEntries, ...versionEntries, ...docEntries];
 }
