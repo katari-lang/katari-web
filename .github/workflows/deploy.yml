@@ -1,0 +1,32 @@
+# Deploy every main-branch push to Cloudflare (katari-lang.dev). The build is repeated here
+# rather than reusing ci.yml artifacts so a deploy is always built from the exact commit it
+# ships, and a red ci run cannot leave a stale-but-green artifact to deploy.
+#
+# Secrets: CLOUDFLARE_API_TOKEN (Workers deploy permission) and CLOUDFLARE_ACCOUNT_ID.
+name: deploy
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy
