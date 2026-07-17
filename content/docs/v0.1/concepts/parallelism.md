@@ -25,9 +25,10 @@ agent staggered() -> array[number] with io {
 `parallel for` is the concurrent map: one thread per element, `next value` contributes that
 iteration's element, and the whole expression completes when every branch has. Drop the
 `parallel` and the same loop runs sequentially — the value and types are identical; only the
-scheduling changes. A `var` accumulator (`for (let v in vs, var total = 0)`) updates in
-iteration order sequentially; under `parallel` the updates land in completion order, so
-reach for an accumulator only when the fold is order-independent.
+scheduling changes. A `var` accumulator (`for (let v in vs, var total = 0)`) belongs to the
+sequential form: each arm of a `parallel for` would start from the initial value and the
+writes would not accumulate, so do not combine `parallel` with `var` — collect the branch
+results and fold after the join instead.
 
 ## parallel blocks
 
