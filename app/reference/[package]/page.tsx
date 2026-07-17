@@ -7,7 +7,7 @@ import { latestVersion } from "@/lib/content";
 import { mdxOptions } from "@/lib/mdx/options";
 import { getPackageDocs, getPackageReadme, listReferencePackages } from "@/lib/reference/data";
 import { buildModuleToPackage } from "@/lib/reference/links";
-import { demoteReadmeHeadings } from "@/lib/reference/readme";
+import { prepareReadme } from "@/lib/reference/readme";
 import { buildMdxComponents } from "@/components/mdx/components";
 import { SidebarScrollContainer } from "@/components/docs/sidebar-scroll-container";
 import { DeclarationCard } from "@/components/reference/declaration-card";
@@ -53,7 +53,7 @@ export default async function ReferencePackagePage({ params }: Props) {
       ? null
       : (
           await compileMDX({
-            source: demoteReadmeHeadings(readme),
+            source: prepareReadme(readme),
             components: buildMdxComponents({ version: latestVersion(), slug: [] }),
             options: { mdxOptions },
           })

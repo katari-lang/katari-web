@@ -27,6 +27,7 @@
       "version": "0.1.0",
       "modules": [
         "ai",
+        "ai.anthropic",
         "ai.gemini",
         "ai.openai",
         "ai.types"
@@ -34,10 +35,10 @@
       "hasReadme": true
     },
     {
-      "name": "calendar",
+      "name": "discord",
       "version": "0.1.0",
       "modules": [
-        "calendar"
+        "discord"
       ],
       "hasReadme": true
     },
@@ -50,10 +51,26 @@
       "hasReadme": true
     },
     {
+      "name": "google_calendar",
+      "version": "0.1.0",
+      "modules": [
+        "google_calendar"
+      ],
+      "hasReadme": true
+    },
+    {
       "name": "imagegen",
       "version": "0.1.0",
       "modules": [
         "imagegen"
+      ],
+      "hasReadme": true
+    },
+    {
+      "name": "slack",
+      "version": "0.1.0",
+      "modules": [
+        "slack"
       ],
       "hasReadme": true
     },
