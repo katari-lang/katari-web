@@ -11,8 +11,8 @@ chapter after this one.
 ## A fresh project
 
 ```sh
-katari init my_bot --dir my_bot
-cd my_bot
+katari init bot --dir bot
+cd bot
 ```
 
 `katari init` scaffolds a complete project:
@@ -20,21 +20,18 @@ cd my_bot
 - `katari.toml` — the package name, the runtime URL (`http://localhost:3000`), and a
   `[dependencies]` section pinned to a registry snapshot (empty for now; chapter 3 fills
   it).
-- `src/main.ktr` — a starter program, the one the
-  [Quickstart]({docs}/{currentVersion}/getting-started/quickstart) walks through.
+- `src/bot.ktr` — a starter program, the one the
+  [Quickstart]({docs}/{currentVersion}/getting-started/quickstart) walks through. Every
+  module lives under the package's namespace, so a `bot` package's starter is `src/bot.ktr`
+  (the module `bot`).
 - `compose.yaml` and `.env.example` — a self-contained local runtime stack. You already
   have a runtime running from the quickstart, so leave these alone; one runtime serves
   any number of projects.
 
-Delete the starter and give the bot its own module:
-
-```sh
-rm src/main.ktr
-```
-
 ## Your first agent
 
-Create `src/bot.ktr`:
+`katari init` already scaffolded `src/bot.ktr` — its module name follows the package name
+(`bot`), so it is ready to use. Replace its contents with your first agent:
 
 ```katari
 @"Greet someone by name."

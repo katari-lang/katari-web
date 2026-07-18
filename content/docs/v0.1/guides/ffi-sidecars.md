@@ -10,7 +10,8 @@ typed boundary stays in Katari; the TypeScript is as small as the client library
 
 ## Declare and implement
 
-The Katari half, in `src/sensors.ktr` — an `external agent` has a signature but no body:
+The Katari half — in a project named `sensors`, so `src/sensors.ktr` is the package's own
+module — an `external agent` has a signature but no body:
 
 ```katari
 @"Read one sensor's current value; implemented in `sensors.ts` beside this file."

@@ -19,13 +19,13 @@ cd hello
   + .env.example
   + .gitignore
   + katari.toml
-  + src/main.ktr
+  + src/hello.ktr
 Initialized hello
-hint: docker compose up -d && katari apply && katari run
+hint: docker compose up -d && katari apply && katari run hello.main
 ```
 
 `katari.toml` names the package and points at a runtime (`http://localhost:3000` by default).
-`src/main.ktr` defines one request and one agent:
+`src/hello.ktr` defines one request and one agent:
 
 ```katari
 request ask_name(prompt: string) -> string
@@ -79,7 +79,7 @@ katari apply
 Creating project hello
 Deploying hello to http://localhost:3000
   16 changed, 0 unchanged, 0 removed
-  + main
+  + hello
   + prelude
   ...
 Applied snapshot 980c94ce-fa15-45bb-ac6c-3f9b064ee87b to project hello
@@ -88,17 +88,17 @@ Applied snapshot 980c94ce-fa15-45bb-ac6c-3f9b064ee87b to project hello
 ## Run it
 
 ```sh
-katari run main.main
+katari run hello.main
 ```
 
 ```
 Started run 3acbdecd-f74c-424f-bff9-33087242aec2 (Ctrl-C detaches; the run keeps going)
-  12:11:34 delegate api→core main.main [04fbd8f5]
-  12:11:34 delegate core→core main.ask_name [e233d5ab]
-  12:11:34 escalate core→core request main.ask_name [e233d5ab/362ed1d7]
-  12:11:34 escalate core→api request main.ask_name [04fbd8f5/42d264c0]
+  12:11:34 delegate api→core hello.main [04fbd8f5]
+  12:11:34 delegate core→core hello.ask_name [e233d5ab]
+  12:11:34 escalate core→core request hello.ask_name [e233d5ab/362ed1d7]
+  12:11:34 escalate core→api request hello.ask_name [04fbd8f5/42d264c0]
 
-The run is asking main.ask_name: {"prompt":"What is your name?"}
+The run is asking hello.ask_name: {"prompt":"What is your name?"}
 ? answer (string) Ada
 Answered; waiting on the run again...
   12:11:34 escalateAck api→core [04fbd8f5/42d264c0]
@@ -108,7 +108,7 @@ Answered; waiting on the run again...
 "Hello, Ada!"
 ```
 
-The trace streams live: the run delegates to `main.main`, hits `ask_name`, and escalates.
+The trace streams live: the run delegates to `hello.main`, hits `ask_name`, and escalates.
 `katari run` turns the open question into a terminal prompt; your answer resumes the run,
 and the result comes back.
 
@@ -118,13 +118,13 @@ That inline prompt is a convenience, not the model. The escalation is a durable 
 runtime — the run parks on it for as long as it takes. Start a run without waiting on it:
 
 ```sh
-katari run main.main --detach
+katari run hello.main --detach
 katari ls escalations
 ```
 
 ```
 ID        RUN       REQUEST        QUESTION                         CREATED
-0affdd73  f51154d2  main.ask_name  {"prompt":"What is your name?"}  2026-07-17 12:09
+0affdd73  f51154d2  hello.ask_name  {"prompt":"What is your name?"}  2026-07-17 12:09
 ```
 
 Answer it — hours later, from another machine, id prefixes are enough:
@@ -136,8 +136,8 @@ katari status f51154d2
 
 ```
 Run           f51154d2-1403-45c5-bb23-0016daf6320d
-Name          main.main
-Agent         main.main
+Name          hello.main
+Agent         hello.main
 State         done
 Snapshot      980c94ce-fa15-45bb-ac6c-3f9b064ee87b
 Argument      {}

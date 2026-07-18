@@ -20,7 +20,7 @@ Three nouns organize everything:
 
 ```bash
 katari apply                   # compile + deploy: a new snapshot
-katari run main.main           # start a run (Ctrl-C detaches; the run keeps going)
+katari run hello.main          # start a run (Ctrl-C detaches; the run keeps going)
 katari ls snapshots
 katari ls runs --state running
 ```

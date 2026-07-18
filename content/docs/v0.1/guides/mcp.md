@@ -75,8 +75,11 @@ Dynamic tools are `unknown`-shaped until runtime. When you know the server at de
 agent**:
 
 ```sh
-katari mcp pull --url https://mcp.example.test/mcp --out src/github.ktr
+katari mcp pull --url https://mcp.example.test/mcp --out src/myapp/github.ktr
 ```
+
+A project named `myapp` must keep every module inside its namespace, so the binding
+lands at `src/myapp/github.ktr` — module `myapp.github`.
 
 Authenticate the listing with `--header KEY=VALUE` (repeatable) or `--oauth` (an ephemeral
 dev-time browser login; add `--scope` if the server needs one). Re-running overwrites the file —
@@ -86,7 +89,7 @@ The module contains one `connect` provider plus one agent per tool. You open the
 bare `use` statement and call the tools directly:
 
 ```katari
-import github
+import myapp.github
 
 @"Open the connection once, then call the pulled tools like ordinary agents."
 agent main() -> string with io {

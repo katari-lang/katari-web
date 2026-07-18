@@ -10,25 +10,25 @@ token. `katari <command> --help` documents every flag.
 
 ## All commands
 
-| Command                              | What it does                                                                                                |
-| ------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
-| `katari init [NAME]`                 | Scaffold a new project: `katari.toml`, `src/main.ktr`, and a compose file for a local runtime.              |
-| `katari check`                       | Compile the project and report diagnostics. Local only — nothing reaches the runtime.                       |
-| `katari build`                       | Compile to IR JSON on disk (`.katari/dist/ir.json`), for inspection or CI artifacts.                        |
-| `katari docs`                        | Emit the package's library API reference as JSON; `--stdlib` documents the prelude instead.                 |
-| `katari add PKG...`                  | Add dependencies from the pinned registry snapshot and refresh `katari.lock`.                               |
-| `katari remove PKG...`               | Remove dependencies and refresh `katari.lock`.                                                              |
-| `katari apply`                       | Compile and deploy to the runtime as a new immutable snapshot; the project head moves to it.                |
-| `katari run [AGENT]`                 | Start an agent and wait for its result, streaming the trace and prompting on escalations. Ctrl-C detaches.  |
-| `katari ls [TARGET]`                 | List runs (default), `agents`, `snapshots`, `projects`, `escalations`, `files`, or `env`.                   |
-| `katari status [RUN]`                | One run's state, argument, result, open questions, and full trace.                                          |
-| `katari answer [ESCALATION]`         | Answer a question a run escalated; the run resumes.                                                         |
-| `katari cancel [RUN]`                | Cancel a running run, optionally recording a `--reason`.                                                    |
-| `katari env get/set/unset`           | Manage the project's env entries on the runtime; `--secret` makes a value write-only and encrypted at rest. |
-| `katari file upload/download/delete` | Move file bytes between your disk and the runtime's blob store.                                             |
-| `katari mcp pull`                    | Generate a typed `.ktr` binding module from an MCP server's tool listing.                                   |
-| `katari mcp credentials/forget`      | List or delete the project's stored MCP OAuth credentials.                                                  |
-| `katari project remove/rollback`     | Delete a project on the runtime, or move its head back to an earlier snapshot.                              |
+| Command                              | What it does                                                                                                                                      |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `katari init [NAME]`                 | Scaffold a new project: `katari.toml`, `src/<name>.ktr` (the starter module under the package namespace), and a compose file for a local runtime. |
+| `katari check`                       | Compile the project and report diagnostics. Local only — nothing reaches the runtime.                                                             |
+| `katari build`                       | Compile to IR JSON on disk (`.katari/dist/ir.json`), for inspection or CI artifacts.                                                              |
+| `katari docs`                        | Emit the package's library API reference as JSON; `--stdlib` documents the prelude instead.                                                       |
+| `katari add PKG...`                  | Add dependencies from the pinned registry snapshot and refresh `katari.lock`.                                                                     |
+| `katari remove PKG...`               | Remove dependencies and refresh `katari.lock`.                                                                                                    |
+| `katari apply`                       | Compile and deploy to the runtime as a new immutable snapshot; the project head moves to it.                                                      |
+| `katari run [AGENT]`                 | Start an agent and wait for its result, streaming the trace and prompting on escalations. Ctrl-C detaches.                                        |
+| `katari ls [TARGET]`                 | List runs (default), `agents`, `snapshots`, `projects`, `escalations`, `files`, or `env`.                                                         |
+| `katari status [RUN]`                | One run's state, argument, result, open questions, and full trace.                                                                                |
+| `katari answer [ESCALATION]`         | Answer a question a run escalated; the run resumes.                                                                                               |
+| `katari cancel [RUN]`                | Cancel a running run, optionally recording a `--reason`.                                                                                          |
+| `katari env get/set/unset`           | Manage the project's env entries on the runtime; `--secret` makes a value write-only and encrypted at rest.                                       |
+| `katari file upload/download/delete` | Move file bytes between your disk and the runtime's blob store.                                                                                   |
+| `katari mcp pull`                    | Generate a typed `.ktr` binding module from an MCP server's tool listing.                                                                         |
+| `katari mcp credentials/forget`      | List or delete the project's stored MCP OAuth credentials.                                                                                        |
+| `katari project remove/rollback`     | Delete a project on the runtime, or move its head back to an earlier snapshot.                                                                    |
 
 ## The edit loop
 
@@ -45,7 +45,7 @@ project head. Old snapshots stay — `katari ls snapshots` lists them and
 on, so a deploy never changes a program mid-run.
 
 ```sh
-katari run main.main --arg '{}' --detach
+katari run hello.main --arg '{}' --detach
 ```
 
 `run` without an agent opens an interactive picker; without `--arg` it prompts per parameter.
