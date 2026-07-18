@@ -19,7 +19,7 @@ agent main(url: string) -> string {
       break f"mcp failed: ${json.to_text(value = error)}"
     }
   }
-  let tools : mcp.toolbox[string] = use mcp.provide(url = url, auth = mcp.headers(values = record.empty()))
+  let tools : mcp.toolbox[mcp.scope] = use mcp.provide[mcp.scope](url = url, auth = mcp.headers(values = record.empty()))
   match (record.get(target = tools, key = "add")) {
     case null -> "(no add tool)"
     case tool -> json.to_text(value = reflection.call_agent(target = tool, args = { x = 19, y = 23 }))
@@ -33,10 +33,19 @@ against the schema before the server is ever contacted. There is no connection t
 runtime connects lazily, reuses the connection across calls, and reconnects transparently after a
 failure or a restart.
 
-The tools are **scoped**: a tool's effect row carries `mcp.scope[URL]`, which only `provide`'s
-block discharges, so a tool cannot outlive its connection — returning one out of the block is a
-type error. A literal `url` scopes tools per-URL; a dynamic one (as above) widens the scope to
-any URL, which is why the toolbox above is typed `mcp.toolbox[string]`.
+The tools are **scoped**: a tool's effect row carries a scope marker, which only `provide`'s block
+discharges, so a tool cannot outlive its connection — returning one out of the block is a type error.
+`provide` is generic over the marker it discharges; you pass one in the `[...]` (`mcp.provide[mcp.scope]`
+above) and it rides the toolbox type, so the toolbox is `mcp.toolbox[mcp.scope]`. `mcp.scope` is the
+built-in marker for direct, dynamic connections; a `katari mcp pull` binding declares its own instead.
+
+**Declare one marker per logical connection.** When you call `provide` directly you choose the marker,
+so sharing one marker across two connections **merges** their scopes at the type level — the two servers'
+tools become interchangeable in any row that carries that marker. This is only a type distinction:
+routing and the live-`provide` backstop are always enforced by each tool value's own `{url, auth}`
+descriptor, so a call never reaches the wrong server — at worst a tool whose `provide` has already closed
+fails with a typed `mcp.server_error`. Generated bindings need no such care: the module namespace mints a
+distinct marker (`github.connection`) per connection automatically.
 
 ## Hand the tools to a model
 
@@ -59,7 +68,7 @@ agent main(url: string, task: string) -> string with io {
     model = "gemini-3.5-flash",
     api_key = env.get_secret(key = "GEMINI_API_KEY"),
   )
-  let tools : mcp.toolbox[string] = use mcp.provide(url = url, auth = mcp.headers(values = record.empty()))
+  let tools : mcp.toolbox[mcp.scope] = use mcp.provide[mcp.scope](url = url, auth = mcp.headers(values = record.empty()))
   ai.infer_with_tools(
     history = [types.turn(role = "user", text = task, files = [])],
     tools = record.values(target = tools),
@@ -128,7 +137,7 @@ agent main(url: string) -> string with io {
     }
   }
   let key = env.get_secret(key = "MCP_BEARER_KEY")
-  let tools : mcp.toolbox[string] = use mcp.provide(
+  let tools : mcp.toolbox[mcp.scope] = use mcp.provide[mcp.scope](
     url = url,
     auth = mcp.headers(values = record.set(target = record.empty(), key = "Authorization", value = "Bearer " ++ key)),
   )
@@ -150,8 +159,8 @@ agent main() -> string with io {
       break f"mcp failed: ${json.to_text(value = error)}"
     }
   }
-  let tools : mcp.toolbox["https://mcp.notion.com/mcp"] =
-    use mcp.provide(url = "https://mcp.notion.com/mcp", auth = mcp.oauth(name = "notion"))
+  let tools : mcp.toolbox[mcp.scope] =
+    use mcp.provide[mcp.scope](url = "https://mcp.notion.com/mcp", auth = mcp.oauth(name = "notion"))
   f"the server publishes ${string.to_string(value = array.length(target = record.values(target = tools)))} tools"
 }
 ```
