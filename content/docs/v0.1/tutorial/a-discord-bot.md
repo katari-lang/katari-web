@@ -85,6 +85,16 @@ agent count_letters(word: string, letter: string) -> integer {
   array.length(target = string.split(value = word, separator = letter)) - 1
 }
 
+@"Post a reply, catching a failed send so one bad post never ends the bot. A send raises
+`discord.discord_error` (a rate limit, a bad token); swallowing it drops just that reply and the
+loop keeps serving the next message."
+agent try_send(channel_id: string, text: string) -> null {
+  use handler {
+    request prelude.throw(error: discord.discord_error) -> never { break null }
+  }
+  discord.send_message(channel_id = channel_id, text = text, files = [])
+}
+
 @"Raised once per incoming channel message; `serve`'s handler owns it, so the handler's
 var can carry the conversation history across messages."
 request on_message(channel_id: string, text: string, files: array[file]) -> null
@@ -114,7 +124,7 @@ agent serve[effect E](channel_id: string, tools: array[agent never -> unknown wi
     request on_message(channel_id: string, text: string, files: array[file]) {
       let asked = array.append(target = history, value = types.turn(role = "user", text = text, files = files))
       let answer = ai.infer_with_tools[E](history = asked, tools = tools, max_steps = 8)
-      discord.send_message(channel_id = channel_id, text = answer, files = [])
+      try_send(channel_id = channel_id, text = answer)
       next null with { history = array.append(target = asked, value = types.turn(role = "model", text = answer, files = [])) }
     }
   }
@@ -138,11 +148,18 @@ Two agents, and you have met every idea in them:
   a long-running bot you want that: a readable string result instead of a failed run.
 - **`serve` is `roll_call` grown up.** The handler's `var history` is the channel's
   memory: each `on_message` appends the user turn, runs the loop — the same
-  `ai.infer_with_tools`, generic over the tools' effects `E` — posts the answer, and
-  rolls the history forward with `next null with { history = ... }`. The nested
+  `ai.infer_with_tools`, generic over the tools' effects `E` — posts the answer through
+  `try_send`, and rolls the history forward with `next null with { history = ... }`. The nested
   `deliver` agent is the bridge from the previous section, and
   `discord.watch_messages` feeds it forever — its return type is `never`. One built-in
   courtesy: the bot's own posts are not delivered back to it, so replying cannot loop.
+- **`try_send` is why the bot survives a bad post.** `discord.send_message` raises a
+  typed `discord.discord_error` when a send fails — a rate limit, a revoked token — and an
+  uncaught throw would tear the whole loop down. Catching it drops just that one reply and
+  keeps serving. `discord_error` splits into `api_error` (transient) and `auth_error` (the
+  token or permissions are wrong); this bot swallows both, but a `match` on the two lets a
+  real bot shrug off the transient one and stop loudly on the token — see the
+  [`discord` reference](/reference/discord).
 
 ## Deploy and talk
 
