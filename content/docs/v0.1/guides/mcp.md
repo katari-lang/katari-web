@@ -174,6 +174,36 @@ deletes one (forcing re-authorization on next use). See
 [Secrets and credentials]({docs}/{currentVersion}/guides/secrets-and-credentials) for the whole
 credential story.
 
+## Recipe: Notion
+
+Notion's official server (`https://mcp.notion.com/mcp`) is OAuth-only, so pull it once with an
+ephemeral dev-time login and connect at runtime with the credential the runtime stores:
+
+```sh
+katari mcp pull --url https://mcp.notion.com/mcp --oauth --out src/myapp/notion.ktr
+```
+
+`--oauth` opens a browser to authorize the listing; the generated `myapp.notion` module carries no
+token. At runtime, `connect` takes the **stored** credential named `notion` — a missing one parks the
+run on the authorization escalation above, answered once from the admin console or `katari answer`,
+after which every later run resumes silently:
+
+```katari
+import myapp.notion
+
+@"Open the Notion connection with the stored OAuth credential, then search."
+agent main(query: string) -> string with io {
+  use handler {
+    request prelude.throw(error: mcp.server_error | mcp.auth_error | json.decode_error) -> never {
+      break f"notion failed: ${json.to_text(value = error)}"
+    }
+  }
+  use notion.connect(auth = mcp.oauth(name = "notion"))
+  let results = notion.search(query = query)
+  json.to_text(value = results)
+}
+```
+
 ## Serve your agents
 
 `mcp.serve` is the inbound direction: the runtime mints a fresh, unguessable capability URL and

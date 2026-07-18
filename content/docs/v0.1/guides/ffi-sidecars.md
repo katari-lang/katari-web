@@ -239,6 +239,56 @@ Three consequences of the process model worth designing for:
   retry is a Katari-level decision — a panic converter plus a `replay` provider, composed by the
   caller.
 
+## Survive a runtime restart
+
+Here is that composition — a panic converter plus a `replay` provider — for a long-lived bot. A
+sidecar's client handle is process-local (the `slack` / `discord` client map lives in the subprocess,
+not the durable log), so a runtime restart resumes the run holding a handle to a connection that no
+longer exists, and its next `watch` / `send` fails as an `interrupted` panic. The converter turns that
+panic into a `replay.interrupted` signal and `replay.forever` re-runs the block — and because
+`slack.provider` sits **inside** the replay scope, each replay reconnects with a fresh handle:
+
+```katari
+import slack
+
+@"Reply to one message. A transient `api_error` is caught so one failed send never ends the bot; an
+`auth_error` (a bad token) surfaces and stops it loudly — the per-message channel, a typed throw."
+agent reply(channel: string, user: string, text: string, thread_ts: string | null, files: array[file]) -> null with io | slack.get_slack_client | prelude.throw[slack.auth_error] {
+  use handler {
+    request prelude.throw(error: slack.slack_error) -> never {
+      match (error) {
+        case slack.api_error(_) -> { break null }
+        case slack.auth_error(message => message) -> { prelude.throw(error = slack.auth_error(message = message)) }
+      }
+    }
+  }
+  slack.send_message(channel = channel, text = f"you said: ${text}", files = [], thread_ts = thread_ts)
+}
+
+@"The restart-resilient bot: the panic converter re-runs connect-and-serve after a capped backoff, and
+`slack.provider` — inside the replay scope — reconnects each time with a fresh Socket Mode client."
+agent main(channel: string) -> never with io | prelude.throw[slack.slack_error | env.missing_secret] {
+  use replay.forever(initial_delay_milliseconds = 1000, factor = 2, max_delay_milliseconds = 60000)
+  use handler {
+    request panic(msg: string) -> never {
+      replay.interrupted(failure = msg)
+    }
+  }
+  use slack.provider(
+    bot_token = env.get_secret(key = "SLACK_BOT_TOKEN"),
+    app_token = env.get_secret(key = "SLACK_APP_TOKEN"),
+  )
+  slack.watch_messages(channel = channel, deliver_to = reply)
+}
+```
+
+The two failure channels stay separate: a per-message send failure is a typed `slack_error` caught in
+`reply`, while the restart failure is a panic caught by the converter. `replay.forever` sleeps its
+capped backoff durably and re-runs the block, so a fresh `create_slack_client` mints a live handle
+where the journal replayed a dead one — the same `replay` composition
+[scheduled jobs]({docs}/{currentVersion}/guides/scheduled-jobs) use for a `time.watch`, catching a
+panic instead of a throw.
+
 ## Where to go next
 
 - [Packages]({docs}/{currentVersion}/guides/packages) — publishing to the registry, and what
