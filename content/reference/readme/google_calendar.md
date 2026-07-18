@@ -1,9 +1,10 @@
 # google_calendar — Google Calendar tools for Katari
 
 A single module, `google_calendar`: two tools the model can call — `list_events` and `create_event` —
-and a notification watcher, `watch` — backed by Google's OAuth refresh-token grant. Pure Katari over
-`http.fetch`: the token exchange and every Calendar API call build their request and parse their reply
-as `json`. No FFI sidecar.
+and a notification watcher, `watch` — over Google's Calendar API. Pure Katari: every API call is
+`http.fetch` with the request built and the reply parsed as `json`. No FFI sidecar — and no OAuth
+plumbing in the program: authentication is the runtime's credentials core, reached through the stdlib's
+`oauth.token`.
 
 - `google_calendar.list_events(calendar_id, time_min, time_max, max_results?)` — upcoming events in a
   window, trimmed to id / summary / start / end / link.
@@ -12,59 +13,98 @@ as `json`. No FFI sidecar.
   daemon that delivers each upcoming **timed** event to `deliver_to` as it enters the lead window
   (at-least-once, deduped per `(id, start)` within a single activation). Never resolves; composes under
   `parallel [ … ]`.
-- `google_calendar.provider(client_id, client_secret, refresh_token)` — provides the OAuth credentials (each
-  a `string of private`) and a **cached access token** for the extent of a continuation. The first tool
-  call exchanges the refresh token; later calls reuse the cached access token until it nears expiry.
+- `google_calendar.provider(name?)` — provides the capability the tools require (`get_access_token`)
+  for the extent of a continuation, by resolving the **stored credential** named `name` (default
+  `"google"`) through the runtime on every ask. The provider holds no secret and keeps no cache: the
+  runtime owns the token material, serves the stored access token while its recorded lifetime holds,
+  and refreshes it against the stored token endpoint once due. The resolved token is a
+  `string of private` — it flows only to the `Authorization: Bearer` header, never to a user-facing
+  boundary.
 
-Failures are a two-variant sum, `google_calendar.calendar_error = google_calendar.auth_error | google_calendar.api_error`:
+## Failure model
 
-- `auth_error` — the token endpoint rejected the grant (a revoked/expired refresh token, or wrong
-  client credentials), or a Calendar API call came back 401/403. Retrying does not help until a human
-  re-authorizes.
-- `api_error` — any other non-2xx Calendar API failure (a bad request, a missing calendar, a quota or
-  server error). Usually transient; a plain backoff retry is the right response.
+Three meanings, decided at three boundaries:
 
-## Secrets / env
+- **The credential needs a human** — it was never authorized, or its refresh is dead. This is **never
+  an error**: `oauth.token` pauses the run on a `prelude.oauth.authorize` escalation (the admin console
+  and `katari answer` render it as an authorization request), and completing the browser flow resumes
+  the run right where it stopped. Nothing to catch — a pause, not a throw.
+- **`oauth.server_error`** (stdlib) — the token could not be resolved for a **transient** reason: a
+  network error, or the token endpoint failing (5xx) while refreshing. Thrown at the provider; retry it
+  like any transport blip.
+- **`google_calendar.calendar_error = google_calendar.auth_error | google_calendar.api_error`** — the
+  Calendar API's own failures, classified once:
+  - `auth_error` — a 401/403: Google rejected the resolved access token (revoked before its stored
+    expiry, or scoped too narrowly). Retrying the *same* token does not help, but **replaying the call
+    does**: the re-run resolves the token afresh, the runtime refreshes the credential once its stored
+    lifetime passes, and a credential the runtime cannot refresh parks the run as a re-authorization
+    prompt. No app-owned escalation is needed.
+  - `api_error` — any other non-2xx (a bad request, a missing calendar, a quota or server error).
+    Usually transient; a plain backoff retry is the right response.
 
-Three OAuth values, provisioned as runtime **secrets** (`--secret`) and read with `env.get_secret`:
+## Setup: register the Google OAuth client, then log in
 
-```sh
-katari env set GOOGLE_OAUTH_CLIENT_ID     --secret
-katari env set GOOGLE_OAUTH_CLIENT_SECRET --secret
-katari env set GOOGLE_OAUTH_REFRESH_TOKEN --secret
-```
+The runtime hosts the whole OAuth flow — the browser consent, the redirect callback, the token
+exchange, storage and refresh. You register a Google OAuth client with the runtime once; programs then
+name the credential and never see a token.
 
-They can be secrets because Katari's request body is a private-capable sink (the body-sink rule): a
-`string of private` may leave the runtime through a request's submission surfaces — a header value *and*
-the body — so these credentials ride the token endpoint's `application/x-www-form-urlencoded` body
-(where the refresh token, which has no header form at all, must go), revealed only at the transport
-boundary for the one server the program named — never read back out as a plain string. The three secrets
-stay inside the provider; only the short-lived access token it fetches leaves it (that token is public —
-an HTTP response is declassified).
+### 1. Create the OAuth client in the Google Cloud console
 
-To get a refresh token: create an OAuth client (type "Web application" or "Desktop app") in the
-Google Cloud console, enable the Google Calendar API, then use the
-[OAuth 2.0 Playground](https://developers.google.com/oauthplayground) with your own credentials to
-authorize the `https://www.googleapis.com/auth/calendar` scope and exchange the code — the response's
-`refresh_token` is the value to store.
+1. In [console.cloud.google.com](https://console.cloud.google.com), create (or select) a project and
+   enable the **Google Calendar API** (APIs & Services → Library).
+2. Configure the **OAuth consent screen** (APIs & Services → OAuth consent screen). While the app is in
+   *Testing* status, add the Google account you will authorize as a test user — and note that Google
+   expires a Testing app's refresh tokens after 7 days, so **publish the app** (or use *Internal* on a
+   Workspace domain) for a daemon that must keep running.
+3. Create the client: APIs & Services → Credentials → Create Credentials → **OAuth client ID**, type
+   **Web application**. Add the runtime's callback as an **authorized redirect URI**:
+   `<public-url>/oauth/callback`, where `<public-url>` is the runtime's public base URL
+   (`KATARI_PUBLIC_URL`; the local default is the runtime's own address, e.g.
+   `http://localhost:3000/oauth/callback`).
+4. Note the **Client ID** and **Client secret**.
+
+### 2. Register the client with the runtime
+
+In the admin console, open your project's **Credentials** page and press **Register client**:
+
+| Field | Value |
+| --- | --- |
+| Name | `google` (the provider's default credential name) |
+| Issuer | `https://accounts.google.com` |
+| Authorization endpoint | `https://accounts.google.com/o/oauth2/v2/auth` |
+| Token endpoint | `https://oauth2.googleapis.com/token` |
+| Client ID / Client secret | from the console (the secret is write-only — it is sealed and never echoed back) |
+| Scopes | `https://www.googleapis.com/auth/calendar` |
+| Extra authorize parameters | `access_type=offline prompt=consent` |
+
+The extra parameters matter for Google specifically: `access_type=offline` is what makes Google issue a
+**refresh token** (without it the credential dies when the first access token expires), and
+`prompt=consent` makes Google re-issue one on a later re-authorization instead of silently omitting it.
+
+### 3. Log in
+
+Press **Log in** on the registered client's row and complete the consent screen — the runtime stores
+the credential under the client's name. Or skip this: the first `get_access_token` of a run **pauses**
+it on an authorization escalation, which the admin console (and `katari answer`) render as the same
+login button; authorizing resumes the run.
+
+For several Google accounts, register the same client under several names (e.g. `google_work`) and pick
+one per scope: `use google_calendar.provider(name = "google_work")`.
 
 ## Usage: the tools
 
 ```katari
 import google_calendar
 
-agent upcoming(calendar_id: string, time_min: string, time_max: string) -> array[google_calendar.event] with io | prelude.throw[env.missing_secret | google_calendar.calendar_error | http.fetch_error | json.parse_error] {
-  use google_calendar.provider(
-    client_id = env.get_secret(key = "GOOGLE_OAUTH_CLIENT_ID"),
-    client_secret = env.get_secret(key = "GOOGLE_OAUTH_CLIENT_SECRET"),
-    refresh_token = env.get_secret(key = "GOOGLE_OAUTH_REFRESH_TOKEN"),
-  )
+agent upcoming(calendar_id: string, time_min: string, time_max: string) -> array[google_calendar.event] with io | prelude.throw[oauth.server_error | google_calendar.calendar_error | http.fetch_error | json.parse_error] {
+  use google_calendar.provider()
   google_calendar.list_events(calendar_id = calendar_id, time_min = time_min, time_max = time_max)
 }
 ```
 
 Hand `google_calendar.list_events` / `google_calendar.create_event` to an AI loop's tool list to let the model read
 and schedule on its own. A failed call throws `google_calendar.calendar_error` — handle it at the app root.
+If the credential is not authorized yet, the run pauses and asks instead of failing.
 
 ## Usage: the watch
 
@@ -75,10 +115,9 @@ durable dedup memory) an event whose start has not moved is delivered once, and 
 *moved* is a new pair, so it re-notifies. A **replay re-run is a fresh activation** whose memory starts
 empty, so a `prelude.replay` provider around the watch (below) re-delivers every event still inside the
 lead window; a `deliver_to` failure likewise re-delivers the events after it in that tick on the next run.
-All-day
-events are **not** covered — they have no instant to place in the lead window. The watch never resolves,
-so it runs as a `parallel [ … ]` arm (or a standalone entry); its `deliver_to` effects flow out to the
-app's handlers unchanged.
+All-day events are **not** covered — they have no instant to place in the lead window. The watch never
+resolves, so it runs as a `parallel [ … ]` arm (or a standalone entry); its `deliver_to` effects flow out
+to the app's handlers unchanged.
 
 `poll_interval_milliseconds` must not exceed `lead_time_milliseconds`: a wider interval leaves the gap
 `(T+lead, T+poll)` covered by no window and would silently drop events starting there. That is a program
@@ -92,11 +131,7 @@ import discord
 @"Notify a Discord channel 10 minutes before each event, checking every minute."
 agent remind(calendar_id: string, channel_id: string) -> never {
   use discord.provider(token = env.get_secret(key = "DISCORD_TOKEN"))
-  use google_calendar.provider(
-    client_id = env.get_secret(key = "GOOGLE_OAUTH_CLIENT_ID"),
-    client_secret = env.get_secret(key = "GOOGLE_OAUTH_CLIENT_SECRET"),
-    refresh_token = env.get_secret(key = "GOOGLE_OAUTH_REFRESH_TOKEN"),
-  )
+  use google_calendar.provider()
   agent notify(event: google_calendar.event) -> null {
     discord.send_message(channel_id = channel_id, text = f"Upcoming: ${event.summary} at ${event.start}\n${event.html_link}", files = [])
   }
@@ -109,7 +144,7 @@ agent remind(calendar_id: string, channel_id: string) -> never {
 }
 ```
 
-`watch` has **no built-in retry**: a poll failure — an http error, a revoked token, a `deliver_to`
+`watch` has **no built-in retry**: a poll failure — an http error, a rejected token, a `deliver_to`
 that throws — propagates and kills the watch, exactly as an uncaught failure in any callee does.
 Resilience is composed *around* the watch with a `prelude.replay` provider, below.
 
@@ -120,165 +155,67 @@ re-runs the rest of a block, but it knows nothing about what counts as retriable
 request, `replay.interrupted`, and re-runs after its delay. Deciding *which* failures become an
 `interrupted` is your code — an ordinary `use handler` (a **converter**) installed between the provider
 and the block that turns the throws it chooses into `replay.interrupted(failure = …)` and re-raises the
-rest. This is exactly what `google_calendar`'s `auth_error | api_error` split is for: **retry** a transient
-`api_error` / network / parse error, **escalate** a revoked-token `auth_error` no retry can fix.
+rest.
 
-The providers (the `use`-site shape is unchanged from the old `retry.*`):
+Under `oauth.token`, the policy collapses to **one converter**. The prototype needed a second, attended
+recipe — an app-owned escalation that parked a revoked refresh token for a human — because re-authorization
+was the app's problem. It no longer is: a credential that needs a human pauses the run on the *runtime's*
+`prelude.oauth.authorize` escalation, inside `get_access_token` itself. So the converter's whole job is:
 
-- `use replay.exponential(initial_delay_milliseconds = …, factor = …, max_attempts = …)` — bounded; on
-  exhaustion re-raises the last failure as a typed `throw`.
-- `use replay.forever(initial_delay_milliseconds = …, factor = …, max_delay_milliseconds = …)` —
-  unbounded, capped backoff. For daemons.
-- `use replay.immediate()` — unbounded, no artificial delay; the cadence is whatever the converter does
-  *before* it signals (e.g. an escalation that parks for a human).
+- **replay** the transient failures (`api_error`, `oauth.server_error`, `http.fetch_error`,
+  `json.parse_error`) — back off and re-run;
+- **replay `auth_error` too** — the re-run resolves the token afresh; once the rejected token's stored
+  lifetime passes the runtime refreshes it, and if the refresh is dead the re-run *pauses for
+  re-authorization* on its own. (Until that stored lifetime passes — at most about an hour — the replays
+  re-see the same token and fail again, which is why a capped backoff like `replay.forever`, not
+  `replay.immediate`, is the right mechanism here.)
+- **re-raise** the genuine defects (`watch_misconfigured` — fix the constants, retrying is meaningless).
 
 Two rules the converter must obey — both because a `throw` handler catches the **whole** throw union of
 the block it guards, not a subset:
 
 1. **Name every failure the block can raise.** For the block below that is `google_calendar`'s
-   `auth_error | api_error | watch_misconfigured`, plus `http.fetch_error` / `json.parse_error` from the
-   calls and `env.missing_secret` from reading the secrets. (A `deliver_to` that itself throws — say a
+   `auth_error | api_error | watch_misconfigured`, plus `oauth.server_error` from the provider and
+   `http.fetch_error` / `json.parse_error` from the calls. (A `deliver_to` that itself throws — say a
    `discord.send_message` transport error — adds its failure type to that union too.)
 2. **Reconstruct a re-raised failure** rather than re-throwing the match scrutinee: `prelude.throw(error
    = error)` would widen the residual back to the whole union, so each propagated case rebuilds its own
-   value (`prelude.throw(error = google_calendar.auth_error(message = message))`).
+   value (`prelude.throw(error = google_calendar.watch_misconfigured(message = message))`).
 
-### (a) `replay.forever` — survive transient failures, escalate the rest
-
-Retry the transient failures with a capped backoff; let a revoked-token `auth_error` (and the genuine
-defects) propagate out rather than spin. This selective policy is the redesign's whole point — the old
-`retry.forever` caught *everything*, so it spun forever on a revoked token exactly as on a 5xx.
+### The daemon, resilient: one converter over `replay.forever`
 
 ```katari
 import google_calendar
 import discord
 
-// A revoked token propagates OUT of this daemon (retrying cannot fix it); guard it with recipe (b),
-// or merge both policies into one converter as in the full story below.
-agent remind_resiliently(calendar_id: string, channel_id: string) -> never
-    with io | prelude.throw[google_calendar.auth_error | google_calendar.watch_misconfigured | env.missing_secret] {
+@"The calendar reminder daemon: replay transient failures and rejected tokens, propagate the defects.
+A credential that needs a human pauses the run on the runtime's authorize escalation — not handled here."
+agent remind_resiliently(calendar_id: string, channel_id: string) -> never with io | prelude.throw[google_calendar.watch_misconfigured | env.missing_secret] {
   use discord.provider(token = env.get_secret(key = "DISCORD_TOKEN"))
   agent notify(event: google_calendar.event) -> null {
     discord.send_message(channel_id = channel_id, text = f"Upcoming: ${event.summary}", files = [])
   }
   // MECHANISM: re-run the block after a backoff (100ms, doubling, capped at a minute) on every replay.
   use replay.forever(initial_delay_milliseconds = 100.0, factor = 2.0, max_delay_milliseconds = 60000.0)
-  // POLICY: names every failure the block can throw, then dispatches — transient → replay, fatal → re-raise.
+  // POLICY: names every failure the block can throw, then dispatches — one defect re-raised, the rest replayed.
   use handler {
-    request prelude.throw(error: google_calendar.auth_error | google_calendar.api_error | google_calendar.watch_misconfigured | http.fetch_error | json.parse_error | env.missing_secret) -> never {
+    request prelude.throw(error: google_calendar.auth_error | google_calendar.api_error | google_calendar.watch_misconfigured | oauth.server_error | http.fetch_error | json.parse_error) -> never {
       match (error) {
-        case google_calendar.auth_error(message => message) -> { prelude.throw(error = google_calendar.auth_error(message = message)) }               // revoked token → recipe (b)
         case google_calendar.watch_misconfigured(message => message) -> { prelude.throw(error = google_calendar.watch_misconfigured(message = message)) } // program defect
-        case env.missing_secret(key => key, message => message) -> { prelude.throw(error = env.missing_secret(key = key, message = message)) } // config
-        case _ -> { replay.interrupted(failure = error) }                                                                              // transient → back off + replay
+        case _ -> { replay.interrupted(failure = error) } // transient, or a rejected token → back off + replay (the re-run re-resolves)
       }
     }
   }
-  use google_calendar.provider(
-    client_id = env.get_secret(key = "GOOGLE_OAUTH_CLIENT_ID"),
-    client_secret = env.get_secret(key = "GOOGLE_OAUTH_CLIENT_SECRET"),
-    refresh_token = env.get_secret(key = "GOOGLE_OAUTH_REFRESH_TOKEN"),
-  )
+  // INSIDE the replay scope, so a re-run RE-ENTERS the provider and its next `get_access_token`
+  // re-resolves the credential through the runtime.
+  use google_calendar.provider()
   google_calendar.watch(calendar_id = calendar_id, lead_time_milliseconds = 600000, poll_interval_milliseconds = 60000, deliver_to = notify)
 }
 ```
 
-### (b) `replay.immediate` + your own escalation — park a revoked token for re-authorization
-
-When the refresh token is *revoked*, the exchange fails with `auth_error` and no amount of retrying will
-fix it — a human must re-authorize. There is **no more `retry.attended` / `replay.attention`**: the app
-owns the escalation. Declare your own request, perform it in the converter (unhandled, it escalates to a
-**durable open question** that parks the run until someone answers with `katari answer`), then signal
-`replay.interrupted` so the block re-runs on the answer. `replay.immediate` adds no delay — the human is
-the delay.
+### The full story: the daemon beside a bot, under one `parallel`
 
 ```katari
-import google_calendar
-import discord
-
-// The app's OWN re-auth escalation — declared here, NOT by replay. Unhandled, it parks as an open question.
-request needs_reauth(detail: google_calendar.auth_error) -> null
-
-agent remind_attended(calendar_id: string, channel_id: string) -> never
-    with io | needs_reauth | prelude.throw[google_calendar.api_error | google_calendar.watch_misconfigured | http.fetch_error | json.parse_error | env.missing_secret] {
-  use discord.provider(token = env.get_secret(key = "DISCORD_TOKEN"))
-  agent notify(event: google_calendar.event) -> null {
-    discord.send_message(channel_id = channel_id, text = f"Upcoming: ${event.summary}", files = [])
-  }
-  // MECHANISM: re-run at once on replay; the escalation below sets the (human) pace.
-  use replay.immediate()
-  // POLICY: escalate a revoked token, then replay after the human answers; everything else propagates.
-  use handler {
-    request prelude.throw(error: google_calendar.auth_error | google_calendar.api_error | google_calendar.watch_misconfigured | http.fetch_error | json.parse_error | env.missing_secret) -> never {
-      match (error) {
-        case google_calendar.auth_error(message => message) -> {
-          needs_reauth(detail = google_calendar.auth_error(message = message))   // parks as a durable open question
-          replay.interrupted(failure = google_calendar.auth_error(message = message)) // re-runs when it is answered
-        }
-        case google_calendar.api_error(message => message) -> { prelude.throw(error = google_calendar.api_error(message = message)) }
-        case google_calendar.watch_misconfigured(message => message) -> { prelude.throw(error = google_calendar.watch_misconfigured(message = message)) }
-        case http.fetch_error(message => message) -> { prelude.throw(error = http.fetch_error(message = message)) }
-        case json.parse_error(message => message) -> { prelude.throw(error = json.parse_error(message = message)) }
-        case env.missing_secret(key => key, message => message) -> { prelude.throw(error = env.missing_secret(key = key, message = message)) }
-      }
-    }
-  }
-  // INSIDE the replay + converter scope, so a re-run RE-ENTERS the provider: its `var cache` starts at
-  // `absent()` and the next call re-exchanges the (re-authorized) refresh token it re-reads here. A
-  // provider *outside* the replay scope would keep reusing the old, revoked token.
-  use google_calendar.provider(
-    client_id = env.get_secret(key = "GOOGLE_OAUTH_CLIENT_ID"),
-    client_secret = env.get_secret(key = "GOOGLE_OAUTH_CLIENT_SECRET"),
-    refresh_token = env.get_secret(key = "GOOGLE_OAUTH_REFRESH_TOKEN"),
-  )
-  google_calendar.watch(calendar_id = calendar_id, lead_time_milliseconds = 600000, poll_interval_milliseconds = 60000, deliver_to = notify)
-}
-```
-
-Because escalation is an ordinary request, an app can also *handle* `needs_reauth` itself (post to a
-channel and wait there) instead of letting it park as an open question — the policy is entirely yours.
-
-### The full story: one converter for both, beside a bot, under one `parallel`
-
-A production daemon wants both policies in one converter: transient failures back off and replay, a
-revoked token escalates and replays, and the genuine defects propagate. That is just the two `match`
-arms above, merged, over `replay.forever`:
-
-```katari
-import google_calendar
-import discord
-
-request needs_reauth(detail: google_calendar.auth_error) -> null
-
-@"The calendar reminder daemon: retry transient failures, escalate a revoked token, run forever."
-agent remind(calendar_id: string, channel_id: string) -> never
-    with io | needs_reauth | prelude.throw[google_calendar.watch_misconfigured | env.missing_secret] {
-  use discord.provider(token = env.get_secret(key = "DISCORD_TOKEN"))
-  agent notify(event: google_calendar.event) -> null {
-    discord.send_message(channel_id = channel_id, text = f"Upcoming: ${event.summary}", files = [])
-  }
-  use replay.forever(initial_delay_milliseconds = 100.0, factor = 2.0, max_delay_milliseconds = 60000.0)
-  use handler {
-    request prelude.throw(error: google_calendar.auth_error | google_calendar.api_error | google_calendar.watch_misconfigured | http.fetch_error | json.parse_error | env.missing_secret) -> never {
-      match (error) {
-        case google_calendar.auth_error(message => message) -> {
-          needs_reauth(detail = google_calendar.auth_error(message = message))
-          replay.interrupted(failure = google_calendar.auth_error(message = message))
-        }
-        case google_calendar.watch_misconfigured(message => message) -> { prelude.throw(error = google_calendar.watch_misconfigured(message = message)) }
-        case env.missing_secret(key => key, message => message) -> { prelude.throw(error = env.missing_secret(key = key, message = message)) }
-        case _ -> { replay.interrupted(failure = error) }
-      }
-    }
-  }
-  use google_calendar.provider(
-    client_id = env.get_secret(key = "GOOGLE_OAUTH_CLIENT_ID"),
-    client_secret = env.get_secret(key = "GOOGLE_OAUTH_CLIENT_SECRET"),
-    refresh_token = env.get_secret(key = "GOOGLE_OAUTH_REFRESH_TOKEN"),
-  )
-  google_calendar.watch(calendar_id = calendar_id, lead_time_milliseconds = 600000, poll_interval_milliseconds = 60000, deliver_to = notify)
-}
-
 @"The bot's serve loop — the app's other arm, echoing each message in the channel."
 agent discord_serve(channel_id: string) -> never {
   use discord.provider(token = env.get_secret(key = "DISCORD_TOKEN"))
@@ -288,15 +225,18 @@ agent discord_serve(channel_id: string) -> never {
   discord.watch_messages(channel_id = channel_id, deliver_to = echo)
 }
 
-@"The whole app: the reminder daemon and the bot serve loop, side by side and independently resilient."
-agent main(calendar_id: string, channel_id: string) -> never {
+@"The whole app: the reminder daemon and the bot serve loop, side by side and independently resilient.
+A `parallel` of two arms is a pair; of two `never` arms, one that is never produced."
+agent main(calendar_id: string, channel_id: string) -> [never, never] {
   parallel [
-    remind(calendar_id = calendar_id, channel_id = channel_id),
+    remind_resiliently(calendar_id = calendar_id, channel_id = channel_id),
     discord_serve(channel_id = channel_id),
   ]
 }
 ```
 
-The `auth_error` / `api_error` split is what makes this precise: the converter *retries* an `api_error`
-(and the network / parse blips) without ever bothering a human, and *escalates* an `auth_error` — the
-one genuinely human problem — as a re-authorization prompt, all in one ordinary `match`.
+The `auth_error` / `api_error` split is still what makes the policy precise — but now both arms replay,
+for different reasons: an `api_error` replay re-runs the *same* call past a transient fault, while an
+`auth_error` replay is a *token re-resolution* whose end state, when a human really is needed, is the
+runtime's own re-authorization pause. The one failure the converter re-raises is the one no replay can
+change: a miswired watch.
