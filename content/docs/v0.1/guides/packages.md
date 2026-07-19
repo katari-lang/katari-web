@@ -28,7 +28,7 @@ import tavily
 agent main(question: string) -> string with io {
   use handler {
     request prelude.throw(error: env.missing_secret | http.status_error | http.fetch_error | json.parse_error) -> never {
-      break f"search failed: ${json.to_text(value = error)}"
+      break f"search failed: ${json.stringify(value = error)}"
     }
   }
   use tavily.provider(api_key = env.get_secret(key = "TAVILY_API_KEY"))

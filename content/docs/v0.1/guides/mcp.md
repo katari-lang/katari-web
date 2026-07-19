@@ -16,13 +16,13 @@ One line lists the server and hands you its tools for the extent of the block:
 agent main(url: string) -> string {
   use handler {
     request prelude.throw(error: mcp.server_error | mcp.auth_error | reflection.call_error) -> never {
-      break f"mcp failed: ${json.to_text(value = error)}"
+      break f"mcp failed: ${json.stringify(value = error)}"
     }
   }
   let tools : mcp.toolbox[mcp.scope] = use mcp.provide[mcp.scope](url = url, auth = mcp.headers(values = record.empty()))
   match (record.get(target = tools, key = "add")) {
     case null -> "(no add tool)"
-    case tool -> json.to_text(value = reflection.call_agent(target = tool, args = { x = 19, y = 23 }))
+    case tool -> json.stringify(value = reflection.call_agent(target = tool, args = { x = 19, y = 23 }))
   }
 }
 ```
@@ -61,7 +61,7 @@ import ai.gemini
 agent main(url: string, task: string) -> string with io {
   use handler {
     request prelude.throw(error: ai.step_error | ai.loop_error | env.missing_secret | mcp.server_error | mcp.auth_error) -> never {
-      break f"failed: ${json.to_text(value = error)}"
+      break f"failed: ${json.stringify(value = error)}"
     }
   }
   use gemini.provider(
@@ -103,8 +103,8 @@ import myapp.github
 @"Open the connection once, then call the pulled tools like ordinary agents."
 agent main() -> string with io {
   use handler {
-    request prelude.throw(error: mcp.server_error | mcp.auth_error | json.decode_error) -> never {
-      break f"mcp failed: ${json.to_text(value = error)}"
+    request prelude.throw(error: mcp.server_error | mcp.auth_error | json.validation_error) -> never {
+      break f"mcp failed: ${json.stringify(value = error)}"
     }
   }
   use github.connect(auth = mcp.oauth(name = "github"))
@@ -116,9 +116,9 @@ agent main() -> string with io {
 Inside the generated module, each tool's JSON Schema is mapped to Katari types — scalars, arrays,
 objects (non-required properties become optional parameters), `additionalProperties` records, and
 mappable `anyOf` unions; anything else (enums, `allOf` / `oneOf`, tuples, open schemas) falls
-back to a raw `json.json` tree. A tool with a fully mapped `outputSchema` gets a typed result
-(decoded in the runtime, `json.decode_error` on a mismatch); otherwise the result is the raw
-reply as `json.json`. Two generated modules compose in one block — their scopes and `credentials`
+back to a raw `unknown` document. A tool with a fully mapped `outputSchema` gets a typed result
+(validated in the runtime, `json.validation_error` on a mismatch); otherwise the result is the raw
+reply as `unknown`. Two generated modules compose in one block — their scopes and `credentials`
 requests are namespaced per module, so nothing collides.
 
 ## Authenticate
@@ -133,7 +133,7 @@ uniformly — the values ride on every request, and each value may be a secret:
 agent main(url: string) -> string with io {
   use handler {
     request prelude.throw(error: env.missing_secret | mcp.server_error | mcp.auth_error) -> never {
-      break f"failed: ${json.to_text(value = error)}"
+      break f"failed: ${json.stringify(value = error)}"
     }
   }
   let key = env.get_secret(key = "MCP_BEARER_KEY")
@@ -156,7 +156,7 @@ the program:
 agent main() -> string with io {
   use handler {
     request prelude.throw(error: mcp.server_error | mcp.auth_error | reflection.call_error) -> never {
-      break f"mcp failed: ${json.to_text(value = error)}"
+      break f"mcp failed: ${json.stringify(value = error)}"
     }
   }
   let tools : mcp.toolbox[mcp.scope] =
@@ -194,13 +194,13 @@ import myapp.notion
 @"Open the Notion connection with the stored OAuth credential, then search."
 agent main(query: string) -> string with io {
   use handler {
-    request prelude.throw(error: mcp.server_error | mcp.auth_error | json.decode_error) -> never {
-      break f"notion failed: ${json.to_text(value = error)}"
+    request prelude.throw(error: mcp.server_error | mcp.auth_error | json.validation_error) -> never {
+      break f"notion failed: ${json.stringify(value = error)}"
     }
   }
   use notion.connect(auth = mcp.oauth(name = "notion"))
   let results = notion.search(query = query)
-  json.to_text(value = results)
+  json.stringify(value = results)
 }
 ```
 

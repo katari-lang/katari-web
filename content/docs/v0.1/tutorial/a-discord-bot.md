@@ -105,7 +105,7 @@ agent main(channel_id: string) -> string {
   use handler { request panic(msg: string) { break f"failed: ${msg}" } }
   use handler {
     request prelude.throw(error: app_error) -> never {
-      break f"error: ${json.to_text(value = error)}"
+      break f"error: ${json.stringify(value = error)}"
     }
   }
   use anthropic.provider(

@@ -155,7 +155,7 @@ agent on_event(payload: string) -> null with io | prelude.throw[http.fetch_error
     url = "https://api.example.com/ingest",
     method = "POST",
     headers = record.empty(),
-    body = payload,
+    body = http.text(content = payload),
   )
   null
 }

@@ -147,19 +147,45 @@ counterpart.
 ```katari
 @"Read an AI reply through the typed text boundary: parsed and validated against
 the type's derived schema in one step."
-agent read_pick(reply: string) -> string with prelude.throw[json.parse_error | json.decode_error] {
+agent read_pick(reply: string) -> string with prelude.throw[json.parse_error | json.validation_error] {
   let picked = json.parse_as[{ tool: string, arguments: record[unknown] }](text = reply)
   picked.tool
 }
 ```
 
-`json.parse_as[T]` parses a document and validates it against `T`'s schema in one step:
-malformed text throws `json.parse_error`, a shape mismatch throws `json.decode_error` naming
-the offending path. It is the right tool when you know the shape you expect — an AI reply, a
-webhook body you re-read. For documents of unknown shape, `json.parse` yields the `json`
-tree (a sum with one constructor per JSON shape) to traverse with `match`, and `json.encode`
-/ `json.decode[T]` / `json.to_text` round-trip any value through its wire form. See the
-[reference](/reference) for the full codec surface and its laws.
+`json.parse_as[T]` parses a document and validates it against `T`'s schema in one step — sugar
+for `json.parse` then `json.validate[T]`. Malformed text throws `json.parse_error`; a value that
+does not conform throws `json.validation_error`, naming the offending path. It is the right tool
+when you know the shape you expect — an AI reply, a webhook body you re-read. `json.validate[T]`
+is that check on its own: it takes an `unknown`, returns it unchanged when it conforms to `T`
+(otherwise `json.validation_error`), and rewrites nothing. Validation is one of only **two**
+places a type is enforced at runtime — the other is `reflection.call_agent`, which checks a
+delegation's arguments against the callee's schema the same way; everywhere else your types are
+settled at compile time. Reserved wire keys all live in the `$katari_` namespace, disjoint from
+anything a real document carries, so a `$`-prefixed key like `$ref` stays an ordinary field.
+
+For a document of unknown or irregular shape, `json.parse` yields a plain value (`unknown`) —
+a record / array / string / integer / number / boolean / null (or a `file`, where the text
+carried a `$katari_ref` handle) — already an ordinary Katari value with no dedicated JSON tree
+type. That marker interpretation is unconditional: `parse` reads a `$katari_` key the same way
+whether or not a schema is in play. You traverse it with shape filters (`case record(r)`,
+`case array(a)`) and the total readers (`json.field`, `json.element`, `json.text`,
+`json.entries`, `json.items`), each of which returns a harmless default rather than throwing
+when a key is missing or a shape is wrong — so probes chain freely and absence is checked once,
+at the end, where it matters.
+
+Going the other way, **`json.stringify` is the one writer** — total and canonical, one value to
+one text, so it never throws. A document round-trips (`json.stringify(json.parse(s))` is `s` up
+to whitespace); a `file` renders as its `{ "$katari_ref": … }` handle object and a `data` value
+nests its fields under `$katari_value` as `{ "$katari_constructor": name, "$katari_value": { … } }`.
+Nothing is escaped, which is why `stringify` doubles as the read channel that shows a model a
+handle or a `data` value verbatim. See the [reference](/reference) for the surface and its laws.
+
+You build a document with ordinary record and array literals — there is no constructor to call.
+A record key is normally a bare identifier, but **any key can be quoted**: `{ "type" = "message",
+"$ref" = id }` is how you write a key that is a reserved word (`type`), `$`-prefixed, or otherwise
+not an identifier (a hyphen, a space). Quoted or bare, the key reaches the wire exactly as
+written.
 
 ## Schemas from types
 
@@ -173,7 +199,7 @@ agent invite(
 }
 
 @"Read a callable's derived schemas back at runtime."
-agent inspect() -> json.json {
+agent inspect() -> unknown {
   reflection.get_metadata(value = invite).input
 }
 ```
@@ -182,11 +208,17 @@ Every agent's input, output, and request schemas are derived from its declaratio
 `@"..."` annotation on the agent becomes its description; a `@"..."` before a parameter
 becomes that property's `description` in the input schema — which is exactly what an AI
 model reads when it decides how to call your tool, so write them for that reader. On the
-wire, a `data` value carries its constructor under a `$constructor` discriminator with its
-fields nested under `value`, so unions of `data` types survive the round trip unambiguously.
-`reflection.get_metadata` hands you the derived schemas as `json` values at runtime — the
-building block of a tool list — and dynamic dispatch validates arguments against the same
-schemas ([Giving the model tools]({docs}/{currentVersion}/tutorial/giving-the-model-tools)
+wire, a `data` value carries its constructor under a `$katari_constructor` marker with its
+fields nested under `$katari_value`, and a `file` under a `$katari_ref` handle, so unions of
+`data` types survive the round trip unambiguously. Turning those marked forms back into values
+is unconditional — the same codec `json.parse` runs, with or without a schema: a
+`{ "$katari_ref": … }` becomes a `file` every time. So when an AI replays a `{ "$katari_ref": … }`
+into a tool argument, it is already a `file` by the time `reflection.call_agent` sees it —
+`call_agent`'s job is to _check_ that value against the callee's input schema and throw
+`call_error` on a mismatch, never to lift a bare record into a handle. `reflection.get_metadata`
+hands you the derived schemas as `unknown` values at runtime — the building block of a tool list —
+and dynamic dispatch validates arguments against the same schemas
+([Giving the model tools]({docs}/{currentVersion}/tutorial/giving-the-model-tools)
 puts the loop together).
 
 ## Where to go next

@@ -36,13 +36,13 @@ agent count_letters(word: string, letter: string) -> integer {
 
 @"See a tool the way the model will: the name, description and input schema that
 reflection derives from its signature."
-agent inspect() -> json.json {
+agent inspect() -> unknown {
   let meta = reflection.get_metadata(value = count_letters)
-  json.json_object(entries = {
-    name = json.json_string(value = meta.name),
-    description = json.json_string(value = meta.description),
+  {
+    name = meta.name,
+    description = meta.description,
     input_schema = meta.input,
-  })
+  }
 }
 ```
 
@@ -114,13 +114,13 @@ agent count_letters(word: string, letter: string) -> integer {
 
 @"See a tool the way the model will: the name, description and input schema that
 reflection derives from its signature."
-agent inspect() -> json.json {
+agent inspect() -> unknown {
   let meta = reflection.get_metadata(value = count_letters)
-  json.json_object(entries = {
-    name = json.json_string(value = meta.name),
-    description = json.json_string(value = meta.description),
+  {
+    name = meta.name,
+    description = meta.description,
     input_schema = meta.input,
-  })
+  }
 }
 
 @"Run the tool-calling loop: the model may search the web, fetch a page, or count
@@ -128,7 +128,7 @@ letters before it commits to an answer."
 agent solve(task: string) -> string with io {
   use handler {
     request prelude.throw(error: app_error) -> never {
-      break f"error: ${json.to_text(value = error)}"
+      break f"error: ${json.stringify(value = error)}"
     }
   }
   use anthropic.provider(

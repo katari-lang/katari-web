@@ -63,7 +63,7 @@ type app_error = ai.step_error | env.missing_secret
 agent chat(question: string) -> string with io {
   use handler {
     request prelude.throw(error: app_error) -> never {
-      break f"error: ${json.to_text(value = error)}"
+      break f"error: ${json.stringify(value = error)}"
     }
   }
   use anthropic.provider(
@@ -118,7 +118,7 @@ type app_error = ai.step_error | env.missing_secret
 agent chat(question: string) -> string with io {
   use handler {
     request prelude.throw(error: app_error) -> never {
-      break f"error: ${json.to_text(value = error)}"
+      break f"error: ${json.stringify(value = error)}"
     }
   }
   use anthropic.provider(
@@ -132,7 +132,7 @@ agent chat(question: string) -> string with io {
 agent interview(question: string, followup: string) -> string with io {
   use handler {
     request prelude.throw(error: app_error) -> never {
-      break f"error: ${json.to_text(value = error)}"
+      break f"error: ${json.stringify(value = error)}"
     }
   }
   use anthropic.provider(

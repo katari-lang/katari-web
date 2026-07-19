@@ -126,7 +126,7 @@ agent resilient() -> string {
   // The fallback: reached on a fatal error, or when the retry budget is spent.
   use handler {
     request prelude.throw(error: transient | fatal) -> never {
-      break f"gave up: ${json.to_text(value = error)}"
+      break f"gave up: ${json.stringify(value = error)}"
     }
   }
   // MECHANISM: re-run the rest of the block each time `replay.interrupted` is performed.

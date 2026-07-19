@@ -72,7 +72,7 @@ agent whoami() -> string with io | prelude.throw[oauth.server_error | http.fetch
     key = "Authorization",
     value = prelude.concat(left = "Bearer ", right = bearer),
   )
-  let response = http.fetch(url = "https://api.github.com/user", method = "GET", headers = headers, body = "")
+  let response = http.fetch(url = "https://api.github.com/user", method = "GET", headers = headers, body = http.text(content = ""))
   response.body
 }
 ```

@@ -17,7 +17,7 @@ agent send_daily_summary(time: number) -> null with io | prelude.throw[http.fetc
     url = "https://api.example.com/daily-summary",
     method = "POST",
     headers = record.empty(),
-    body = json.to_text(value = { scheduled = time }),
+    body = http.json(value = { scheduled = time }),
   )
   null
 }
@@ -76,7 +76,7 @@ agent poll_upstream(time: number) -> null with io | prelude.throw[http.fetch_err
     url = "https://api.example.com/poll",
     method = "GET",
     headers = record.empty(),
-    body = "",
+    body = http.text(content = ""),
   )
   null
 }
@@ -103,7 +103,7 @@ agent push_report(time: number) -> null with io | prelude.throw[http.fetch_error
     url = "https://api.example.com/report",
     method = "POST",
     headers = record.empty(),
-    body = json.to_text(value = { scheduled = time }),
+    body = http.json(value = { scheduled = time }),
   )
   null
 }

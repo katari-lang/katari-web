@@ -25,7 +25,7 @@ agent try_once(url: string) -> string {
     url = url,
     method = "POST",
     headers = record.empty(),
-    body = json.to_text(value = { value = 21 }),
+    body = http.json(value = { value = 21 }),
   )
   response.body
 }
@@ -36,7 +36,12 @@ agent main() -> string {
 ```
 
 `main` returns `"42"`: the POST body was validated against `on_delivery`'s input schema, the
-callback ran, and its result came back as the response body. When `try_once` returns, the URL
+callback ran, and its result came back as the response body. The outbound POST uses `http.json`,
+one of `http.fetch`'s four body shapes (`http.text` / `http.binary` / `http.multipart` /
+`http.json`): it serialises the value tree you pass and sets the `application/json` Content-Type.
+Put a `file` anywhere in that tree and just that leaf becomes the base64 of its bytes on the wire,
+read from the blob store only at the send boundary — so a large upload rides through as a slim
+handle and never materialises onto the value plane or the trace. When `try_once` returns, the URL
 deactivates and its result becomes `inbound`'s result.
 
 The URL is a **capability**: whoever holds it can invoke the callback, nobody else can. The route

@@ -29,7 +29,7 @@ agent main() -> string with io | prelude.throw[env.missing_secret | http.fetch_e
     url = "https://api.example.com/profile",
     method = "GET",
     headers = record.set(target = record.empty(), key = "Authorization", value = "Bearer " ++ key),
-    body = "",
+    body = http.text(content = ""),
   )
   response.body
 }
@@ -43,11 +43,12 @@ return a secret to a caller.
 
 ## What the type system stops
 
-`http.fetch` encodes the flow policy in its signature: header **values** and the **body** are
-`string of private` — a secret may be submitted as an auth header or inside a form body, revealed
-only to the one server the program named — while `url` and `method` are public `string`, because
-a URL leaks into logs, caches, proxies, and `Referer` headers. Interpolating a secret into a URL
-is a compile error:
+`http.fetch` encodes the flow policy in its signature: header **values** are `string of private`
+and the **body** is a four-way sum (`http.text` / `http.binary` / `http.multipart` / `http.json`)
+whose text and JSON slots are private-capable — a secret may be submitted as an auth header or
+inside a `text` / `json` body, revealed only to the one server the program named — while `url`
+and `method` are public `string`, because a URL leaks into logs, caches, proxies, and `Referer`
+headers. Interpolating a secret into a URL is a compile error:
 
 ```text
 let response = http.fetch(
@@ -86,7 +87,7 @@ agent notify(message: string) -> string with io | prelude.throw[http.fetch_error
         url = "https://api.example.com/notify",
         method = "POST",
         headers = record.set(target = record.empty(), key = "Authorization", value = "Bearer " ++ value),
-        body = json.to_text(value = { text = message }),
+        body = http.json(value = { text = message }),
       )
       response.body
     }
@@ -109,7 +110,7 @@ agent main() -> string with io | prelude.throw[oauth.server_error | http.fetch_e
     url = "https://api.github.com/user",
     method = "GET",
     headers = record.set(target = record.empty(), key = "Authorization", value = "Bearer " ++ bearer),
-    body = "",
+    body = http.text(content = ""),
   )
   response.body
 }
