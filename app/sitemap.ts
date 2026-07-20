@@ -13,11 +13,11 @@ export default function sitemap(): MetadataRoute.Sitemap {
   const staticEntries: MetadataRoute.Sitemap = [
     { url: `${base}/`, lastModified, changeFrequency: "monthly", priority: 1 },
     { url: `${base}/docs`, lastModified, changeFrequency: "weekly", priority: 0.9 },
-    { url: `${base}/reference`, lastModified, changeFrequency: "weekly", priority: 0.9 },
+    { url: `${base}/packages`, lastModified, changeFrequency: "weekly", priority: 0.9 },
   ];
 
   const referenceEntries: MetadataRoute.Sitemap = listReferencePackages().map((entry) => ({
-    url: `${base}/reference/${entry.name}`,
+    url: `${base}/packages/${entry.name}`,
     lastModified,
     changeFrequency: "weekly",
     priority: 0.7,

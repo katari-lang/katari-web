@@ -139,7 +139,7 @@ agent timed[R, effect E](
 propagates it unchanged, adding `io` — the built-in, un-dischargeable effect every external
 call (HTTP, the clock, an FFI sidecar) performs. Higher-order agents in the stdlib
 (`time.watch`, `replay.*`, `reflection.call_agent`) all have this shape; see the
-[reference](/reference) for their rows.
+[reference](/packages) for their rows.
 
 ## Marker effects
 

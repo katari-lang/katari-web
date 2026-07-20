@@ -31,7 +31,7 @@ offline. (More in [Packages]({docs}/{currentVersion}/guides/packages).)
 What arrived: the provider-agnostic tool-calling loop (`ai`), its conversation vocabulary
 (`ai.types`), and one module per model provider (`ai.anthropic`, `ai.gemini`,
 `ai.openai`). The whole package is plain Katari over `http.post_json` — you can read it
-like your own code, in [the reference](/reference/ai).
+like your own code, in [the reference](/packages/ai).
 
 ## Store the key as a secret
 

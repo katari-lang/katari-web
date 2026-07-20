@@ -21,10 +21,10 @@ describe("buildModuleToPackage", () => {
 describe("resolveDeclarationHref", () => {
   it("splits a resolved name into the longest known module prefix and the declaration", () => {
     expect(resolveDeclarationHref(moduleToPackage, "prelude.json.parse_error")).toBe(
-      "/reference/prelude#prelude.json.parse_error",
+      "/packages/prelude#prelude.json.parse_error",
     );
     expect(resolveDeclarationHref(moduleToPackage, "ai.types.message")).toBe(
-      "/reference/ai#ai.types.message",
+      "/packages/ai#ai.types.message",
     );
   });
 
@@ -32,7 +32,7 @@ describe("resolveDeclarationHref", () => {
     // "prelude.json" is both a module and a declaration (prelude.json.json the type lives
     // beside it); the declaration "json" in module "prelude" must still resolve.
     expect(resolveDeclarationHref(moduleToPackage, "prelude.throw")).toBe(
-      "/reference/prelude#prelude.throw",
+      "/packages/prelude#prelude.throw",
     );
   });
 

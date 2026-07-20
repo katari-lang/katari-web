@@ -30,7 +30,7 @@ export function resolveDeclarationHref(
     const moduleName = resolved.slice(0, splitAt);
     const packageName = moduleToPackage[moduleName];
     if (packageName !== undefined) {
-      return `/reference/${packageName}#${resolved}`;
+      return `/packages/${packageName}#${resolved}`;
     }
   }
   return null;

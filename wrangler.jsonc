@@ -2,13 +2,19 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "katari-web",
   "compatibility_date": "2025-11-01",
+  // Worker エントリ: /mcp 系のみを Worker で処理し、それ以外は静的アセットにフォールバックする。
+  "main": "worker/index.ts",
   // Workers Static Assets: ./out をそのまま CDN 配信する。
   // - not_found_handling: 404-page → asset miss 時に out/404.html を返す
   // - html_handling: auto-trailing-slash (既定) → /docs/v0.1 を docs/v0.1.html に解決
+  // - binding: ASSETS → Worker から env.ASSETS.fetch() でアセット (コーパス等) を読む
+  // - run_worker_first: /mcp 系だけ Worker を先に走らせる。通常の配信は不変。
   "assets": {
     "directory": "./out",
     "not_found_handling": "404-page",
     "html_handling": "auto-trailing-slash",
+    "binding": "ASSETS",
+    "run_worker_first": ["/mcp", "/mcp/*"],
   },
   "routes": [
     {

@@ -8,7 +8,7 @@
   "packageManager": "pnpm@9.15.9",
   "scripts": {
     "dev": "pnpm run search-index && next dev",
-    "build": "pnpm run search-index && next build",
+    "build": "pnpm run search-index && pnpm run mcp-corpus && next build",
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
@@ -17,6 +17,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "search-index": "tsx scripts/build-search-index.ts",
+    "mcp-corpus": "tsx scripts/build-mcp-corpus.ts",
     "generate:reference": "tsx scripts/generate-reference.ts",
     "cf:dev": "wrangler dev",
     "cf:deploy": "pnpm build && wrangler deploy",

@@ -148,4 +148,4 @@ fresh authorization on next use, for example to switch accounts.
   authorization rides on.
 - [Packages]({docs}/{currentVersion}/guides/packages) — registry packages take their keys via
   `env.get_secret` provider arguments.
-- The `env`, `oauth`, and `http` modules in the [reference](/reference).
+- The `env`, `oauth`, and `http` modules in the [reference](/packages).

@@ -23,7 +23,7 @@ agent main(id: string) -> string {
 ```
 
 The TypeScript half, in `src/sensors.ts` — handlers register with
-[`@katari-lang/port`](/reference) under the file's module path, so `katari.agent("read_sensor",
+[`@katari-lang/port`](/packages) under the file's module path, so `katari.agent("read_sensor",
 ...)` implements exactly the `sensors.read_sensor` the compiler lowered:
 
 ```typescript
@@ -295,4 +295,4 @@ panic instead of a throw.
   consumers see.
 - [Durable execution]({docs}/{currentVersion}/concepts/durable-execution) — where the FFI
   boundary sits in the recovery story.
-- The `@katari-lang/port` API in the [reference](/reference).
+- The `@katari-lang/port` API in the [reference](/packages).

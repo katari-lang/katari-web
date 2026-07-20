@@ -1,6 +1,6 @@
 // Shiki highlighting for reference signature blocks, using the same katari grammar and dual
 // themes as the MDX pipeline (lib/mdx/options.ts) so code looks identical across /docs and
-// /reference. The `--shiki-light` / `--shiki-dark` variables are switched by the
+// /packages. The `--shiki-light` / `--shiki-dark` variables are switched by the
 // `.reference-code` rules in app/globals.css.
 
 import { createHighlighter, type Highlighter, type LanguageRegistration } from "shiki";

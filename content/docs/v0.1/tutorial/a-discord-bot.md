@@ -46,7 +46,7 @@ What the package exposes is small: `discord.provider(token = ...)` logs in once 
 serves the connection for the rest of the block; `discord.watch_messages(channel_id,
 deliver_to)` serves a channel forever, delivering each incoming message to an agent you
 supply; `discord.send_message(channel_id, text, files)` posts back. Attachments arrive
-and depart as first-class `file` values. ([reference](/reference/discord))
+and depart as first-class `file` values. ([reference](/packages/discord))
 
 ## The bridge request
 
@@ -159,7 +159,7 @@ Two agents, and you have met every idea in them:
   keeps serving. `discord_error` splits into `api_error` (transient) and `auth_error` (the
   token or permissions are wrong); this bot swallows both, but a `match` on the two lets a
   real bot shrug off the transient one and stop loudly on the token — see the
-  [`discord` reference](/reference/discord).
+  [`discord` reference](/packages/discord).
 
 ## Deploy and talk
 

@@ -53,7 +53,7 @@ effect row, the schemas, the join.
 - A **standard library** (`http`, `json`, `time`, `webhook`, `mcp`, `oauth`, `replay`, …) and
   a **package registry** — `ai` (model-agnostic tool-calling over Anthropic / Gemini /
   OpenAI), `discord`, `slack`, `google_calendar`, `tavily`, and more. Every API is documented
-  in the [reference](/reference).
+  in the [reference](/packages).
 - **MCP in both directions**: consume any MCP server's tools as typed agents, or serve your
   agents as an MCP server.
 - **Tooling**: a CLI, an LSP with a VSCode extension, and an admin web console with a live

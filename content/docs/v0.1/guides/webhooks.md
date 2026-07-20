@@ -140,4 +140,4 @@ The endpoint is part of the run's durable state, so it follows the rules of
   webhook, and the retry patterns both compose with.
 - [MCP]({docs}/{currentVersion}/guides/mcp) — `mcp.serve` mints capability URLs with the same
   lifetime contract.
-- The `webhook` module in the [reference](/reference).
+- The `webhook` module in the [reference](/packages).

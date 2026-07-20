@@ -81,10 +81,10 @@ katari add tavily web
 - `tavily.search` — web search over the Tavily API, returning the top hits as a compact
   digest (title, URL, snippet) sized to feed straight back to a model. It needs an API
   key from [tavily.com](https://tavily.com), provided the way the model key was:
-  `use tavily.provider(...)`. ([reference](/reference/tavily))
+  `use tavily.provider(...)`. ([reference](/packages/tavily))
 - `web.fetch_page` — HTTP GET as a tool, body truncated to roughly a page so a fetch
   cannot blow the context window. Public pages only; no key, no provider.
-  ([reference](/reference/web))
+  ([reference](/packages/web))
 
 Both are short, pure-Katari modules — worth reading as examples of tools done well.
 

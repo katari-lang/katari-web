@@ -245,4 +245,4 @@ endpoint, so for per-request resilience wrap the tool's body in a handler — th
   tutorial chapter this guide generalizes.
 - [Effects and handlers]({docs}/{currentVersion}/concepts/effects-and-handlers) — why a scope can
   live in an effect row at all.
-- The `mcp` module in the [reference](/reference) — every signature and error, in detail.
+- The `mcp` module in the [reference](/packages) — every signature and error, in detail.

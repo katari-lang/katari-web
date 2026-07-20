@@ -3,7 +3,7 @@ import Link from "next/link";
 import { listReferencePackages } from "@/lib/reference/data";
 
 export const metadata: Metadata = {
-  title: "Reference",
+  title: "Packages",
   description:
     "API reference for the Katari prelude and every package in the registry package set.",
 };
@@ -11,14 +11,14 @@ export const metadata: Metadata = {
 // カードに載せる module 名プレビューの上限。それ以上は "+n more" に畳む。
 const MODULE_PREVIEW_LIMIT = 5;
 
-export default function ReferenceIndexPage() {
+export default function PackagesIndexPage() {
   const packages = listReferencePackages();
 
   return (
     <div className="mx-auto w-full max-w-380 px-4 py-12 sm:px-6 lg:px-8">
       <header className="max-w-3xl space-y-4 border-b border-border pb-6">
         <h1 className="text-4xl font-display-text font-bold tracking-tight text-highlight">
-          Library Reference
+          Packages
         </h1>
         <p className="text-base text-muted-foreground">
           Every declaration of the Katari prelude and the registry package set — surface types,
@@ -35,7 +35,7 @@ export default function ReferenceIndexPage() {
           {packages.map((entry) => (
             <Link
               key={entry.name}
-              href={`/reference/${entry.name}`}
+              href={`/packages/${entry.name}`}
               className="flex flex-col gap-3 border border-border p-6 transition-colors hover:border-border-strong hover:bg-muted"
             >
               <div className="flex items-baseline justify-between gap-2">

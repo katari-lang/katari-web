@@ -169,4 +169,4 @@ agent main() -> string {
   to be durable at all.
 - [Webhooks]({docs}/{currentVersion}/guides/webhooks) — push instead of poll, with the same
   lifetime patterns.
-- The `time` and `replay` modules in the [reference](/reference).
+- The `time` and `replay` modules in the [reference](/packages).

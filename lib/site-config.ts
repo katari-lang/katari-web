@@ -14,7 +14,7 @@ export const siteConfig = {
   // `{latest}` は render 時に最新バージョンに展開される (Header / Footer 共通)。
   nav: [
     { label: "Docs", href: "/docs/{latest}/getting-started" },
-    { label: "Reference", href: "/reference" },
+    { label: "Packages", href: "/packages" },
   ],
   // フッターの link 群。
   footerLinks: [

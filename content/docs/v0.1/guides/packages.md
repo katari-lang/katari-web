@@ -110,7 +110,7 @@ hash, the rev is the only thing pinning reproducibility.
 ## What is in the registry
 
 The first snapshot (`snapshot-2026-07-17-c47a6e67`) carries eight packages. Every exported agent,
-request, and type is documented in the [reference](/reference).
+request, and type is documented in the [reference](/packages).
 
 - **ai** — a provider-agnostic AI tool-calling loop: one `infer_step` seam with interchangeable
   Anthropic, Gemini, and OpenAI providers.

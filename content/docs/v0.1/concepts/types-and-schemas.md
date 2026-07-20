@@ -179,7 +179,7 @@ one text, so it never throws. A document round-trips (`json.stringify(json.parse
 to whitespace); a `file` renders as its `{ "$katari_ref": … }` handle object and a `data` value
 nests its fields under `$katari_value` as `{ "$katari_constructor": name, "$katari_value": { … } }`.
 Nothing is escaped, which is why `stringify` doubles as the read channel that shows a model a
-handle or a `data` value verbatim. See the [reference](/reference) for the surface and its laws.
+handle or a `data` value verbatim. See the [reference](/packages) for the surface and its laws.
 
 You build a document with ordinary record and array literals — there is no constructor to call.
 A record key is normally a bare identifier, but **any key can be quoted**: `{ "type" = "message",

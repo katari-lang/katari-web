@@ -24,7 +24,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { package: packageName } = await params;
   const docs = getPackageDocs(packageName);
   if (!docs) return {};
-  const title = `${docs.package.name} ${docs.package.version} — Reference`;
+  const title = `${docs.package.name} ${docs.package.version} — Packages`;
   const description = `API reference for the ${docs.package.name} package: ${docs.modules
     .map((module) => module.name)
     .join(", ")}.`;
@@ -62,7 +62,7 @@ export default async function ReferencePackagePage({ params }: Props) {
   const sidebar = (
     <nav aria-label="Module navigation" className="space-y-6">
       <Link
-        href="/reference"
+        href="/packages"
         className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
       >
         <ArrowLeft className="size-3.5" />

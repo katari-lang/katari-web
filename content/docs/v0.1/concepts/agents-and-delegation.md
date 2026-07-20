@@ -77,7 +77,7 @@ agent twelve() -> number {
 An agent's type is written `agent (label: T, ...) -> R with E` — parameters, result, and the
 effect row all part of the type. Because agents are ordinary values you can put them in
 arrays, return them, hand them to `time.watch` as a delivery target, or expose them to an AI
-as tools ([reflection](/reference) reads their metadata back at runtime).
+as tools ([reflection](/packages) reads their metadata back at runtime).
 
 ## Partial application
 
