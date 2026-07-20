@@ -2,12 +2,12 @@
   "packages": [
     {
       "name": "prelude",
-      "version": "0.1.0-rc8",
+      "version": "0.1.0",
       "modules": [
         "prelude",
         "prelude.array",
         "prelude.env",
-        "prelude.file",
+        "prelude.files",
         "prelude.http",
         "prelude.json",
         "prelude.math",
@@ -15,6 +15,7 @@
         "prelude.oauth",
         "prelude.record",
         "prelude.reflection",
+        "prelude.region",
         "prelude.replay",
         "prelude.string",
         "prelude.time",
