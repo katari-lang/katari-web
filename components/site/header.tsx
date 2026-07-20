@@ -20,10 +20,11 @@ export function Header() {
   return (
     <header className="sticky top-0 z-40 w-full">
       <HeaderShell>
-        <div className="mx-auto flex h-full w-full max-w-380 items-center gap-4 px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-8 h-full py-3">
+        <div className="mx-auto flex h-full w-full max-w-380 items-center gap-3 px-4 sm:gap-4 sm:px-6 lg:px-8">
+          <div className="flex h-full items-center gap-4 py-3 sm:gap-8">
             <Logo size="xl" showText={false} className="h-full w-auto" />
-            <nav className="hidden items-center gap-4 font-display-text text-sm text-muted-foreground sm:flex">
+            {/* ナビリンクはモバイルでも常時表示する — 検索バーは虫眼鏡アイコンに畳んで場所を空ける。 */}
+            <nav className="flex items-center gap-3 font-display-text text-sm text-muted-foreground sm:gap-4">
               {siteConfig.nav.map((item) => (
                 <Link
                   key={item.href}
@@ -35,7 +36,7 @@ export function Header() {
               ))}
             </nav>
           </div>
-          <div className="flex flex-1 items-center justify-end gap-2">
+          <div className="flex flex-1 items-center justify-end gap-1 sm:gap-2">
             {version && <SearchTrigger version={version} />}
             <Link
               href={siteConfig.github}
