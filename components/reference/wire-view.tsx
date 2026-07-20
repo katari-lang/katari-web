@@ -9,7 +9,6 @@
 import { useState } from "react";
 import Link from "next/link";
 import type { DeclarationSchema } from "@/lib/reference/types";
-import { CopyButton } from "./copy-button";
 import { DetailSection } from "./detail-section";
 import { SchemaViewer } from "./schema-viewer";
 
@@ -37,12 +36,6 @@ export function WireView({ schema, requestHrefs }: WireViewProps) {
       </summary>
       {opened && (
         <div className="space-y-4 border-t border-border p-3">
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-xs text-subtle-foreground">
-              The wire-facing shape the runtime shows to AI, derived from the type.
-            </p>
-            <CopyButton value={JSON.stringify(schema, null, 2)} label="Copy full schema JSON" />
-          </div>
           <DetailSection label="Input">
             <SchemaViewer schema={schema.input} />
           </DetailSection>
