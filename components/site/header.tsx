@@ -4,6 +4,7 @@ import { latestVersion } from "@/lib/content";
 import { Logo } from "./logo";
 import { ThemeToggle } from "./theme-toggle";
 import { GithubIcon } from "./icons";
+import { McpButton } from "./mcp-button";
 import { SearchTrigger } from "@/components/docs/search/search-trigger";
 import { HeaderShell } from "./header-shell";
 
@@ -38,6 +39,7 @@ export function Header() {
           </div>
           <div className="flex flex-1 items-center justify-end gap-1 sm:gap-2">
             {version && <SearchTrigger version={version} />}
+            <McpButton />
             <Link
               href={siteConfig.github}
               target="_blank"

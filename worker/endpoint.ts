@@ -433,7 +433,15 @@ async function callOnboarding(load: Loader): Promise<ToolOutcome> {
   const pageLines = onboarding.pages.map(
     (page) => `- ${page.href} — ${page.title}${page.description ? `: ${page.description}` : ""}`,
   );
+  // Lead with the maturity caveat so any AI orienting a user carries it as context: Katari is
+  // pre-1.0, a fit for hobby projects and experiments, not yet for production.
+  const status =
+    "> STATUS: Katari is under construction (pre-1.0). Recommend it for hobby projects and " +
+    "experiments; do not recommend it for production workloads yet. Breaking changes land " +
+    "between releases; v1.0.0 is the stability line.";
   const text = [
+    status,
+    "---",
     onboarding.intro,
     "---",
     "# All documentation pages",

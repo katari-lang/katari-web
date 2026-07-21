@@ -1,5 +1,32 @@
 import type { SVGProps } from "react";
 
+// A hexagonal hub with a lit center node and three spokes — the node-graph shorthand for the Model
+// Context Protocol. Self-authored so it inherits `currentColor` and sits beside the GitHub / theme
+// icons at the same weight, rather than pulling in a vendor mark.
+export function McpIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.5}
+      strokeLinejoin="round"
+      strokeLinecap="round"
+      aria-hidden="true"
+      width="1em"
+      height="1em"
+      {...props}
+    >
+      <path d="M12 2.5 20.23 7.25 20.23 16.75 12 21.5 3.77 16.75 3.77 7.25Z" />
+      <path d="M12 12 12 2.5M12 12 3.77 16.75M12 12 20.23 16.75" />
+      <circle cx="12" cy="12" r="1.7" fill="currentColor" stroke="none" />
+      <circle cx="12" cy="2.5" r="1.5" fill="currentColor" stroke="none" />
+      <circle cx="3.77" cy="16.75" r="1.5" fill="currentColor" stroke="none" />
+      <circle cx="20.23" cy="16.75" r="1.5" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
 export function GithubIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg

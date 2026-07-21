@@ -7,6 +7,10 @@ Katari is a programming language for **orchestration**: the layer of a system th
 which agent runs, with what input, what happens when one asks a human a question, and what
 survives a crash. You write that layer as a typed program; a persistent runtime executes it.
 
+> **Katari is under construction.** It is a great fit for hobby projects and experiments, but
+> breaking changes land between releases — hold off on production workloads for now. `v1.0.0`
+> is the stability line.
+
 Three ideas carry the whole language:
 
 - **Agents are functions.** An agent takes a labelled record in and returns a value out, and
