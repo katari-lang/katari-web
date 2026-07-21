@@ -174,6 +174,35 @@ Watch the second one on the console's run page while it executes: under `solve`,
 `infer_step` per round, and the tool calls fanning out as parallel delegations beneath —
 the model's reasoning, rendered as a call tree.
 
+## Beyond one question
+
+`infer_with_tools` answers one question and returns. Three surfaces on the `ai` package carry the
+same loop further; the [reference](/packages/ai) is the full contract, but in brief:
+
+- **`ai.serve_session`** turns the loop into a long-lived chat. `use serve_session(...)` installs a
+  handler whose `var` carries the conversation across messages (durable like any run state); the
+  continuation bridges your transport into `session_message`, one call per incoming message. It adds
+  what a hand-rolled loop lacks: the seam's token `usage` metered into a context-occupancy figure,
+  and an automatic compaction pass that summarizes the older turns once you cross a threshold.
+- **`ai.infer_structured[T]`** makes the answer a typed value instead of prose.
+  `reflection.schema_of[T]` reifies T's schema, the provider decodes against it natively (Gemini's
+  `responseSchema`, OpenAI's `response_format`, a forced Anthropic tool), and the reply is validated
+  as T:
+
+  ```katari
+  type verdict = { approved: boolean, reason: string }
+
+  // The type is the contract — no "reply with JSON" prompting, no hand-parsing.
+  let review = ai.infer_structured[verdict](
+    history = [types.turn(role = "user", text = f"Ship this diff? ${diff}", files = [])],
+  )
+  ```
+
+- **Usage rides the seam.** `infer_step` returns a `types.step_result` — the step's decision _and_
+  its `usage` (input / output tokens), where the freshest step's input count is the whole context's
+  current occupancy. Any loop over the seam can meter itself for free; that measurement is exactly
+  what `serve_session` compacts against.
+
 ## Where you are
 
 The model now reaches for your code when it needs facts. Everything about the loop is

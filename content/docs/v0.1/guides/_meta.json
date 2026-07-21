@@ -6,6 +6,7 @@
     "webhooks",
     "scheduled-jobs",
     "secrets-and-credentials",
+    "store",
     "ffi-sidecars"
   ]
 }

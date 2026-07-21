@@ -164,6 +164,19 @@ entirely at compile time. Markers can take arguments — `effect scoped[resource
 string-literal resource is how a scoped provider (like `mcp.provide`) tags the tools it
 mints, so a tool cannot escape the block that provided it.
 
+## Environment vs operation
+
+Two kinds of thing hide behind an effect, and they differ by lifetime. **Environment** is what
+is _given_ to a run — `env`, OAuth tokens, the [store]({docs}/{currentVersion}/guides/store).
+These are requests: unhandled, they escalate to the run's outermost environment, the runtime,
+which machine-answers them against durable project state — and any handler in between can
+intercept first (a test stub, a sandboxed subtree). **Operations with a lifetime** — `http.fetch`,
+a timer, a `watch` — are not requests waiting for an answer; they go straight to a dedicated
+reactor that owns the in-flight work and wakes the run when it completes, and they ride the
+un-dischargeable `io` effect rather than a catchable request. An external operation is,
+conceptually, a direct line to that same outermost handler: the runtime, reached without stopping
+at any handler on the way.
+
 ## Where to go next
 
 - [Escalation]({docs}/{currentVersion}/concepts/escalation) — what happens when no handler
