@@ -95,6 +95,23 @@ agent notify(message: string) -> string with io | prelude.throw[http.fetch_error
 }
 ```
 
+## Hand a credential to a package
+
+A package's provider does not take the secret's value — it takes a `credentials.source`, a
+**name** for where the credential lives, and resolves the current value itself at each use:
+
+```katari
+use tavily.provider(source = credentials.env(key = "TAVILY_API_KEY"))
+```
+
+`credentials.env(key = ...)` names an entry in the env store (resolved with
+`env.get_secret`, throwing `env.missing_secret` when unset); `credentials.oauth(name = ...)`
+names a stored OAuth credential (resolved with `oauth.token`, below). The app picks the
+variant and the package never knows which — and because resolution happens per use, a
+rotated secret or a refreshed token lands without a restart. This is why a provider's
+throw row carries both `env.missing_secret` and `oauth.server_error`: which one can
+actually fire depends on the source you pass, but the type covers the sum.
+
 ## Let the runtime own OAuth tokens
 
 For an OAuth-protected API, don't store tokens in the env at all. `oauth.token` names a stored
@@ -146,6 +163,6 @@ fresh authorization on next use, for example to switch accounts.
 
 - [Escalation]({docs}/{currentVersion}/concepts/escalation) — the park-and-resume machinery
   authorization rides on.
-- [Packages]({docs}/{currentVersion}/guides/packages) — registry packages take their keys via
-  `env.get_secret` provider arguments.
+- [Packages]({docs}/{currentVersion}/guides/packages) — registry packages take their keys as
+  `credentials.source` provider arguments.
 - The `env`, `oauth`, and `http` modules in the [reference](/packages).

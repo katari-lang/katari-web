@@ -27,7 +27,11 @@ agent floor_area(rooms: array[{ width: number, height: number }]) -> number {
 There are no positional arguments: a call names every parameter, and the parameter list is
 the input record's shape. The `@"..."` annotation is not a comment — it is the agent's
 description, carried into the derived schema that an AI or the admin console reads (see
-[Types and schemas]({docs}/{currentVersion}/concepts/types-and-schemas)).
+[Types and schemas]({docs}/{currentVersion}/concepts/types-and-schemas)). The stdlib names
+its primary argument by one rule, so you never memorize it per module: `value` when the
+agent reads a **scalar** as a whole (`string.trim(value = ...)`, `math.floor(value = ...)`),
+`target` when it reaches **into a structure** (`array.length(target = ...)`,
+`record.get(target = ..., key = ...)`); packages follow the same split.
 
 A parameter can carry a default with `?=`; a call that omits it gets the default:
 
@@ -40,6 +44,20 @@ agent decorate(body: string, suffix: string ?= "!") -> string {
 @"One call supplies the suffix, one leaves it to the default."
 agent both_forms() -> string {
   f"${decorate(body = "hi", suffix = "?")} ${decorate(body = "hi")}"
+}
+```
+
+The default is not limited to scalars: `?=` takes a whole literal tree, typed against the
+declared parameter — an empty array, an object with its fields filled in:
+
+```katari
+@"Container defaults: a call that omits `tags` or `options` gets the literal trees."
+agent notify(text: string, tags: array[string] ?= [], options: { urgent: boolean } ?= { urgent = false }) -> string {
+  if (options.urgent) {
+    f"URGENT ${text} [${string.join(parts = tags, separator = ",")}]"
+  } else {
+    f"${text} [${string.join(parts = tags, separator = ",")}]"
+  }
 }
 ```
 

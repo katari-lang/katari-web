@@ -47,6 +47,14 @@ descriptor, so a call never reaches the wrong server — at worst a tool whose `
 fails with a typed `mcp.server_error`. Generated bindings need no such care: the module namespace mints a
 distinct marker (`github.connection`) per connection automatically.
 
+When the toolbox itself would never be read — you call tools statically through `mcp.call`
+rather than handing minted agents to a loop — `mcp.open` is the **listing-free** form of the
+same scoped contract: it registers the connection's scope and starts the block immediately,
+with no server round-trip at open, so the first tool call is the first contact. That makes a
+per-call connection plain data at no server cost; it is what a generated binding's `connect`
+uses. Because nothing is contacted at open, authentication surfaces at the first call — a
+missing OAuth credential parks *that call* on the authorization escalation.
+
 ## Hand the tools to a model
 
 `record.values` flattens the toolbox into the array shape the `ai` package's loop takes — the
@@ -60,13 +68,13 @@ import ai.gemini
 @"Hand every tool an MCP server publishes to the model loop, for one task."
 agent main(url: string, task: string) -> string with io {
   use handler {
-    request prelude.throw(error: ai.step_error | ai.loop_error | env.missing_secret | mcp.server_error | mcp.auth_error) -> never {
+    request prelude.throw(error: ai.step_error | ai.duplicate_tool | env.missing_secret | oauth.server_error | mcp.server_error | mcp.auth_error) -> never {
       break f"failed: ${json.stringify(value = error)}"
     }
   }
   use gemini.provider(
     model = "gemini-3.5-flash",
-    api_key = env.get_secret(key = "GEMINI_API_KEY"),
+    source = credentials.env(key = "GEMINI_API_KEY"),
   )
   let tools : mcp.toolbox[mcp.scope] = use mcp.provide[mcp.scope](url = url, auth = mcp.headers(values = record.empty()))
   ai.infer_with_tools(
@@ -94,8 +102,11 @@ Authenticate the listing with `--header KEY=VALUE` (repeatable) or `--oauth` (an
 dev-time browser login; add `--scope` if the server needs one). Re-running overwrites the file —
 the generated module is an artifact, not something you edit.
 
-The module contains one `connect` provider plus one agent per tool. You open the connection as a
-bare `use` statement and call the tools directly:
+The module contains one `connect` provider plus one agent per tool. `connect` opens the
+connection over `mcp.open` — listing-free, so opening costs no server round-trip and the
+first tool call is the first contact (a binding pulled before `mcp.open` existed still opens
+via `provide`; re-running the pull adopts it). You open the connection as a bare `use`
+statement and call the tools directly:
 
 ```katari
 import myapp.github
@@ -184,8 +195,9 @@ katari mcp pull --url https://mcp.notion.com/mcp --oauth --out src/myapp/notion.
 ```
 
 `--oauth` opens a browser to authorize the listing; the generated `myapp.notion` module carries no
-token. At runtime, `connect` takes the **stored** credential named `notion` — a missing one parks the
-run on the authorization escalation above, answered once from the admin console or `katari answer`,
+token. At runtime, `connect` takes the **stored** credential named `notion` — opening is
+listing-free, so a missing credential parks the run at the **first tool call** on the
+authorization escalation above, answered once from the admin console or `katari answer`,
 after which every later run resumes silently:
 
 ```katari

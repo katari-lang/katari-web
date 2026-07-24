@@ -6,6 +6,8 @@
       "modules": [
         "prelude",
         "prelude.array",
+        "prelude.credentials",
+        "prelude.crypto",
         "prelude.env",
         "prelude.files",
         "prelude.http",
@@ -17,6 +19,7 @@
         "prelude.reflection",
         "prelude.region",
         "prelude.replay",
+        "prelude.store",
         "prelude.string",
         "prelude.time",
         "prelude.webhook"
@@ -25,7 +28,7 @@
     },
     {
       "name": "ai",
-      "version": "0.1.0",
+      "version": "0.1.18",
       "modules": [
         "ai",
         "ai.anthropic",
@@ -37,7 +40,7 @@
     },
     {
       "name": "discord",
-      "version": "0.1.0",
+      "version": "0.1.4",
       "modules": [
         "discord"
       ],
@@ -45,7 +48,7 @@
     },
     {
       "name": "e2b",
-      "version": "0.1.0",
+      "version": "0.1.2",
       "modules": [
         "e2b"
       ],
@@ -66,6 +69,14 @@
         "imagegen"
       ],
       "hasReadme": true
+    },
+    {
+      "name": "memory",
+      "version": "0.1.1",
+      "modules": [
+        "memory"
+      ],
+      "hasReadme": false
     },
     {
       "name": "slack",

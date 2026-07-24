@@ -180,7 +180,8 @@ katari run bot.roll_call
 
 Squint at `roll_call` and you can see the bot this tutorial ends with: replace "every
 `ask` advances a counter" with "every incoming Discord message extends a conversation
-history", and you have chapter 5's message loop. The state is just a value in your
+history", and you have the observation server the final chapter installs — a handler
+just like this one, shipped by the `ai` package. The state is just a value in your
 program — no session store, no cache to invalidate.
 
 ## Where you are

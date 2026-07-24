@@ -41,6 +41,26 @@ reading it types `T | null`). Agent types — `agent (value: number) -> number w
 ordinary types too; see
 [Agents and delegation]({docs}/{currentVersion}/concepts/agents-and-delegation).
 
+You construct an object value with an **object literal** — the same `{ field = value }`
+form you may have met building HTTP request bodies, with `=` where the type writes `:` —
+and an optional field may simply be omitted:
+
+```katari
+@"An object literal denotes an object type directly; the optional field is omitted."
+agent draft(title: string) -> { title: string, content?: string } {
+  { title = title }
+}
+
+@"The same literal with the optional field supplied."
+agent full_draft(title: string, content: string) -> { title: string, content?: string } {
+  { title = title, content = content }
+}
+```
+
+This is how you reach an object-typed parameter of a generated
+[MCP binding]({docs}/{currentVersion}/guides/mcp) — or of any agent — from hand-written
+code: build the literal, omit what you do not have.
+
 ## Sums: data, unions, match
 
 ```katari
@@ -79,6 +99,25 @@ agent first_or(values: array[string], fallback: string) -> string {
 ```
 
 Absence is `| null` everywhere in the stdlib — there is no separate option type.
+
+`match` also dispatches on **literal patterns** — string and number literals match exactly,
+and a binder arm catches everything else — so a dispatch over a small closed set of strings
+is a flat match, not an `if` pyramid:
+
+```katari
+@"Literal patterns match exact strings; the binder arm is the fallback."
+agent route(to: string) -> string {
+  match (to) {
+    case "core" -> "the private channel"
+    case "herald" -> "the public stage"
+    case other -> f"unknown addressee: ${other}"
+  }
+}
+```
+
+Number literals work the same way (`case 1 -> ...`, `case n -> ...`). Relatedly, the
+comparison operators order strings too: `<` on strings is lexicographic by Unicode code
+point, so `"2026-07-01" < "2026-08-01"` is `true`.
 
 ## Generics
 

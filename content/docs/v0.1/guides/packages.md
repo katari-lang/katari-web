@@ -27,16 +27,17 @@ import tavily
 @"Search the web; failures degrade to a readable line instead of failing the run."
 agent main(question: string) -> string with io {
   use handler {
-    request prelude.throw(error: env.missing_secret | http.status_error | http.fetch_error | json.parse_error) -> never {
+    request prelude.throw(error: env.missing_secret | oauth.server_error | http.status_error | http.fetch_error | json.parse_error) -> never {
       break f"search failed: ${json.stringify(value = error)}"
     }
   }
-  use tavily.provider(api_key = env.get_secret(key = "TAVILY_API_KEY"))
-  tavily.search(query = question)
+  use tavily.provider(source = credentials.env(key = "TAVILY_API_KEY"))
+  json.stringify(value = tavily.search(query = question))
 }
 ```
 
-The `env.get_secret` call reads the API key from the project's env store — see
+The `credentials.env(key = ...)` argument names where the API key lives in the project's
+env store; the provider resolves the current value at each use — see
 [Secrets and credentials]({docs}/{currentVersion}/guides/secrets-and-credentials).
 
 ## Pin a snapshot

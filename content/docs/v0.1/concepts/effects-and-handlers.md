@@ -160,9 +160,12 @@ agent cleanup() -> null with reviewed {
 ```
 
 An `effect` declaration with no request is a pure capability: it gates who may call what,
-entirely at compile time. Markers can take arguments — `effect scoped[resource]` with a
-string-literal resource is how a scoped provider (like `mcp.provide`) tags the tools it
-mints, so a tool cannot escape the block that provided it.
+entirely at compile time. Markers are also how a **scoped provider** — `mcp.provide`,
+`region.provide` — makes a lifetime static: the provider is generic over a nullary marker
+it mints for its block and discharges from its own row, and the marker rides everything
+the block is handed (a minted tool, a forked fiber), so none of it can escape the block
+that provided it. Declare one marker per connection or nursery; distinct markers never
+merge.
 
 ## Environment vs operation
 

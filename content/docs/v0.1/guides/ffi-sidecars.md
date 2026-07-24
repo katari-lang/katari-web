@@ -253,7 +253,7 @@ import slack
 
 @"Reply to one message. A transient `api_error` is caught so one failed send never ends the bot; an
 `auth_error` (a bad token) surfaces and stops it loudly — the per-message channel, a typed throw."
-agent reply(channel: string, user: string, text: string, thread_ts: string | null, files: array[file]) -> null with io | slack.get_slack_client | prelude.throw[slack.auth_error] {
+agent reply(channel: string, user: string, text: string, thread_ts: string | null, files: array[file]) -> null with io | slack.connection | prelude.throw[slack.auth_error] {
   use handler {
     request prelude.throw(error: slack.slack_error) -> never {
       match (error) {
@@ -267,7 +267,7 @@ agent reply(channel: string, user: string, text: string, thread_ts: string | nul
 
 @"The restart-resilient bot: the panic converter re-runs connect-and-serve after a capped backoff, and
 `slack.provider` — inside the replay scope — reconnects each time with a fresh Socket Mode client."
-agent main(channel: string) -> never with io | prelude.throw[slack.slack_error | env.missing_secret] {
+agent main(channel: string) -> never with io | prelude.throw[slack.slack_error | env.missing_secret | oauth.server_error] {
   use replay.forever(initial_delay_milliseconds = 1000, factor = 2, max_delay_milliseconds = 60000)
   use handler {
     request panic(msg: string) -> never {
@@ -275,8 +275,8 @@ agent main(channel: string) -> never with io | prelude.throw[slack.slack_error |
     }
   }
   use slack.provider(
-    bot_token = env.get_secret(key = "SLACK_BOT_TOKEN"),
-    app_token = env.get_secret(key = "SLACK_APP_TOKEN"),
+    bot_source = credentials.env(key = "SLACK_BOT_TOKEN"),
+    app_source = credentials.env(key = "SLACK_APP_TOKEN"),
   )
   slack.watch_messages(channel = channel, deliver_to = reply)
 }

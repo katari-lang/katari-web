@@ -1,12 +1,15 @@
 ---
 title: A Discord Bot
-description: Connect the tool loop to a channel — conversation history as handler state, deployed and durable on your runtime.
+description: A resident on a channel — a region fiber watches Discord, an observation server advances one conversation, deployed and durable on your runtime.
 ---
 
 Everything is on the table: a tool-calling loop (chapter 4), and a stateful handler that
 answers a stream of requests (chapter 2's `roll_call`). This chapter connects them to a
-Discord channel. The bot serves the channel until you cancel it: every incoming message
-runs the loop over the conversation so far, and the reply is posted back.
+Discord channel — not as request-and-reply, but as a **resident**: an agent that lives on
+the channel, hears events, and decides for itself when to speak. Two pieces are new, and
+each is one idea: a **region**, which runs the channel watcher as a detached fiber, and
+`ai.serve_observations`, the package-shipped handler that turns the fiber's reports into
+model turns.
 
 ## A bot token
 
@@ -42,27 +45,50 @@ snapshot automatically; the `npm install`, run once inside the fetched package, 
 bundler the sidecar's own dependencies. (How sidecars work:
 [FFI Sidecars]({docs}/{currentVersion}/guides/ffi-sidecars).)
 
-What the package exposes is small: `discord.provider(token = ...)` logs in once and
-serves the connection for the rest of the block; `discord.watch_messages(channel_id,
+What the package exposes is small: `discord.provider(source = ...)` logs in once and
+serves the connection for the rest of the block; `discord.watch_messages(channel,
 deliver_to)` serves a channel forever, delivering each incoming message to an agent you
-supply; `discord.send_message(channel_id, text, files)` posts back. Attachments arrive
-and depart as first-class `file` values. ([reference](/packages/discord))
+supply; `discord.send_message(channel, text, files)` posts back, returning the posted
+message's id, and `discord.try_send` is its resilient fire-and-forget sibling — a blank
+text posts nothing, a transient failure drops just that post. Attachments arrive and
+depart as first-class `file` values. ([reference](/packages/discord))
 
-## The bridge request
+## The watcher is a fiber
 
-`watch_messages` delivers each message to a plain agent. But the bot needs _state_ across
-messages — the conversation history — and state, you know from chapter 2, lives in a
-handler. So the app declares one request of its own, and the delivered agent's only job
-is to raise it:
+`watch_messages` never returns — it serves the channel forever. In the old request-reply
+shape that was the whole program; in a resident it is one **source** among potentially
+many (a second channel, a cron, an RSS poll), so it runs as a detached **fiber** inside a
+[region]({docs}/{currentVersion}/concepts/parallelism#regions-fork-without-join). A fiber
+carries no result: its task is `-> null`, and everything it produces leaves through its
+escalations. This one's whole job is to raise the `ai` package's event request,
+`ai.observation`, once per incoming message:
 
 ```katari
-@"Raised once per incoming channel message; `serve`'s handler owns it, so the handler's
-var can carry the conversation history across messages."
-request on_message(channel_id: string, text: string, files: array[file]) -> null
+@"The channel watcher, run as a fiber: serve the channel forever, reporting each
+incoming message as an observation. `fork` applies it to the channel id — the
+parameter is named `input` because parameter names are part of an agent's type,
+and `fork` declares its task as `agent (input: A) -> null`."
+agent channel_source(input: string) -> never {
+  agent deliver(channel: string, text: string, files: array[file], author: string) -> null {
+    ai.observation(source = f"discord:${channel}", content = text, files = files, author = author)
+  }
+  discord.watch_messages(channel = input, deliver_to = deliver)
+}
 ```
 
-Message arrives → agent raises `on_message` → the stateful handler answers it and rolls
-the history forward. Chapter 2's `roll_call`, with Discord doing the asking.
+Message arrives → fiber raises `ai.observation` → a stateful handler somewhere above
+answers it. Chapter 2's shape exactly — and this time the handler ships with the `ai`
+package.
+
+## The observation server
+
+`ai.serve_observations` is `roll_call` grown up: a handler whose `var` carries the
+conversation, one `ai.take_turn` per observation, the reply routed through a `deliver_to`
+agent you supply. It brings the **resident protocol** with it: a blank reply is silence —
+not delivered, so the bot can read a message and honestly say nothing — and a failed model
+step is absorbed as an annotation instead of tearing the loop down. The conversation
+starts empty on purpose: standing instructions ride the provider's `system` parameter,
+which the automatic compaction never touches.
 
 ## The whole bot
 
@@ -76,32 +102,37 @@ import discord
 import tavily
 import web
 
-// Everything the app anticipates going wrong: a provider step failing, a bad dynamic
-// tool dispatch, or a missing secret.
-type app_error = ai.step_error | ai.loop_error | env.missing_secret
+// Everything the app anticipates going wrong: a provider step failing, a missing
+// secret, a dead stored credential, a gateway failure — plus the loop's one own
+// throw, two tools sharing a name. A tool that fails never reaches here.
+type app_error = ai.step_error | ai.duplicate_tool | discord.discord_error | env.missing_secret | oauth.server_error
+
+@"The region's scope marker: a nullary phantom, one per nursery."
+effect bot_scope
+
+// The nursery's fiber ceiling — everything a fiber may raise: the observation it
+// reports, the gateway connection it listens through, and io.
+type bot_ceiling = ai.observation | discord.connection | io
 
 @"Tool: count how many times a letter appears in a word. Models guess at this; this counts."
 agent count_letters(word: string, letter: string) -> integer {
   array.length(target = string.split(value = word, separator = letter)) - 1
 }
 
-@"Post a reply, catching a failed send so one bad post never ends the bot. A send raises
-`discord.discord_error` (a rate limit, a bad token); swallowing it drops just that reply and the
-loop keeps serving the next message."
-agent try_send(channel_id: string, text: string) -> null {
-  use handler {
-    request prelude.throw(error: discord.discord_error) -> never { break null }
+@"The channel watcher, run as a fiber: serve the channel forever, reporting each
+incoming message as an observation. `fork` applies it to the channel id — the
+parameter is named `input` because parameter names are part of an agent's type,
+and `fork` declares its task as `agent (input: A) -> null`."
+agent channel_source(input: string) -> never {
+  agent deliver(channel: string, text: string, files: array[file], author: string) -> null {
+    ai.observation(source = f"discord:${channel}", content = text, files = files, author = author)
   }
-  discord.send_message(channel_id = channel_id, text = text, files = [])
+  discord.watch_messages(channel = input, deliver_to = deliver)
 }
 
-@"Raised once per incoming channel message; `serve`'s handler owns it, so the handler's
-var can carry the conversation history across messages."
-request on_message(channel_id: string, text: string, files: array[file]) -> null
-
-@"Entry: provide the model, the tools' keys and the Discord connection, then serve one
-channel forever."
-agent main(channel_id: string) -> string {
+@"Entry: provide the model, the search key and the gateway; then serve one channel
+as a resident until cancelled."
+agent main(channel: string) -> string {
   use handler { request panic(msg: string) { break f"failed: ${msg}" } }
   use handler {
     request prelude.throw(error: app_error) -> never {
@@ -109,91 +140,108 @@ agent main(channel_id: string) -> string {
     }
   }
   use anthropic.provider(
-    api_key = env.get_secret(key = "ANTHROPIC_API_KEY"),
-    system = "You are a helpful assistant in a Discord channel. Use the tools when they help; once you have enough to answer, stop calling tools and reply.",
+    source = credentials.env(key = "ANTHROPIC_API_KEY"),
+    system = "You are a helpful resident of a Discord channel. Reply when a message needs you; reply with empty text to stay silent.",
   )
-  use tavily.provider(api_key = env.get_secret(key = "TAVILY_API_KEY"))
-  use discord.provider(token = env.get_secret(key = "DISCORD_TOKEN"))
-  serve(channel_id = channel_id, tools = [count_letters, tavily.search, web.fetch_page])
-}
-
-@"Serve one channel until cancelled: each incoming message runs the tool loop over the
-conversation so far (kept as handler state), and the reply is posted back."
-agent serve[effect E](channel_id: string, tools: array[agent never -> unknown with E]) -> never {
-  use handler (var history: array[types.message] = []) {
-    request on_message(channel_id: string, text: string, files: array[file]) {
-      let asked = array.append(target = history, value = types.turn(role = "user", text = text, files = files))
-      let answer = ai.infer_with_tools[E](history = asked, tools = tools, max_steps = 8)
-      try_send(channel_id = channel_id, text = answer)
-      next null with { history = array.append(target = asked, value = types.turn(role = "model", text = answer, files = [])) }
+  use tavily.provider(source = credentials.env(key = "TAVILY_API_KEY"))
+  use discord.provider(source = credentials.env(key = "DISCORD_TOKEN"))
+  agent deliver_reply(reply: string) -> null {
+    discord.try_send(channel = channel, text = reply)
+  }
+  agent resident(value: null) -> never with ai.observation | discord.connection | io {
+    let nursery: region.nursery[bot_scope, bot_ceiling] = use region.provide[bot_scope, bot_ceiling]
+    use handler {
+      request region.crashed(id: string, name: string, message: string) {
+        // The watcher is the bot's ears: fork a replacement and keep serving.
+        let _replacement = region.fork(nursery = nursery, task = channel_source, argument = channel, name = name)
+        next null
+      }
     }
+    let _watcher = region.fork(nursery = nursery, task = channel_source, argument = channel, name = "channel-watcher")
+    region.watch(nursery = nursery)
   }
-  // The watch's deliver_to: bridge each delivered message into the on_message request the
-  // handler above owns. Nested because `serve` is its only caller.
-  agent deliver(channel_id: string, text: string, files: array[file]) -> null with on_message {
-    on_message(channel_id = channel_id, text = text, files = files)
-  }
-  discord.watch_messages(channel_id = channel_id, deliver_to = deliver)
+  ai.serve_observations(
+    tools = [count_letters, tavily.search, web.fetch_page],
+    max_steps = 8,
+    deliver_to = deliver_reply,
+    continuation = resident,
+  )
 }
 ```
 
-Two agents, and you have met every idea in them:
+Three agents, and you have met every idea in them:
 
-- **`main` is the composition root, and every integration is one `use` line** — the
-  model, the search key, the gateway connection. None of the packages know each other;
-  they meet here, and their failures land in the two root handlers. The
-  `prelude.throw` clause you know; the `panic` clause is its counterpart for failures
-  no one anticipates typing — a crashed sidecar process, a division by zero. A panic
-  cannot be raised from Katari, but it can be caught on the way out, and at the root of
-  a long-running bot you want that: a readable string result instead of a failed run.
-- **`serve` is `roll_call` grown up.** The handler's `var history` is the channel's
-  memory: each `on_message` appends the user turn, runs the loop — the same
-  `ai.infer_with_tools`, generic over the tools' effects `E` — posts the answer through
-  `try_send`, and rolls the history forward with `next null with { history = ... }`. The nested
-  `deliver` agent is the bridge from the previous section, and
-  `discord.watch_messages` feeds it forever — its return type is `never`. One built-in
-  courtesy: the bot's own posts are not delivered back to it, so replying cannot loop.
-- **`try_send` is why the bot survives a bad post.** `discord.send_message` raises a
-  typed `discord.discord_error` when a send fails — a rate limit, a revoked token — and an
-  uncaught throw would tear the whole loop down. Catching it drops just that one reply and
-  keeps serving. `discord_error` splits into `api_error` (transient) and `auth_error` (the
-  token or permissions are wrong); this bot swallows both, but a `match` on the two lets a
-  real bot shrug off the transient one and stop loudly on the token — see the
-  [`discord` reference](/packages/discord).
+- **`main` is the composition root, and every integration is one `use` line** — the model,
+  the search key, the gateway connection. None of the packages know each other; they meet
+  here, and every anticipated failure lands in the two root handlers: the `prelude.throw`
+  clause you know, and the `panic` clause for failures no one anticipates typing. The
+  serving order matters and says what it means: providers first, `serve_observations`
+  inside them (its turns need the model), and the region innermost (its fibers' reports
+  need the server).
+- **`resident` owns the region.** `use region.provide[bot_scope, bot_ceiling]` opens the
+  nursery for the rest of the block; `fork` starts the watcher — named, so the runtime can
+  tell you about it — and `region.watch` re-emits the fibers' escalations forever: each
+  `ai.observation` wells up here and is answered by the server installed just outside.
+  The `region.crashed` handler is the region's crash policy as ordinary code: the runtime
+  reports a dead fiber as typed data, and this bot's answer is to fork a fresh watcher
+  under the same name. Handling `crashed` is not optional politeness — it rides `watch`'s
+  row, so `katari check` holds you to it.
+- **`serve_observations` is the memory and the mouth.** Its handler `var` is the channel's
+  conversation — durable run state, like `roll_call`'s counter — advanced one `take_turn`
+  per observation, compacted automatically when it outgrows its budget. Non-blank replies
+  leave through `deliver_reply`, which posts with `discord.try_send`: a transient send
+  failure drops that one post and the resident keeps serving, while a bad token still
+  stops it loudly.
 
 ## Deploy and talk
 
 ```sh
 katari apply
-katari run bot.main --arg '{"channel_id": "123456789012345678"}'
+katari run bot.main --arg '{"channel": "123456789012345678"}'
 ```
 
-Type in the channel. The bot answers; ask it to count letters or to look something up
-and the tools fire. `Ctrl-C` detaches your terminal — the run keeps serving without you.
-On the console's run page, the delegation tree grows live: the gateway watch, and under
-it one `on_message` → `infer_step` → tool-dispatch chain per message.
+Type in the channel. The bot answers; ask it to count letters or to look something up and
+the tools fire; say something that needs no answer and — silence, one model step, nothing
+posted. `Ctrl-C` detaches your terminal; the run keeps serving without you. On the
+console's run page, the delegation tree grows live: the region holding its
+`channel-watcher` fiber, and one observation → `infer_step` → tool-dispatch chain per
+message.
 
 This run is a run like any other, which is the quiet punchline of the tutorial:
 
 - it appears in `katari ls`, and it ends when you say so — `katari cancel <run-id>`;
-- its history is run state, so it survives a runtime restart: bring the runtime down and
-  up mid-conversation, and the watch reattaches with the channel's memory intact;
+- its conversation is run state, so it survives a runtime restart: bring the runtime down
+  and up mid-conversation, and the watcher reattaches with the channel's memory intact;
 - redeploying is `katari apply` and a fresh `katari run` — snapshots are immutable, so a
   new deploy never mutates a serving bot under your feet.
 
-## Where you go from here
+## The closing act: from one resident to many
 
-You built a project whose agents an AI model calls through their compiled schemas, wired
-a model and a gateway in with one `use` line each, kept conversation state as a typed
-value, and deployed the whole thing as a durable run. From here:
+Nothing in this architecture is one-of-anything by necessity. Fork a second source and the
+bot hears two channels; fork a `time.watch` fiber and it hears the clock (`ai.watch_prompt`
+packages that); `region.roster` lists what is running and `region.cancel_by_id` stops one
+by id — which is all a "stop that watch" *tool* needs, so the model can manage the bot's
+own fibers. And once several **agents** share the bus, the observation server generalizes
+to a dispatcher: one sequential handler holding a `record` of conversations keyed by
+addressee, every event carrying whose turn it is, agent-to-agent mail as a micro-fiber
+whose whole body is one perform — queued behind the current turn by the region itself.
+
+That system exists, and it is where this tutorial's bot grew up:
+[**tsukasa**](https://github.com/yukikurage/discord-bot-example) — a multi-agent resident
+built on exactly these pieces: a private *core* agent that runs its operator's tasks,
+memory and schedule; a public-facing *herald* whose **tool set is its privacy boundary**
+(no tool it holds can reach private data); and mail-driven workers. One region, one
+dispatcher, and every idea in it is one you now know. Read it as the sixth chapter.
+
+From here:
 
 - widen the bot's reach with [MCP]({docs}/{currentVersion}/guides/mcp) — hand it every
   tool of any MCP server without writing code — or let it receive the outside world's
   pushes with [Webhooks]({docs}/{currentVersion}/guides/webhooks) and
   [Scheduled Jobs]({docs}/{currentVersion}/guides/scheduled-jobs);
 - read the ideas you have been using at full depth, starting with
-  [Agents and Delegation]({docs}/{currentVersion}/concepts/agents-and-delegation) and
-  [Durable Execution]({docs}/{currentVersion}/concepts/durable-execution);
+  [Parallelism]({docs}/{currentVersion}/concepts/parallelism) — the region's full story —
+  and [Durable Execution]({docs}/{currentVersion}/concepts/durable-execution);
 - or tour what else ships in the box: the [CLI]({docs}/{currentVersion}/toolchain/cli),
   the [runtime and console]({docs}/{currentVersion}/toolchain/runtime), and the
   [editor tooling]({docs}/{currentVersion}/toolchain/editor).

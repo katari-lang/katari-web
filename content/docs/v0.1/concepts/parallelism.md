@@ -1,6 +1,6 @@
 ---
 title: Parallelism
-description: parallel for and parallel blocks fan work out to concurrent threads; results join in source order, and escalations park per thread.
+description: parallel for and parallel blocks fan work out to concurrent threads and join in source order; regions fork detached fibers whose reports surface at watch.
 ---
 
 Concurrency in Katari is a keyword, not a library. Prefix a `for` or an array literal with
@@ -60,8 +60,10 @@ external calls, and survives restarts independently. The join is structural — 
 expression is a node in the delegation tree, and its parent suspends until every child
 settles. If one branch fails (an uncaught throw or a panic), the failure unwinds the
 parallel expression and the still-running siblings are cancelled — failure flows up, cancel
-flows down. There is no detached spawn: every thread has a place in the tree, which is why
-the run page can always show you what, exactly, is still running.
+flows down. There is no fully detached spawn: every thread has a place in the tree — even a
+[region's]({docs}/{currentVersion}/concepts/parallelism#regions-fork-without-join) fibers
+live under the `provide` that opened their nursery — which is why the run page can always
+show you what, exactly, is still running.
 
 ## Parking in parallel
 
@@ -86,6 +88,71 @@ Ten topics open ten questions at once; the report assembles itself as answers ar
 whatever order humans get to them — minutes or days later, across restarts. Parallelism and
 [escalation]({docs}/{currentVersion}/concepts/escalation) compose without any code
 acknowledging the other, because both are just threads parking and resuming.
+
+## Regions: fork without join
+
+`parallel` is the fork-**join** story: structured children, awaited, results as values. A
+**region** is the fork-**escalate** story — detached children (**fibers**) that outlive the
+turn that forked them, heard through their escalations. In one line: parallel waits, a
+region listens. That is the shape of a resident program: a chat watcher, a cron, a
+background worker — sources that run forever and report events, while the program serves
+them.
+
+```katari
+@"A fiber reports through its escalations; the report is fire-and-forget."
+request tick_seen(at: number) -> null
+
+@"The region's scope marker: a nullary phantom, one per nursery."
+effect clock_scope
+
+// The fiber ceiling: everything a fiber of this nursery may raise.
+type clock_ceiling = tick_seen | io
+
+@"A detached ticker: report forever. Results ride escalations, so the task is `-> null`
+(`-> never` fits by subtyping); the parameter is named `input` because parameter names
+are part of an agent's type, and `fork` declares its task as `agent (input: A) -> null`."
+agent ticker(input: number) -> never {
+  forever {
+    time.sleep(milliseconds = input)
+    tick_seen(at = time.now())
+  }
+}
+
+@"Open a nursery, fork a named ticker, and serve its reports at `watch`: the handler
+counts three ticks, then `break` ends the block — closing the nursery cancels the fiber."
+agent three_ticks() -> integer with io {
+  use handler (var seen: integer = 0) {
+    request tick_seen(at: number) {
+      if (seen + 1 >= 3) { break 3 } else { next null with { seen = seen + 1 } }
+    }
+    request region.crashed(id: string, name: string, message: string) { break seen }
+  }
+  let nursery: region.nursery[clock_scope, clock_ceiling] = use region.provide[clock_scope, clock_ceiling]
+  let _ticker = region.fork(nursery = nursery, task = ticker, argument = 200.0, name = "ticker")
+  region.watch(nursery = nursery)
+}
+```
+
+`use region.provide[Scope, E]` opens a **nursery** for the rest of the block; `fork` spawns
+a fiber into it and returns immediately with a handle. There is deliberately **no join**: a
+fiber carries no result — its task is `-> null`, and everything it produces leaves through
+its escalations, which surface at `watch`. `watch`'s row is `E | region.crashed | Scope`:
+`E` is the **ceiling** the nursery fixed up front (a child that raises more is a type
+error), and `crashed` is the runtime's own event — a fiber's panic re-emitted as typed
+data, so what a crash *means* (restart the fiber, report it, bring the region down) is your
+handler's decision, and handling it is part of the region's total obligation, checked by
+`katari check`. The scope marker makes the lifetime static: a fiber cannot escape its
+`provide` (returning one is a type error), and when the block ends, still-running fibers
+are cancelled. Declare one marker per nursery when you nest them.
+
+The nursery is also its own **registry**: `fork` takes an optional `name` tag,
+`region.roster` reads the live set straight from the runtime (one `fiber_info` — id and
+name — per running fiber, never stale), `region.cancel_by_id` tears one down by the
+runtime-minted id and answers `cancelled | unknown_fiber` (a stale id is data to render,
+not an error), and `region.fiber_id` reads a handle's id for a log or a model. When one
+`watch` — which relays strictly one escalation at a time — becomes the bottleneck,
+`region.watch_many` runs several over the same nursery. The `prelude.region` module's
+[reference](/packages) tells the full story.
 
 ## Where to go next
 

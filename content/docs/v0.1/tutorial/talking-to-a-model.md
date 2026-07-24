@@ -40,11 +40,13 @@ katari env set ANTHROPIC_API_KEY --secret
 ```
 
 The CLI prompts for the value with echo off and stores it **in the runtime**, encrypted
-at rest — not in a file in your repository. Programs read it with `env.get_secret`, and
-what they get back is a `string of private`: a value the type system lets flow into an
-API's auth header but never out into a run result or any other user-facing boundary. A
-secret's value is also write-only over the API — once set, nothing reads it back out.
-(More in
+at rest — not in a file in your repository. A program that reads it (`env.get_secret`)
+gets back a `string of private`: a value the type system lets flow into an API's auth
+header but never out into a run result or any other user-facing boundary. A secret's
+value is also write-only over the API — once set, nothing reads it back out. Your program
+will not even read this one: it hands the provider the key's **name**
+(`credentials.env(key = ...)`), and the provider resolves the current value itself at
+each use — so a rotated key lands without a restart. (More in
 [Secrets and Credentials]({docs}/{currentVersion}/guides/secrets-and-credentials).)
 
 ## One `use` line to a model
@@ -56,8 +58,9 @@ import ai
 import ai.types
 import ai.anthropic
 
-// Everything the app anticipates going wrong: a provider step failing, or a missing secret.
-type app_error = ai.step_error | env.missing_secret
+// Everything the app anticipates going wrong: a provider step failing, a missing
+// secret, or a dead stored credential.
+type app_error = ai.step_error | env.missing_secret | oauth.server_error
 
 @"One-shot: send a question to the model and return its reply."
 agent chat(question: string) -> string with io {
@@ -67,7 +70,7 @@ agent chat(question: string) -> string with io {
     }
   }
   use anthropic.provider(
-    api_key = env.get_secret(key = "ANTHROPIC_API_KEY"),
+    source = credentials.env(key = "ANTHROPIC_API_KEY"),
     system = "You are a concise assistant.",
   )
   ai.reply(history = [types.turn(role = "user", text = question, files = [])])
@@ -83,9 +86,11 @@ Reading it top to bottom:
   rest of the block, exactly as your `use handler` served `ask`. `ai.reply` performs one
   step of it — a single model reply, no tools.
 - **The error handler is a handler too.** A typed error in Katari is the request
-  `prelude.throw`, and this clause catches by payload type: `app_error` joins what the
-  provider can raise (`ai.step_error`: malformed provider JSON, a non-2xx status, a
-  transport failure) with what `env.get_secret` can (`env.missing_secret`). `break` ends
+  `prelude.throw`, and this clause catches by payload type: `app_error` joins what a
+  model step can raise (`ai.step_error`: malformed provider JSON, a non-2xx status, a
+  transport failure) with what resolving the credential source can — `env.missing_secret`
+  for an env key, `oauth.server_error` when a source names a stored OAuth credential
+  instead. `break` ends
   the surrounding block with a value — where `next` answers and continues, `break`
   abandons — so any anticipated failure becomes a readable string result instead of a
   failed run.
@@ -111,8 +116,9 @@ import ai
 import ai.types
 import ai.anthropic
 
-// Everything the app anticipates going wrong: a provider step failing, or a missing secret.
-type app_error = ai.step_error | env.missing_secret
+// Everything the app anticipates going wrong: a provider step failing, a missing
+// secret, or a dead stored credential.
+type app_error = ai.step_error | env.missing_secret | oauth.server_error
 
 @"One-shot: send a question to the model and return its reply."
 agent chat(question: string) -> string with io {
@@ -122,7 +128,7 @@ agent chat(question: string) -> string with io {
     }
   }
   use anthropic.provider(
-    api_key = env.get_secret(key = "ANTHROPIC_API_KEY"),
+    source = credentials.env(key = "ANTHROPIC_API_KEY"),
     system = "You are a concise assistant.",
   )
   ai.reply(history = [types.turn(role = "user", text = question, files = [])])
@@ -136,7 +142,7 @@ agent interview(question: string, followup: string) -> string with io {
     }
   }
   use anthropic.provider(
-    api_key = env.get_secret(key = "ANTHROPIC_API_KEY"),
+    source = credentials.env(key = "ANTHROPIC_API_KEY"),
     system = "You are a concise assistant.",
   )
   let opening = [types.turn(role = "user", text = question, files = [])]
@@ -162,7 +168,7 @@ chapter 2 `roll_call` pattern — and becomes a channel's memory.
 override, and `max_tokens` to raise the per-step output cap from its default of 4096).
 Nothing outside the `use` line knows Anthropic exists, so switching providers is
 replacing that one line — for example with
-`use gemini.provider(model = "gemini-3.5-flash", api_key = env.get_secret(key = "GEMINI_API_KEY"))`
+`use gemini.provider(model = "gemini-3.5-flash", source = credentials.env(key = "GEMINI_API_KEY"))`
 after an `import ai.gemini`. The loop, the history, and everything you build in the next
 two chapters carry over untouched.
 

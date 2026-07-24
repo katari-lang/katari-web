@@ -9,8 +9,19 @@ module, not editing the loop.
 - `ai` — the loop. `ai.infer_with_tools(history, tools, max_steps)` runs the model until it stops
   calling tools, dispatching each tool batch concurrently (`parallel for`) and validating every call
   against its tool's schema (`reflection.call_agent`). Also exposes `ai.view_image` (a tool that
-  inlines an image for the model to look at).
-- `ai.types` — the provider-agnostic vocabulary: `turn`, `tool_call`, `tool_result`, `step`. Apps
+  inlines an image for the model to look at); `use ai.serve_session(...)` — the chat-bot serve
+  skeleton as one provider (a durable conversation answering `ai.session_message`, with token
+  metering off the seam's `usage` and automatic compaction past a threshold; the summary prompt,
+  the threshold and the kept tail are overridable scalars); `ai.compact(history, policy)` on its
+  own for a hand-rolled loop; `ai.infer_structured[T](history)` — structured output with the
+  type as the contract (`reflection.schema_of[T]` reifies the schema, the provider decodes against
+  it natively, `json.validate[T]` guarantees the returned value IS a T); and
+  `ai.infer_with_region(...)` — the long-lived, structured-concurrency sibling of `infer_with_tools`: the
+  model can START background *monitors* (forked fibers that wake it on a schedule), STOP them with
+  `cancel_monitor`, and see what it is running with `list_monitors`, all without leaving the conversation,
+  and a step failure is absorbed one turn at a time (a notice out, a marker in) instead of ending the loop.
+- `ai.types` — the provider-agnostic vocabulary: `turn`, `tool_call`, `tool_result`, `step`, and the
+  step's token accounting (`usage`, carried by `step_result` — what `ai.infer_step` returns). Apps
   and providers speak only this; no wire-format detail leaks in.
 - `ai.gemini` — a provider over Google's `generateContent` API. `use gemini.provider(model = ...,
   api_key = ...)` serves `ai.infer_step` for the continuation. **Images: yes** — a turn's image files
@@ -27,6 +38,21 @@ Pure Katari — no FFI sidecar. The only network call is the prelude's HTTP clie
 Anthropic providers post an `http.json` value tree with `http.fetch` (so a turn's image `file` leaves
 base64 at the send boundary, never on the value plane), OpenAI a plain-body `http.post_json`; every
 request body is built and every response parsed as `json` values in Katari.
+
+**The seam is outcome-typed; providers never throw.** `ai.infer_step` / `ai.infer_object` return an
+OUTCOME sum — `inferred(result)` on success, `inference_failed(error)` on failure — rather than throwing a
+`step_error`. Handing the failure back as a VALUE is what lets each loop decide at its own perform site: the
+long-lived `infer_with_region` ABSORBS a failure (it abandons just that turn, tells the model and the
+channel, and awaits the next event, so a step failure can no longer end the resident loop), while the
+one-shot loops (`reply`, `infer_with_tools`, `infer_structured`, `serve_session`) RE-RAISE it at the call
+site as `prelude.throw[step_error]` so the caller's own handler catches it. A deep provider handler can only
+throw OUT of its own context, never INTO the loop's — the resume value is the only channel that reaches the
+loop.
+
+**Transient retry.** Before surfacing a failure, each provider first retries a transient one — a 429 rate
+limit, a 5xx, a dropped connection — with exponential backoff. `retry_attempts` (default 6) and
+`retry_base_ms` (default 2000, doubled per retry and capped at one minute) tune it. A fatal error (a
+non-retryable 4xx, malformed JSON) or an exhausted budget is what becomes the `inference_failed` outcome.
 
 ## Secrets / env
 

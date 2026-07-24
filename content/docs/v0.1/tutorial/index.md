@@ -52,8 +52,8 @@ complete code, so you can rebuild the project at any point without hunting throu
    reflection turns your agents into tool definitions; the model searches, fetches, and
    calls your code.
 5. [A Discord Bot]({docs}/{currentVersion}/tutorial/a-discord-bot) — connect the loop to
-   a channel with the `discord` package, keep history across messages in a handler `var`,
-   and deploy.
+   a channel as a **resident**: a region fiber watches Discord, the observation server
+   keeps the conversation, and the whole thing deploys as one durable run.
 
 Every idea the bot leans on — delegation, effects, escalation, durable runs, schemas —
 has a fuller treatment under

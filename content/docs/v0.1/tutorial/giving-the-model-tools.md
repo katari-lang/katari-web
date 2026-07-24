@@ -78,10 +78,10 @@ their qualified `module.name`, so the model calls `bot.count_letters`.
 katari add tavily web
 ```
 
-- `tavily.search` — web search over the Tavily API, returning the top hits as a compact
-  digest (title, URL, snippet) sized to feed straight back to a model. It needs an API
-  key from [tavily.com](https://tavily.com), provided the way the model key was:
-  `use tavily.provider(...)`. ([reference](/packages/tavily))
+- `tavily.search` — web search over the Tavily API, returning the top hits as structured
+  results (title, URL, content snippet) a program can route and a model can read. It
+  needs an API key from [tavily.com](https://tavily.com), provided the way the model key
+  was: `use tavily.provider(...)`. ([reference](/packages/tavily))
 - `web.fetch_page` — HTTP GET as a tool, body truncated to roughly a page so a fetch
   cannot blow the context window. Public pages only; no key, no provider.
   ([reference](/packages/web))
@@ -103,9 +103,10 @@ import ai.anthropic
 import tavily
 import web
 
-// Everything the app anticipates going wrong: a provider step failing, a bad dynamic
-// tool dispatch, or a missing secret.
-type app_error = ai.step_error | ai.loop_error | env.missing_secret
+// Everything the app anticipates going wrong: a provider step failing, a missing secret,
+// a dead stored credential — plus the loop's one own throw, two tools sharing a name. A
+// tool that fails never reaches here: the loop feeds a bad call back to the model.
+type app_error = ai.step_error | ai.duplicate_tool | env.missing_secret | oauth.server_error
 
 @"Tool: count how many times a letter appears in a word. Models guess at this; this counts."
 agent count_letters(word: string, letter: string) -> integer {
@@ -132,10 +133,10 @@ agent solve(task: string) -> string with io {
     }
   }
   use anthropic.provider(
-    api_key = env.get_secret(key = "ANTHROPIC_API_KEY"),
+    source = credentials.env(key = "ANTHROPIC_API_KEY"),
     system = "You are a concise assistant. Use the tools when they help; once you have enough to answer, stop calling tools and reply.",
   )
-  use tavily.provider(api_key = env.get_secret(key = "TAVILY_API_KEY"))
+  use tavily.provider(source = credentials.env(key = "TAVILY_API_KEY"))
   ai.infer_with_tools(
     history = [types.turn(role = "user", text = task, files = [])],
     tools = [count_letters, tavily.search, web.fetch_page],
@@ -156,11 +157,12 @@ nothing marking them as special. Per step, `ai.infer_with_tools`:
 4. feeds the results back as new turns and goes again, up to `max_steps`.
 
 A model is an unreliable caller, and the loop treats it as one: a hallucinated tool name,
-arguments that fail the schema, or a tool that crashes all come back to the model as
-error results it can read and correct on its next step — none of them can kill the
-conversation. And when the step budget runs out, the loop forces one final tool-less
-step, so the model must answer from what it has gathered instead of researching forever.
-The new `ai.loop_error` in `app_error` covers the loop's own dynamic-dispatch failures.
+arguments that fail the schema, a tool that crashes, or a tool's own typed `throw` all come
+back to the model as error results it can read and correct on its next step — none of them
+can kill the conversation, and none reach `app_error` (only `ai.duplicate_tool` does: two
+tools sharing a name is your bug, not the model's). And when the step budget runs out, the
+loop forces one final tool-less step, so the model must answer from what it has gathered
+instead of researching forever.
 
 ## Run it
 
@@ -184,6 +186,16 @@ same loop further; the [reference](/packages/ai) is the full contract, but in br
   continuation bridges your transport into `session_message`, one call per incoming message. It adds
   what a hand-rolled loop lacks: the seam's token `usage` metered into a context-occupancy figure,
   and an automatic compaction pass that summarizes the older turns once you cross a threshold.
+  Either way, the conversation starts **empty**: standing instructions belong in the provider's
+  `system` parameter — its own channel, which compaction never touches — and anything put in the
+  history is just history, folded into the first summary.
+- **`ai.serve_observations`** is `serve_session`'s **resident** sibling — the shape of an agent
+  that lives somewhere rather than answering someone. Events (`ai.observation`) are pushed by
+  background fibers instead of asked by a caller; each one injects as a user turn and advances the
+  same loop; the reply leaves through a `deliver_to` you supply. The resident protocol is built in:
+  a **blank reply is silence** (not delivered, not renudged — a quiet watcher tick costs one model
+  step), and a provider failure is **absorbed** as an annotation instead of unwinding, because a
+  resident must outlive a failed step. The final chapter is built on it.
 - **`ai.infer_structured[T]`** makes the answer a typed value instead of prose.
   `reflection.schema_of[T]` reifies T's schema, the provider decodes against it natively (Gemini's
   `responseSchema`, OpenAI's `response_format`, a forced Anthropic tool), and the reply is validated
@@ -207,7 +219,8 @@ same loop further; the [reference](/packages/ai) is the full contract, but in br
 
 The model now reaches for your code when it needs facts. Everything about the loop is
 provider-agnostic and tool-agnostic — which is why the last chapter is short: Discord
-becomes one more `use` line, and this loop becomes the body of a message handler —
+becomes one more `use` line, the channel becomes a background fiber pushing observations,
+and this loop becomes their resident —
 [A Discord Bot]({docs}/{currentVersion}/tutorial/a-discord-bot).
 
 One pointer before you go: tools need not be compiled from your source. `mcp.provide`
