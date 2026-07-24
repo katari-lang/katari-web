@@ -8,6 +8,7 @@
     "secrets-and-credentials",
     "store",
     "handler-geometry",
+    "approval-gates",
     "ffi-sidecars"
   ]
 }
