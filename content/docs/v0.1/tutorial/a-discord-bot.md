@@ -220,7 +220,7 @@ This run is a run like any other, which is the quiet punchline of the tutorial:
 Nothing in this architecture is one-of-anything by necessity. Fork a second source and the
 bot hears two channels; fork a `time.watch` fiber and it hears the clock (`ai.watch_prompt`
 packages that); `region.roster` lists what is running and `region.cancel_by_id` stops one
-by id — which is all a "stop that watch" *tool* needs, so the model can manage the bot's
+by id — which is all a "stop that watch" _tool_ needs, so the model can manage the bot's
 own fibers. And once several **agents** share the bus, the observation server generalizes
 to a dispatcher: one sequential handler holding a `record` of conversations keyed by
 addressee, every event carrying whose turn it is, agent-to-agent mail as a micro-fiber
@@ -228,8 +228,8 @@ whose whole body is one perform — queued behind the current turn by the region
 
 That system exists, and it is where this tutorial's bot grew up:
 [**tsukasa**](https://github.com/yukikurage/discord-bot-example) — a multi-agent resident
-built on exactly these pieces: a private *core* agent that runs its operator's tasks,
-memory and schedule; a public-facing *herald* whose **tool set is its privacy boundary**
+built on exactly these pieces: a private _core_ agent that runs its operator's tasks,
+memory and schedule; a public-facing _herald_ whose **tool set is its privacy boundary**
 (no tool it holds can reach private data); and mail-driven workers. One region, one
 dispatcher, and every idea in it is one you now know. Read it as the sixth chapter.
 

@@ -139,7 +139,7 @@ fiber carries no result — its task is `-> null`, and everything it produces le
 its escalations, which surface at `watch`. `watch`'s row is `E | region.crashed | Scope`:
 `E` is the **ceiling** the nursery fixed up front (a child that raises more is a type
 error), and `crashed` is the runtime's own event — a fiber's panic re-emitted as typed
-data, so what a crash *means* (restart the fiber, report it, bring the region down) is your
+data, so what a crash _means_ (restart the fiber, report it, bring the region down) is your
 handler's decision, and handling it is part of the region's total obligation, checked by
 `katari check`. The scope marker makes the lifetime static: a fiber cannot escape its
 `provide` (returning one is a type error), and when the block ends, still-running fibers
@@ -149,9 +149,16 @@ The nursery is also its own **registry**: `fork` takes an optional `name` tag,
 `region.roster` reads the live set straight from the runtime (one `fiber_info` — id and
 name — per running fiber, never stale), `region.cancel_by_id` tears one down by the
 runtime-minted id and answers `cancelled | unknown_fiber` (a stale id is data to render,
-not an error), and `region.fiber_id` reads a handle's id for a log or a model. When one
-`watch` — which relays strictly one escalation at a time — becomes the bottleneck,
-`region.watch_many` runs several over the same nursery. The `prelude.region` module's
+not an error), and `region.fiber_id` reads a handle's id for a log or a model. One `watch` is
+enough: it is a transparent white hole, re-emitting every fiber's escalation
+concurrently the instant it arrives — the only serialization point is the
+_handler_ around it, so a sequential (`var`) handler serves escalations at its
+own FIFO in arrival order while a `parallel handler` serves them at once (extra
+watches buy nothing; the desks are told apart by their handlers, not by more
+watches). And a fiber need not wait for its watch: escalations it raises before
+one is installed buffer in the nursery's durable mailbox and drain in arrival
+order the moment a `watch` registers, so a fiber may report the instant it forks
+and the `watch` may be set up arbitrarily late. The `prelude.region` module's
 [reference](/packages) tells the full story.
 
 ## Where to go next
