@@ -53,7 +53,7 @@ same scoped contract: it registers the connection's scope and starts the block i
 with no server round-trip at open, so the first tool call is the first contact. That makes a
 per-call connection plain data at no server cost; it is what a generated binding's `connect`
 uses. Because nothing is contacted at open, authentication surfaces at the first call — a
-missing OAuth credential parks *that call* on the authorization escalation.
+missing OAuth credential parks _that call_ on the authorization escalation.
 
 ## Hand the tools to a model
 
@@ -250,6 +250,22 @@ whose arguments violate the published schema is rejected at the boundary as inva
 served tool that throws or panics on a well-formed call proxies up and cancels the whole
 endpoint, so for per-request resilience wrap the tool's body in a handler — the same contract as
 [webhooks]({docs}/{currentVersion}/guides/webhooks).
+
+## Trust boundary
+
+v0.1.0's MCP integration assumes the servers you connect to are **trusted**. When you consume a
+server — through `mcp.provide`, `mcp.open`, or a `katari mcp pull` binding — its tool responses are
+decoded onto the value plane, and the runtime does not yet authenticate that a decoded value which
+looks like a callable actually originated inside your program. A malicious server could therefore, in
+principle, return a crafted response that forges one. Routing is never affected — a tool value always
+carries its own `{url, auth}`, so a call cannot be redirected to the wrong server — but the decode
+surface itself is not yet locked down.
+
+In practice this means: **connect only to MCP servers you control or trust**, the same standard you
+would apply to any code you run in-process. The general authorization that closes this surface —
+per-capability authz on decoded callables — is planned for v0.2. This is a caveat about _untrusted_
+servers, not a reason to avoid MCP: a server you operate, or a well-known provider's official server,
+is exactly the trusted case the integration is built for.
 
 ## Where to go next
 

@@ -83,6 +83,26 @@ a host external services cannot reach.
 `/api/v1/health` answers without authentication — use it for container health checks and
 uptime probes.
 
+## Operational constraints
+
+Two limits of the v0.1.0 runtime are worth stating plainly before you deploy.
+
+**One runtime process per project.** A project's runs, its durable state, and its in-flight
+timers and reactors are owned by the process that executes them; the runtime has **no lease** that
+prevents a second process from warming the same project against the same database. Running two
+processes over one project is therefore unsupported — they would both drive the same runs and
+corrupt each other's progress. Deploy **one runtime process per project**. Scaling out (a lease so
+several processes can safely share a project) is planned for a later release; until then, a single
+process is the supported topology, and it is what the scaffolded compose file runs.
+
+**Connect only to MCP servers you trust.** v0.1.0's MCP integration — both `mcp.provide` and a
+`katari mcp pull` binding — assumes the servers you reach are **trusted**. A tool response is decoded
+onto the value plane, and the runtime does not yet authenticate that a decoded value which looks like
+a callable actually originated inside your program, so a malicious server could in principle return a
+crafted response. The general authorization that closes this lands in v0.2; for now, treat an MCP
+server as trusted code and connect only to servers you control or trust. The full note is in
+[MCP → Trust boundary]({docs}/{currentVersion}/guides/mcp#trust-boundary).
+
 ## Next
 
 - [Durable execution]({docs}/{currentVersion}/concepts/durable-execution) — what "persists
