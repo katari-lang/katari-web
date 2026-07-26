@@ -215,10 +215,19 @@ katari-package-e2b/
   "type": "module",
   "dependencies": {
     "@e2b/code-interpreter": "^1.5.0",
-    "@katari-lang/port": "0.1.0-rc7"
+    "@katari-lang/port": "0.1.0"
   }
 }
 ```
+
+**Your `@katari-lang/port` pin governs your typecheck, not what ships.** The bundler resolves
+`@katari-lang/port` to exactly one module — its own, from the toolchain — because the port holds
+process-wide state and a bundle containing two copies of it would not work. Two things follow. The
+good one: a package cannot drift its sidecar's wire format away from the runtime it will run
+against, however old its pin. The one to watch: a pin left behind type-checks your sidecar against
+an ABI it will never actually speak, and nothing fails until a signature you use happens to have
+moved. So keep it level with the toolchain you build against, and read a port release's notes even
+though the version you name is not the version that runs.
 
 The sidecar's source root defaults to `[package].src`, so `.ts` files simply live beside the
 `.ktr` files; a package with a different layout sets `[sidecar] sourceRoots` in its
