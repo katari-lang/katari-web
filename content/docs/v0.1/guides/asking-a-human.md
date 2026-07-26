@@ -291,8 +291,8 @@ front of the human"; `spawn_gate` means "run this in the background". The fiber'
 answer and acts in **one** place, which is what keeps "approved at these values" true — a split
 `on_grant` / `on_deny` pair would put a re-derivation between the submit and the send.
 
-Assembling gates on this — the description, the branch, containing a gate's own failure so one bad
-action does not take the session down — is [Approval
+Assembling gates on this — folding the answer into one sum, choosing a form over buttons, containing a
+gate's own failure so one bad action does not take the session down — is [Approval
 gates]({docs}/{currentVersion}/guides/approval-gates).
 
 ## The contract, and what surprises people
@@ -367,7 +367,7 @@ The two planes are also subscribed separately: the `message.channels` / `message
 ## Where to go next
 
 - [Approval gates]({docs}/{currentVersion}/guides/approval-gates) — assembling gates on top of a
-  forked ask, and where each gate's difference lives.
+  forked ask: why a gate is app code rather than a package, and where each gate's difference lives.
 - [Handler geometry]({docs}/{currentVersion}/guides/handler-geometry) — why the ask adapter sits above
   the desks and the spawn handler below the nursery.
 - [Escalation]({docs}/{currentVersion}/concepts/escalation) — the durable, restart-proof question, for

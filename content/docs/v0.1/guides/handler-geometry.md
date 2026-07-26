@@ -111,12 +111,13 @@ Putting the two rules together gives a decision procedure for every handler:
 A resident Discord bot (the tsukasa reference program) is the worked example; every one of its
 handler positions falls out of the test above:
 
-| Handler                                          | Position             | Why                                                                                                                                                                                           |
-| ------------------------------------------------ | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| The **core desk** (a sequential message handler) | Highest of the desks | The worker desk's undeliverable-mail bounce and the `crashed` handler both perform `core_message` from their bodies; a body reaches only handlers installed earlier, so core's must be first. |
-| The **`region.crashed`** interpreter             | Below the desks      | Its body mails core (`core_message`) — which the core desk above it serves.                                                                                                                   |
-| The **worker table** (`var workers`)             | Above the dispatcher | Its mutators are tools that run inside a dispatched turn, so the table must enclose the turn.                                                                                                 |
-| The **approval facility** (`approval.serve`)     | Outermost            | A desk _tool_ performs `approve_async`; that must reach `serve`'s handler, which therefore wraps every desk. See [Approval gates]({docs}/{currentVersion}/guides/approval-gates).             |
+| Handler                                          | Position                                | Why                                                                                                                                                                                                                                               |
+| ------------------------------------------------ | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The **core desk** (a sequential message handler) | Highest of the desks                    | The worker desk's undeliverable-mail bounce and the `crashed` handler both perform `core_message` from their bodies; a body reaches only handlers installed earlier, so core's must be first.                                                     |
+| The **`region.crashed`** interpreter             | Below the desks                         | Its body mails core (`core_message`) — which the core desk above it serves.                                                                                                                                                                       |
+| The **worker table** (`var workers`)             | Above the dispatcher                    | Its mutators are tools that run inside a dispatched turn, so the table must enclose the turn.                                                                                                                                                     |
+| The **ask adapter** (`ask_operator`)             | Above the desks _and_ above the `watch` | Both a desk _tool_ and a gate _fiber_ perform `ask_operator`, and a fiber's perform surfaces at `region.watch` — so the adapter must enclose the watch as well as the desks. See [Approval gates]({docs}/{currentVersion}/guides/approval-gates). |
+| The **gate bridge** (`spawn_gate`)               | Below the nursery, above the desks      | It forks into the nursery, so it needs the handle in scope; its clauses are reached from desk tools, so it must still enclose the desks.                                                                                                          |
 
 Read a stack this way — "what does each clause body perform, and is that handler above it?" — and the
 order stops being arbitrary.
@@ -146,7 +147,8 @@ geometry error — they are about _naming_ the effects, and the messages now tea
 - [Effects and handlers]({docs}/{currentVersion}/concepts/effects-and-handlers) — the request /
   handler machinery this guide arranges.
 - [Approval gates]({docs}/{currentVersion}/guides/approval-gates) — the idiom that most depends on
-  getting a handler's position right.
+  getting a handler's position right: an ask adapter above the watch, a spawn handler below the
+  nursery.
 - [Parallelism]({docs}/{currentVersion}/concepts/parallelism) — regions, fibers, and the `watch` this
   guide's serialization story rides on.
 - The `prelude.region` and `prelude.store` modules in the [reference](/packages/prelude) — the
