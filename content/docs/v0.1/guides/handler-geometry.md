@@ -1,6 +1,6 @@
 ---
 title: Handler geometry
-description: Where you install a handler decides what it catches — a handler body escalates from its install site, so the order of a stack of handlers is load-bearing. The rules for reading and arranging one.
+description: Where you install a handler decides what it catches — a handler body escalates from its install site, so the order of a stack of handlers is load-bearing. The rules for reading and arranging one, and the convention that follows from them: a request answers with its own failure, because the performer cannot catch it.
 ---
 
 Handlers stack. `use handler` installs its clauses for the rest of the block, so a program that
@@ -71,6 +71,151 @@ performs `audit` from a position with no `audit` handler above it, so `audit` ri
 run root and `run`'s row can no longer be pure. The error lands on the **`audit(...)` perform inside
 the `act` clause**, not on the `use handler` you moved (see [When the geometry is
 wrong](#when-the-geometry-is-wrong)).
+
+## Performing is a hole in your own guard
+
+Read from the handler, the install-site rule says where a clause body's own requests resolve. Read from the
+**performer**, the same rule says something sharper:
+
+> **Every request you perform is a hole in your own failure handling, the exact size of the handler that
+> answers it.**
+
+A `prelude.throw` guard bounds **your frame**. The clause that answers your request does not run in your
+frame — it runs at its install site, above you — so a throw it lets fly is raised _past_ you, and your
+guard's dynamic extent never contains it. Wrapping the performing code more tightly cannot help: there is
+nothing in that frame left to catch. And the hole is widest exactly where the layering is most correct. A
+fiber forked into a nursery owns no policy by design, so the calls likeliest to fail — putting a question to
+a person, resolving a credential, posting to a chat platform — sit in handler bodies above the `watch`,
+which is to say above the fiber's own guard. [Approval gates]({docs}/{currentVersion}/guides/approval-gates)
+shows the guard that _does_ hold, the one covering a fiber's own frame; this section is about everything
+that guard cannot reach.
+
+**And the performer's row is not wrong to omit it.** Nothing is thrown in the performer's frame, so no
+`prelude.throw[...]` belongs on its row, and `katari check` is right to accept it. Note what that costs:
+`prelude.throw[T]` reads identically whether a frame can _catch_ `T` or `T` is raised above it by a handler
+that frame installed, and only the shape of the signature tells the two apart. What no row expresses is
+this — **performing a request may simply not return**, because the handler above it failed.
+
+## Answer with the failure
+
+The convention that pays for the hole:
+
+> **A request whose handler body touches anything that can fail recoverably answers with a SUM that
+> includes its own failure.**
+
+A value travels back through the escalation the performer is already waiting on, so a value is the one form
+of failure a performer can act on at all. A throw from the same body travels the other way.
+
+This is the house style rather than advice — the stdlib and the packages are already written in it:
+
+- **`store.get` answers `found | absent`.** A missing key is a value you match on, never an error you catch
+  ([Store]({docs}/{currentVersion}/guides/store)).
+- **`ai.take_turn` answers `session_turn | failed_turn`.** A provider failure at any step comes back as a
+  value, so a resident event loop absorbs a model outage as one match arm instead of unwinding a
+  conversation it spent a week building.
+- **`e2b`'s provider answers `session_ready | session_unavailable`**, and its own comment gives this guide's
+  reason: _"the provider's deep handler cannot throw back into the tool that performed `session`, so the
+  tool must be able to READ the failure."_
+
+The shape, whole. The failing call inside the handler body is wrapped in a guard of its **own**, and that
+guard converts rather than hides:
+
+```katari
+@"A bad address: the same answer tomorrow, so no retry fixes it."
+data address_rejected(message: string)
+
+@"The upstream was briefly unreachable — waiting is a real remedy."
+data upstream_unavailable(message: string)
+
+// What handing one line to the upstream can fail with. (Type synonyms take no docs.)
+type delivery_error = address_rejected | upstream_unavailable
+
+@"Stand-in for the one call that can fail — a real one is an `http.fetch` or a package's send."
+agent hand_to_upstream(line: string) -> null with prelude.throw[delivery_error] {
+  if (string.is_blank(value = line)) {
+    prelude.throw(error = address_rejected(message = "an empty line has nowhere to go"))
+  } else {
+    null
+  }
+}
+
+@"The line reached the upstream."
+data sent()
+
+@"It did not, and this is why — carried back as a VALUE, because the performer cannot catch a throw raised above it."
+data not_sent(reason: string)
+
+// What performing `notify` answers with. (Type synonyms take no docs.)
+type notify_outcome = sent | not_sent
+
+@"Deliver one line. Served ABOVE whoever performs it, so it answers with its own failure."
+request notify(line: string) -> notify_outcome
+
+@"The handler's whole body: hand the line over, and answer with what happened. A self-healing failure becomes the `not_sent` VALUE; the non-self-healing half RE-RAISES and still stops the run loudly."
+agent guarded_notify(line: string) -> notify_outcome with prelude.throw[address_rejected] {
+  use handler {
+    request prelude.throw(error: delivery_error) -> never {
+      match (error) {
+        case address_rejected(message => message) -> { prelude.throw(error = address_rejected(message = message)) }
+        case upstream_unavailable(message => message) -> { break not_sent(reason = message) }
+      }
+    }
+  }
+  hand_to_upstream(line = line)
+  sent()
+}
+
+@"The performer: it holds no guard, because a guard here could not see the handler's failure anyway. It READS the outcome instead."
+agent report(line: string) -> string with prelude.throw[address_rejected] {
+  use handler {
+    request notify(line: string) { next guarded_notify(line = line) }
+  }
+  match (notify(line = line)) {
+    case sent(_) -> "delivered"
+    case not_sent(reason => reason) -> f"not delivered: ${reason}"
+  }
+}
+```
+
+`guarded_notify` is the handler's body, so it runs at the install site and is the last frame that can still
+turn a failure into something the performer will see. `report` is the performer, and it holds no guard at
+all — it dispatches on `notify_outcome` like any other value, which is what makes it total. The escalation
+report states the whole convention in three rows: `hand_to_upstream` escalates
+`prelude.throw[address_rejected | upstream_unavailable]`, while `guarded_notify` and `report` both escalate
+only `prelude.throw[address_rejected]`. The self-healing half left the throw row and became a value.
+
+**Where the line falls.** Not every failure should become a value.
+
+- **Self-healing failures become values.** A transient 5xx, a rate limit, a dropped connection, a platform
+  refusing one over-long field — waiting or asking again is a real remedy, so the program should live to
+  try. This is the case the convention exists for.
+- **Non-self-healing failures still throw, loudly.** A revoked token, a missing secret, a defect no retry
+  will fix — nothing in the program's future changes the answer. Absorb one of those and a long-running
+  program degrades in silence: it runs, it looks alive, and everything arriving at it is quietly dropped.
+  For a failure that will never heal that is strictly worse than a stopped run, because a stopped run is a
+  fact somebody notices. Distrust the middle road especially — turning such a failure into a _restart_
+  reason yields a crash loop, and a supervisor's repeat-suppression then quiets that loop down to nothing.
+
+**The handler decides, once.** The verdict belongs to the handler serving the request and not to each
+caller, because a caller cannot tell whether the upstream is having a bad minute or has been switched off.
+Put it in ONE agent returning a sum (the reference bot's `classify_crash` returns `must_stop |
+restartable`), and let every frame that needs the same opinion dispatch on that sum. Then a supervisor, a
+fiber's guard and a request's answer cannot drift on what "fatal" means, and widening the fatal set is one
+edit in one place.
+
+## Never synthesize an answer to make the type fit
+
+The failure arm **names the failure**. It must never be a plausible-looking success.
+
+The temptation is real, because a forged success is often the shortest path to a signature that checks. A
+request answering `granted | refused`, whose handler could not put the question in front of anybody, has a
+`refused` arm sitting right there — and filling it in with a synthesized operator action would put words in
+a person's mouth so that a type would check. The program would then be told a human declined when no human
+ever saw the question, and nothing downstream could tell the difference.
+
+The correct answer is a variant that says what actually happened: nobody was asked. Every reader folds it
+into "not approved" **at that failure's own reason**, which makes fail-closed structural instead of a rule
+someone has to remember — nothing was approved, because nobody was asked.
 
 ## Sequential or parallel: the handler is the only serialization point
 
@@ -149,6 +294,8 @@ geometry error — they are about _naming_ the effects, and the messages now tea
 - [Approval gates]({docs}/{currentVersion}/guides/approval-gates) — the idiom that most depends on
   getting a handler's position right: an ask adapter above the watch, a spawn handler below the
   nursery.
+- [FFI sidecars]({docs}/{currentVersion}/guides/ffi-sidecars) — the same outcome-as-value convention at
+  the TypeScript boundary, where a raw exception is not even a throw.
 - [Parallelism]({docs}/{currentVersion}/concepts/parallelism) — regions, fibers, and the `watch` this
   guide's serialization story rides on.
 - The `prelude.region` and `prelude.store` modules in the [reference](/packages/prelude) — the

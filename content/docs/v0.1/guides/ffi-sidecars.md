@@ -109,6 +109,18 @@ An ordinary exception (a rejected promise, a `throw new Error(...)`) is not type
 call as a **panic**, which escalates like any defect. Reserve `katari.throw` for the failures the
 signature anticipates, and let genuine bugs panic.
 
+**An anticipated failure returns as a result value, not as a raise.** A sidecar's own failure — the SDK
+refused, the socket dropped, the sandbox is gone — belongs in the handler's **return value** (`{ ok, ... }`,
+read on the Katari side), which is why no `e2b` sidecar function throws. Two reasons, one per channel. A
+raw exception is a panic, and a panic is not something a Katari handler can answer at all — it would tear
+the whole run down for a failure the caller was ready to absorb. And even a typed `katari.throw` is only
+catchable where it surfaces: if the external agent is called from a handler body, the throw is raised at
+that handler's install site, above whoever performed the request, so the performer could not have caught it
+either. This is the outcome-as-value convention in
+[Handler geometry]({docs}/{currentVersion}/guides/handler-geometry#answer-with-the-failure), at the
+boundary — and it draws the line in the same place: what heals comes back as a value, what will never heal
+raises.
+
 ## Call back into Katari
 
 A handler can delegate back through the runtime mid-call — so the sidecar stays a thin adapter
