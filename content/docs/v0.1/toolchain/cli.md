@@ -18,7 +18,9 @@ token. `katari <command> --help` documents every flag.
 | `katari docs`                        | Emit the package's library API reference as JSON; `--stdlib` documents the prelude instead.                                                       |
 | `katari add PKG...`                  | Add dependencies from the pinned registry snapshot and refresh `katari.lock`.                                                                     |
 | `katari remove PKG...`               | Remove dependencies and refresh `katari.lock`.                                                                                                    |
-| `katari apply`                       | Compile and deploy to the runtime as a new immutable snapshot; the project head moves to it.                                                      |
+| `katari lock`                        | Resolve the closure `katari.toml` declares and write `katari.lock`. No compile, no deploy.                                                        |
+| `katari update [SNAPSHOT]`           | Re-pin `[dependencies].snapshot` — to the registry's newest cut, or to the one you name — and re-lock.                                            |
+| `katari apply`                       | Compile the **locked** closure and deploy it as a new immutable snapshot; the project head moves to it.                                           |
 | `katari run [AGENT]`                 | Start an agent and wait for its result, streaming the trace and prompting on escalations. Ctrl-C detaches.                                        |
 | `katari ls [TARGET]`                 | List runs (default), `agents`, `snapshots`, `projects`, `escalations`, `files`, or `env`.                                                         |
 | `katari status [RUN]`                | One run's state, argument, result, open questions, and full trace.                                                                                |
@@ -34,13 +36,23 @@ token. `katari <command> --help` documents every flag.
 
 `check` is the tight loop — it compiles everything (dependencies included) and prints
 diagnostics. `build` writes the IR JSON when you want to see what the runtime will execute.
-`add` and `remove` edit `katari.toml` and re-pin `katari.lock`; which packages exist and how
-versions pin is covered in [Packages]({docs}/{currentVersion}/guides/packages).
+`add`, `remove` and `update` edit `katari.toml` and re-lock in the same step; `lock` re-locks
+without editing anything. Which packages exist and how versions pin is covered in
+[Packages]({docs}/{currentVersion}/guides/packages).
+
+**`katari.lock` decides what compiles, and nothing writes it behind your back.** `check`, `build`
+and `apply` all resolve from the lock, offline, and they **refuse** — they do not warn — when the
+lock no longer matches `katari.toml`: a moved snapshot pin, a dependency added or removed by hand,
+an override that no longer agrees with what was locked. The message names the fix, which is always
+`katari lock`. The alternative would be worse than a stopped build: a `check` that reads a stale
+lock reports green about packages you are no longer asking for.
 
 ## Deploying and running
 
-`apply` is the only deploy verb: every invocation compiles, uploads a snapshot, and moves the
-project head. Old snapshots stay — `katari ls snapshots` lists them and
+`apply` is the only deploy verb: every invocation compiles the locked closure, uploads a snapshot,
+and moves the project head. It does **not** re-resolve dependencies — shipping is the worst moment
+to change what you are shipping, and it is the one step where a surprise lands on something already
+running. So what `apply` deploys is exactly what your last `check` compiled. Old snapshots stay — `katari ls snapshots` lists them and
 `katari project rollback <id>` makes one the head again. Runs pin the snapshot they started
 on, so a deploy never changes a program mid-run.
 

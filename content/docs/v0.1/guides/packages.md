@@ -61,10 +61,35 @@ packages = ["tavily"]
 There are no per-package version constraints to solve: the snapshot already fixed every version,
 so `packages` is a flat list of names.
 
+## Move to a newer snapshot
+
+```sh
+katari update                                  # the registry's newest cut
+katari update snapshot-2026-07-17-c47a6e67     # or a named one — including staging, and going back
+```
+
+`update` re-pins `[dependencies].snapshot` and re-locks in one step. Then `katari check` compiles
+against the new set, and its diagnostics are the upgrade's real cost — a package whose signature
+moved shows up here, before anything is deployed.
+
+**Editing the pin by hand is not enough**, and the CLI will say so rather than let it slide: with a
+`snapshot` line the lock has not been resolved against, `check`, `build` and `apply` refuse and tell
+you to run `katari lock`. That refusal exists because the alternative is quiet and wrong — a check
+that resolves from a stale lock reports green about the packages you just stopped asking for.
+
+Note that a snapshot's name does not tell you its age: the trailing hex is a content hash with no
+order, so two cuts from the same day sort arbitrarily. `update` reads the registry's index instead
+of guessing from names.
+
+`snapshot = "staging"` is a mutable set, but pinning it does **not** make your builds move: the lock
+freezes the exact resolution at lock time, and it changes only when you run `lock` or `update`
+again.
+
 ## Commit the lockfile
 
-`katari add` / `katari remove` (and a resolve during `katari apply`) write `katari.lock` next to
-`katari.toml`:
+`katari lock` writes `katari.lock` next to `katari.toml`, and `katari add` / `katari remove` /
+`katari update` call it for you after editing the manifest. Nothing else writes it — in particular
+`apply` does not, so a deploy can never resolve something your build never saw:
 
 ```toml
 [lock]
@@ -102,6 +127,10 @@ path = "../katari-package-tavily"
 git = "https://github.com/you/katari-package-discord"
 rev = "b93423583ba35d85aca3f0de80823b24cb77f9f9"
 ```
+
+Adding, changing or deleting an override changes the closure, so run `katari lock` afterwards —
+`check` refuses until the lock agrees with the overrides, which is what stops a deleted `path` from
+quietly continuing to compile out of your working copy.
 
 Each override sets `path` **or** `git` (with `git` requiring `rev`), and must name a dependency
 declared in `packages` — a typo'd override is an error rather than a silently ignored table. A
