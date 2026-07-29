@@ -1,6 +1,6 @@
 ---
 title: Handler geometry
-description: Where you install a handler decides what it catches — a handler body escalates from its install site, so the order of a stack of handlers is load-bearing. The rules for reading and arranging one, and the convention that follows from them: a request answers with its own failure, because the performer cannot catch it.
+description: "Where you install a handler decides what it catches — a handler body escalates from its install site, so the order of a stack of handlers is load-bearing. The rules for reading and arranging one, and the convention that follows from them: a request answers with its own failure, because the performer cannot catch it."
 ---
 
 Handlers stack. `use handler` installs its clauses for the rest of the block, so a program that

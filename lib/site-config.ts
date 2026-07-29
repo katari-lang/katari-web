@@ -38,8 +38,9 @@ export const siteConfig = {
       // `{latest}` は Footer が render 時に最新バージョンに置換する。
       items: [
         { label: "Getting Started", href: "/docs/{latest}/getting-started" },
-        { label: "Language Reference", href: "/docs/{latest}/language-reference" },
-        { label: "Toolchains", href: "/docs/{latest}/katari-toolchains" },
+        { label: "Why Katari", href: "/docs/{latest}/getting-started/why-katari" },
+        { label: "Concepts", href: "/docs/{latest}/concepts/effects-and-handlers" },
+        { label: "Toolchain", href: "/docs/{latest}/toolchain/cli" },
       ],
     },
     {

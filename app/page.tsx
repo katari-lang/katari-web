@@ -18,20 +18,20 @@ export default function Home() {
     {
       icon: Zap,
       title: "Effect System",
-      href: `/docs/${version}/language-reference/effects`,
+      href: `/docs/${version}/concepts/effects-and-handlers`,
       description:
         "Handle side effects safely via the request/handler model — typed, structured, and composable.",
     },
     {
       icon: Layers,
       title: "Expressive Types",
-      href: `/docs/${version}/language-reference/types`,
+      href: `/docs/${version}/concepts/types-and-schemas`,
       description: "Subtyping, type inference, and pattern matching. Catch errors at compile time.",
     },
     {
       icon: Wrench,
       title: "Full Toolchain",
-      href: `/docs/${version}/katari-toolchains`,
+      href: `/docs/${version}/toolchain/cli`,
       description:
         "Compiler, runtime, and LSP — everything you need to build, run, and edit Katari programs.",
     },
@@ -85,6 +85,13 @@ export default function Home() {
             ground up to orchestrate agents — with a structured effect system, expressive types, and
             a complete toolchain.
           </p>
+          <Link
+            href={`/docs/${version}/getting-started/why-katari`}
+            className="inline-flex items-center gap-2 text-base font-display-text font-normal text-foreground underline underline-offset-4 decoration-border-strong transition-all hover:opacity-70"
+          >
+            The long answer
+            <ArrowRight className="size-4" />
+          </Link>
         </div>
       </section>
 

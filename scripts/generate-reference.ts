@@ -114,6 +114,16 @@ async function generatePackageDocs(
   fs.mkdirSync(sourceDir, { recursive: true });
   // The archive has a single `katari-package-<name>-<ref>/` root; strip it away.
   execFileSync("tar", ["-xzf", tarballPath, "-C", sourceDir, "--strip-components=1"]);
+  // A package with registry dependencies ships a lock but not the cache behind it — `docs`
+  // resolves offline from the lock, so fetch the closure into the fresh checkout first.
+  // (No-op for dependency-free packages; `lock` verifies the existing pins either way.)
+  try {
+    execFileSync(katariBin, ["lock", "-C", sourceDir], EXEC_OPTIONS);
+  } catch (error) {
+    throw new Error(`katari lock failed for ${name}@${pin.version} (KATARI_BIN=${katariBin})`, {
+      cause: error,
+    });
+  }
   const docs = runKatariDocs(["-C", sourceDir], `${name}@${pin.version}`);
   if (docs.package.name !== name) {
     throw new Error(`packages.${name} pin produced docs for package "${docs.package.name}"`);

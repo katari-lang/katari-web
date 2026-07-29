@@ -136,12 +136,12 @@ agent three_ticks() -> integer with io {
 `use region.provide[Scope, E]` opens a **nursery** for the rest of the block; `fork` spawns
 a fiber into it and returns immediately with a handle. There is deliberately **no join**: a
 fiber carries no result — its task is `-> null`, and everything it produces leaves through
-its escalations, which surface at `watch`. `watch`'s row is `E | region.crashed | Scope`:
+its escalations, which surface at `watch`. `watch`'s row is `E | crashed | failed | Scope | io`:
 `E` is the **ceiling** the nursery fixed up front (a child that raises more is a type
-error), and `crashed` is the runtime's own event — a fiber's panic re-emitted as typed
-data, so what a crash _means_ (restart the fiber, report it, bring the region down) is your
-handler's decision, and handling it is part of the region's total obligation, checked by
-`katari check`. The scope marker makes the lifetime static: a fiber cannot escape its
+error), and `crashed` and `failed` are the runtime's own events — a fiber's panic, and a
+fiber's uncaught throw, each re-emitted as typed data — so what a crash _means_ (restart
+the fiber, report it, bring the region down) is your handler's decision, and handling both
+is part of the region's total obligation, checked by `katari check`. The scope marker makes the lifetime static: a fiber cannot escape its
 `provide` (returning one is a type error), and when the block ends, still-running fibers
 are cancelled. Declare one marker per nursery when you nest them.
 

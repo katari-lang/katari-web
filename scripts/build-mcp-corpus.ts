@@ -13,7 +13,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { getDoc, getNavigation, latestVersion, listVersions } from "../lib/content";
-import { getPackageDocs, getPackageReadme, listReferencePackages } from "../lib/reference/data";
+import { getPackageDocs, listReferencePackages } from "../lib/reference/data";
+import { packageTagline } from "../lib/reference/tagline";
 import type { Declaration } from "../lib/reference/types";
 import type {
   CorpusManifest,
@@ -103,23 +104,6 @@ writeJson("onboarding.json", onboarding);
 // packages/ — the reference JSON split per module, plus the listing/mini-index.
 // ---------------------------------------------------------------------------
 
-/** A package's one-line tagline. The generated READMEs open with `# <name> — <tagline>`, so the
- *  H1 tail is the intended one-liner; the first body sentence is the fallback. */
-function taglineOf(packageName: string): string | null {
-  const readme = getPackageReadme(packageName);
-  if (readme === undefined) return null;
-  const heading = readme.match(/^#\s+(.+)$/m);
-  if (heading) {
-    const tail = heading[1]!.split("—")[1]?.trim();
-    if (tail) return tail;
-  }
-  const paragraph = readme
-    .split(/\r?\n\r?\n/)
-    .map((block) => block.trim())
-    .find((block) => block !== "" && !block.startsWith("#"));
-  return paragraph ? firstSentence(paragraph) : null;
-}
-
 /** The per-module corpus row for one declaration — everything the site's declaration card shows
  *  except the wire schema (bulky, and the surface signature is what an AI reads). */
 function declarationRow(declaration: Declaration): ModuleCorpus["declarations"][number] {
@@ -148,7 +132,7 @@ for (const entry of listReferencePackages()) {
     name: entry.name,
     version: entry.version,
     hasReadme: entry.hasReadme,
-    tagline: taglineOf(entry.name),
+    tagline: packageTagline(entry.name),
     modules: packageDocs.modules.map((module) => ({
       name: module.name,
       declarationCount: module.declarations.length,

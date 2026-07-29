@@ -57,6 +57,8 @@ and completion — the language server is bundled, so there is nothing else to i
 
 - [Quickstart]({docs}/{currentVersion}/getting-started/quickstart) — a project running in five
   minutes.
+- [Docs for AI agents]({docs}/{currentVersion}/getting-started/docs-for-ai-agents) — one command
+  points your AI assistant at these docs over MCP, so it writes real Katari.
 - [The CLI]({docs}/{currentVersion}/toolchain/cli) — every command, in the order you reach for
   them.
 - [Tutorial]({docs}/{currentVersion}/tutorial) — build up to a Discord bot with model-driven

@@ -2,7 +2,7 @@
   "packages": [
     {
       "name": "prelude",
-      "version": "0.1.0",
+      "version": "0.1.0-rc11",
       "modules": [
         "prelude",
         "prelude.array",
@@ -15,6 +15,7 @@
         "prelude.math",
         "prelude.mcp",
         "prelude.oauth",
+        "prelude.poll",
         "prelude.record",
         "prelude.reflection",
         "prelude.region",
@@ -28,19 +29,20 @@
     },
     {
       "name": "ai",
-      "version": "0.1.18",
+      "version": "0.4.0",
       "modules": [
         "ai",
         "ai.anthropic",
         "ai.gemini",
         "ai.openai",
-        "ai.types"
+        "ai.types",
+        "ai.wire_names"
       ],
       "hasReadme": true
     },
     {
       "name": "discord",
-      "version": "0.1.4",
+      "version": "0.6.0",
       "modules": [
         "discord"
       ],
@@ -48,23 +50,47 @@
     },
     {
       "name": "e2b",
-      "version": "0.1.2",
+      "version": "0.4.0",
       "modules": [
         "e2b"
       ],
       "hasReadme": true
     },
     {
-      "name": "google_calendar",
+      "name": "fleet",
       "version": "0.1.0",
+      "modules": [
+        "fleet"
+      ],
+      "hasReadme": true
+    },
+    {
+      "name": "gmail",
+      "version": "0.5.2",
+      "modules": [
+        "gmail"
+      ],
+      "hasReadme": true
+    },
+    {
+      "name": "google_calendar",
+      "version": "0.5.2",
       "modules": [
         "google_calendar"
       ],
       "hasReadme": true
     },
     {
+      "name": "google_common",
+      "version": "0.2.0",
+      "modules": [
+        "google_common"
+      ],
+      "hasReadme": true
+    },
+    {
       "name": "imagegen",
-      "version": "0.1.0",
+      "version": "0.3.0",
       "modules": [
         "imagegen"
       ],
@@ -72,15 +98,23 @@
     },
     {
       "name": "memory",
-      "version": "0.1.1",
+      "version": "0.4.1",
       "modules": [
         "memory"
       ],
-      "hasReadme": false
+      "hasReadme": true
+    },
+    {
+      "name": "persona",
+      "version": "0.1.3",
+      "modules": [
+        "persona"
+      ],
+      "hasReadme": true
     },
     {
       "name": "slack",
-      "version": "0.1.0",
+      "version": "0.4.0",
       "modules": [
         "slack"
       ],
@@ -88,7 +122,7 @@
     },
     {
       "name": "tavily",
-      "version": "0.1.0",
+      "version": "0.3.0",
       "modules": [
         "tavily"
       ],
@@ -96,7 +130,7 @@
     },
     {
       "name": "web",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "modules": [
         "web"
       ],

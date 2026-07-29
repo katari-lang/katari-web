@@ -1,4 +1,4 @@
 {
   "label": "Toolchain",
-  "order": ["cli", "runtime", "editor"]
+  "order": ["cli", "error-codes", "runtime", "editor"]
 }

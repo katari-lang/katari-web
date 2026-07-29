@@ -5,6 +5,7 @@ build/
 coverage/
 public/search-index/
 public/mcp-corpus/
+public/llms.txt
 pnpm-lock.yaml
 next-env.d.ts
 *.tsbuildinfo

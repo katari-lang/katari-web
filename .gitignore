@@ -49,3 +49,6 @@ next-env.d.ts
 
 # generated MCP corpus (built by scripts/build-mcp-corpus.ts)
 /public/mcp-corpus/
+
+# generated llms.txt (built by scripts/build-llms-txt.ts)
+/public/llms.txt
