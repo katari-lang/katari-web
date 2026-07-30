@@ -126,6 +126,7 @@ agent three_ticks() -> integer with io {
       if (seen + 1 >= 3) { break 3 } else { next null with { seen = seen + 1 } }
     }
     request region.crashed(id: string, name: string, message: string) { break seen }
+    request region.failed(id: string, name: string, error: unknown) { break seen }
   }
   let nursery: region.nursery[clock_scope, clock_ceiling] = use region.provide[clock_scope, clock_ceiling]
   let _ticker = region.fork(nursery = nursery, task = ticker, argument = 200.0, name = "ticker")

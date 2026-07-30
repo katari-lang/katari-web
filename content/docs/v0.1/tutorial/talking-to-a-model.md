@@ -19,7 +19,7 @@ Your `katari.toml`'s `[dependencies]` section now reads:
 ```toml
 [dependencies]
 registry = "https://raw.githubusercontent.com/katari-lang/katari-registry/main"
-snapshot = "snapshot-2026-07-17-c47a6e67"
+snapshot = "snapshot-2026-07-29-56e87e45"
 packages = ["ai"]
 ```
 
@@ -73,7 +73,7 @@ agent chat(question: string) -> string with io {
     source = credentials.env(key = "ANTHROPIC_API_KEY"),
     system = "You are a concise assistant.",
   )
-  ai.reply(history = [types.turn(role = "user", text = question, files = [])])
+  ai.reply(history = [types.turn(role = types.user_role(), text = question, files = [])])
 }
 ```
 
@@ -88,7 +88,8 @@ Reading it top to bottom:
 - **The error handler is a handler too.** A typed error in Katari is the request
   `prelude.throw`, and this clause catches by payload type: `app_error` joins what a
   model step can raise (`ai.step_error`: malformed provider JSON, a non-2xx status, a
-  transport failure) with what resolving the credential source can — `env.missing_secret`
+  transport failure, or a failure only the provider itself can name) with what resolving
+  the credential source can — `env.missing_secret`
   for an env key, `oauth.server_error` when a source names a stored OAuth credential
   instead. `break` ends
   the surrounding block with a value — where `next` answers and continues, `break`
@@ -108,8 +109,9 @@ The reply comes back as the run's result. If you skipped setting the secret, you
 
 The model is stateless: each call sees exactly the `history` you pass and nothing else.
 A conversation is therefore a value you build — an `array[types.message]`, where
-`types.turn` records who spoke (`"user"` / `"model"`), what they said, and any attached
-files. The complete `src/bot.ktr`:
+`types.turn` records who spoke (`types.user_role()` / `types.model_role()` — a closed sum,
+so no provider's spelling of "assistant" can leak into your program), what they said, and
+any attached files. The complete `src/bot.ktr`:
 
 ```katari
 import ai
@@ -131,7 +133,7 @@ agent chat(question: string) -> string with io {
     source = credentials.env(key = "ANTHROPIC_API_KEY"),
     system = "You are a concise assistant.",
   )
-  ai.reply(history = [types.turn(role = "user", text = question, files = [])])
+  ai.reply(history = [types.turn(role = types.user_role(), text = question, files = [])])
 }
 
 @"Two model calls over one growing history: the model sees the whole conversation each time."
@@ -145,10 +147,10 @@ agent interview(question: string, followup: string) -> string with io {
     source = credentials.env(key = "ANTHROPIC_API_KEY"),
     system = "You are a concise assistant.",
   )
-  let opening = [types.turn(role = "user", text = question, files = [])]
+  let opening = [types.turn(role = types.user_role(), text = question, files = [])]
   let first = ai.reply(history = opening)
-  let with_reply = array.append(target = opening, value = types.turn(role = "model", text = first, files = []))
-  let second = ai.reply(history = array.append(target = with_reply, value = types.turn(role = "user", text = followup, files = [])))
+  let with_reply = array.append(target = opening, value = types.turn(role = types.model_role(), text = first, files = []))
+  let second = ai.reply(history = array.append(target = with_reply, value = types.turn(role = types.user_role(), text = followup, files = [])))
   f"${first}\n---\n${second}"
 }
 ```
@@ -165,7 +167,8 @@ chapter 2 `roll_call` pattern — and becomes a channel's memory.
 ## Swapping the model
 
 `anthropic.provider` defaults to the `claude-sonnet-5` model (pass `model = "..."` to
-override, and `max_tokens` to raise the per-step output cap from its default of 4096).
+override, and `max_output_tokens` to raise the per-step output cap from its default of
+4096).
 Nothing outside the `use` line knows Anthropic exists, so switching providers is
 replacing that one line — for example with
 `use gemini.provider(model = "gemini-3.5-flash", source = credentials.env(key = "GEMINI_API_KEY"))`

@@ -27,7 +27,7 @@ import tavily
 @"Search the web; failures degrade to a readable line instead of failing the run."
 agent main(question: string) -> string with io {
   use handler {
-    request prelude.throw(error: env.missing_secret | oauth.server_error | http.status_error | http.fetch_error | json.parse_error) -> never {
+    request prelude.throw(error: env.missing_secret | oauth.server_error | http.api_failure | http.fetch_error | json.parse_error) -> never {
       break f"search failed: ${json.stringify(value = error)}"
     }
   }
@@ -47,7 +47,7 @@ The `[dependencies]` section names the registry and the snapshot every package r
 ```toml
 [dependencies]
 registry = "https://raw.githubusercontent.com/katari-lang/katari-registry/main"
-snapshot = "snapshot-2026-07-17-c47a6e67"
+snapshot = "snapshot-2026-07-29-56e87e45"
 packages = ["tavily"]
 ```
 
@@ -65,7 +65,7 @@ so `packages` is a flat list of names.
 
 ```sh
 katari update                                  # the registry's newest cut
-katari update snapshot-2026-07-17-c47a6e67     # or a named one — including staging, and going back
+katari update snapshot-2026-07-29-56e87e45     # or a named one — including staging, and going back
 ```
 
 `update` re-pins `[dependencies].snapshot` and re-locks in one step. Then `katari check` compiles
@@ -94,13 +94,14 @@ again.
 ```toml
 [lock]
 version = 1
-snapshot = "snapshot-2026-07-17-c47a6e67"
+snapshot = "snapshot-2026-07-29-56e87e45"
+katari_compiler = "0.1.0-rc12"
 
 [packages.tavily]
 source = "git"
 url = "https://github.com/katari-lang/katari-package-tavily"
-rev = "2590e15f6ef3852af3d361b019633340501911fe"
-sha256 = "6d59a5fb4d86ef59e73c80531503b512f8f4f977a7a97c216451dec515de286b"
+rev = "76e97c8d62e2fa1fb4dd320d3a3dcb7b5a6df186"
+sha256 = "6162b74fed8462af0ec3a3ac9789d9ad601de38e79b2512e792aa3c7c69668d4"
 ```
 
 Commit it: every non-path dependency is pinned to a git rev plus a verified tarball hash, so
@@ -115,7 +116,7 @@ the snapshot pin for everything else:
 ```toml
 [dependencies]
 registry = "https://raw.githubusercontent.com/katari-lang/katari-registry/main"
-snapshot = "snapshot-2026-07-17-c47a6e67"
+snapshot = "snapshot-2026-07-29-56e87e45"
 packages = ["tavily", "discord"]
 
 # Develop a package against the app that uses it:
@@ -139,7 +140,7 @@ hash, the rev is the only thing pinning reproducibility.
 
 ## What is in the registry
 
-The first snapshot (`snapshot-2026-07-17-c47a6e67`) carries eight packages. Every exported agent,
+The pinned snapshot (`snapshot-2026-07-29-56e87e45`) carries thirteen packages. Every exported agent,
 request, and type is documented in the [reference](/packages).
 
 - **ai** — a provider-agnostic AI tool-calling loop: one `infer_step` seam with interchangeable
@@ -147,9 +148,19 @@ request, and type is documented in the [reference](/packages).
 - **discord** — a discord.js gateway client: a connection provider, watch / send agents, and file
   attachments in both directions (ships an FFI sidecar).
 - **e2b** — run Python in a persistent e2b sandbox as a tool (ships an FFI sidecar).
+- **fleet** — the durable **desired set** behind a fiber fleet, and its difference against the live
+  nursery roster; performs only store operations, so there is nothing to configure.
+- **gmail** — mail tools (`list_recent` / `read_body` / `fetch_attachment` / `send`), label editing
+  and a watcher over Gmail's REST API — pure Katari, no sidecar.
 - **google_calendar** — calendar tools (list / create / watch) over the OAuth refresh-token
   grant — pure Katari, no sidecar.
+- **google_common** — the Google REST plumbing `gmail` and `google_calendar` share; a library for
+  packages, not a tool set, and it arrives as their transitive dependency.
 - **imagegen** — edit images with the Gemini image model as a tool (ships an FFI sidecar).
+- **memory** — persistent memory for resident agents: five model-callable tools over the durable
+  store, split into a per-turn summary layer and full notes read back on request.
+- **persona** — a character as an ordered set of layers: assemble one role's per-turn injection note,
+  and rewrite one layer under a hard cap.
 - **slack** — a Slack bot capability over Socket Mode: watch channel messages, post replies
   (ships an FFI sidecar).
 - **tavily** — web search as a tool over the Tavily API — pure Katari, no sidecar.
@@ -157,7 +168,7 @@ request, and type is documented in the [reference](/packages).
 
 ## Where to go next
 
-- [The tutorial's Discord bot]({docs}/{currentVersion}/tutorial/a-discord-bot) composes seven of
+- [The tutorial's Discord bot]({docs}/{currentVersion}/tutorial/a-discord-bot) composes four of
   these packages into one app.
 - [FFI sidecars]({docs}/{currentVersion}/guides/ffi-sidecars) — how a package like `e2b` or
   `discord` ships TypeScript alongside its Katari source.

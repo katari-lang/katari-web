@@ -48,10 +48,12 @@ bundler the sidecar's own dependencies. (How sidecars work:
 What the package exposes is small: `discord.provider(source = ...)` logs in once and
 serves the connection for the rest of the block; `discord.watch_messages(channel,
 deliver_to)` serves a channel forever, delivering each incoming message to an agent you
-supply; `discord.send_message(channel, text, files)` posts back, returning the posted
-message's id, and `discord.try_send` is its resilient fire-and-forget sibling — a blank
-text posts nothing, a transient failure drops just that post. Attachments arrive and
-depart as first-class `file` values. ([reference](/packages/discord))
+supply as one `discord.message` value; `discord.send_message(channel, text, files)` posts
+back, returning the posted message's id, and `discord.try_send` is its resilient sibling —
+a blank text posts nothing, a transient failure drops just that post, and either ending
+comes back as a `send_outcome` value (`delivered` or `dropped`) rather than a silence.
+Attachments arrive and depart as first-class `file` values.
+([reference](/packages/discord))
 
 ## The watcher is a fiber
 
@@ -69,12 +71,23 @@ incoming message as an observation. `fork` applies it to the channel id — the
 parameter is named `input` because parameter names are part of an agent's type,
 and `fork` declares its task as `agent (input: A) -> null`."
 agent channel_source(input: string) -> never {
-  agent deliver(channel: string, text: string, files: array[file], author: string) -> null {
-    ai.observation(source = f"discord:${channel}", content = text, files = files, author = author)
+  agent deliver(value: discord.message) -> null {
+    ai.observation(
+      source = f"discord:${value.channel}",
+      content = value.text,
+      files = value.files,
+      author = discord.author_tag(source = credentials.env(key = "DISCORD_TOKEN"), author = value.author),
+    )
   }
   discord.watch_messages(channel = input, deliver_to = deliver)
 }
 ```
+
+The message arrives as one `discord.message` value — the callback's parameter is `value`,
+the prelude's primary-argument convention, so the same agent fits any watch — and the
+author that leaves the program is not the raw Discord id: `discord.author_tag` folds it
+through a keyed HMAC (the bot's own token as the key), so the provider sees a stable
+pseudonym, never an account id.
 
 Message arrives → fiber raises `ai.observation` → a stateful handler somewhere above
 answers it. Chapter 2's shape exactly — and this time the handler ships with the `ai`
@@ -124,8 +137,13 @@ incoming message as an observation. `fork` applies it to the channel id — the
 parameter is named `input` because parameter names are part of an agent's type,
 and `fork` declares its task as `agent (input: A) -> null`."
 agent channel_source(input: string) -> never {
-  agent deliver(channel: string, text: string, files: array[file], author: string) -> null {
-    ai.observation(source = f"discord:${channel}", content = text, files = files, author = author)
+  agent deliver(value: discord.message) -> null {
+    ai.observation(
+      source = f"discord:${value.channel}",
+      content = value.text,
+      files = value.files,
+      author = discord.author_tag(source = credentials.env(key = "DISCORD_TOKEN"), author = value.author),
+    )
   }
   discord.watch_messages(channel = input, deliver_to = deliver)
 }
@@ -146,13 +164,22 @@ agent main(channel: string) -> string {
   use tavily.provider(source = credentials.env(key = "TAVILY_API_KEY"))
   use discord.provider(source = credentials.env(key = "DISCORD_TOKEN"))
   agent deliver_reply(reply: string) -> null {
-    discord.try_send(channel = channel, text = reply)
+    // `try_send` answers with its outcome. The server this feeds has nowhere to put one, so
+    // the answer is dropped DELIBERATELY — a bot that reports "posted" reads it instead.
+    let _outcome = discord.try_send(channel = channel, text = reply)
+    null
   }
   agent resident(value: null) -> never with ai.observation | discord.connection | io {
     let nursery: region.nursery[bot_scope, bot_ceiling] = use region.provide[bot_scope, bot_ceiling]
     use handler {
       request region.crashed(id: string, name: string, message: string) {
-        // The watcher is the bot's ears: fork a replacement and keep serving.
+        // The watcher is the bot's ears, and it died while the runtime kept running:
+        // fork a replacement and keep serving.
+        let _replacement = region.fork(nursery = nursery, task = channel_source, argument = channel, name = name)
+        next null
+      }
+      request region.failed(id: string, name: string, error: unknown) {
+        // An uncaught throw arrives as data, not as an unwinding — same answer.
         let _replacement = region.fork(nursery = nursery, task = channel_source, argument = channel, name = name)
         next null
       }
@@ -182,16 +209,22 @@ Three agents, and you have met every idea in them:
   nursery for the rest of the block; `fork` starts the watcher — named, so the runtime can
   tell you about it — and `region.watch` re-emits the fibers' escalations forever: each
   `ai.observation` wells up here and is answered by the server installed just outside.
-  The `region.crashed` handler is the region's crash policy as ordinary code: the runtime
-  reports a dead fiber as typed data, and this bot's answer is to fork a fresh watcher
-  under the same name. Handling `crashed` is not optional politeness — it rides `watch`'s
-  row, so `katari check` holds you to it.
+  The `region.crashed` and `region.failed` clauses are the region's crash policy as
+  ordinary code: the runtime reports a dead fiber as typed data — a panic as `crashed`, an
+  uncaught throw as `failed` — and this bot's answer to both is to fork a fresh watcher
+  under the same name. Handling them is not optional politeness — both ride `watch`'s row,
+  so `katari check` holds you to it. What they cover is a fiber that died while the runtime
+  kept running; a restart of the runtime itself is a different failure, and the last bullet
+  below says why.
 - **`serve_observations` is the memory and the mouth.** Its handler `var` is the channel's
   conversation — durable run state, like `roll_call`'s counter — advanced one `take_turn`
   per observation, compacted automatically when it outgrows its budget. Non-blank replies
   leave through `deliver_reply`, which posts with `discord.try_send`: a transient send
-  failure drops that one post and the resident keeps serving, while a bad token still
-  stops it loudly.
+  failure drops that one post and the resident keeps serving, while a bad token still stops
+  it loudly. `try_send` hands back a `send_outcome` — `delivered` or `dropped(reason)` —
+  rather than a silence, so a caller that reports on its own send cannot claim "posted" for a
+  post the channel never received. This one has nobody to report to, so it drops the outcome
+  deliberately, in the one line that says so.
 
 ## Deploy and talk
 
@@ -210,10 +243,35 @@ message.
 This run is a run like any other, which is the quiet punchline of the tutorial:
 
 - it appears in `katari ls`, and it ends when you say so — `katari cancel <run-id>`;
-- its conversation is run state, so it survives a runtime restart: bring the runtime down
-  and up mid-conversation, and the watcher reattaches with the channel's memory intact;
 - redeploying is `katari apply` and a fresh `katari run` — snapshots are immutable, so a
-  new deploy never mutates a serving bot under your feet.
+  new deploy never mutates a serving bot under your feet;
+- its conversation is run state, so the runtime reloads it after a restart — but the
+  **gateway connection is not run state**, and that is the one promise this bot does not
+  keep on its own.
+
+The connection lives in the sidecar's process, and FFI execution is at-most-once: a restart
+resumes the run holding a handle to a client that no longer exists, so the watcher's next
+touch of it fails as a **panic**. Re-forking the watcher — exactly right for a fiber that died
+while the runtime lived — reconnects nothing here, because the handle the journal replays is
+the dead one, and the re-forked watcher dies on it too. What the bot above needs in order to
+come back is one more move: `region.crashed` must itself drive a **replay** whose scope
+contains the `discord.provider` install, so each attempt logs in again and mints a live handle.
+Note that a `panic` converter alone would not do it — a fiber's panic never unwinds past the
+`watch`; the runtime hands it to you as `crashed` instead. The whole arrangement, with the
+install sites that make it work, is in [FFI
+Sidecars]({docs}/{currentVersion}/guides/ffi-sidecars#when-the-watcher-is-a-region-fiber):
+**`crashed` rebuilds the session, `failed` stops loudly.**
+
+It is not folded in above because of what it would cost this bot, and the cost is the lesson:
+everything inside a replay scope is rebuilt per attempt, so putting `serve_observations`
+inside one brings the bot back with an **empty conversation**. Nor can you simply move
+`serve_observations` above the scope to save its `var` — its clause runs a model turn, and the
+model provider it needs lives inside, so hoisted it would typecheck and then escalate every
+turn out of the program instead of reaching the model
+([the rule, and how to spot that mistake]({docs}/{currentVersion}/concepts/durable-execution#what-a-replay-rebuilds-and-what-it-keeps)).
+A resident that must keep its memory across a restart is the version of this bot that holds the
+conversation in the [store]({docs}/{currentVersion}/guides/store) rather than in a handler
+`var` — which is the honest next step from here, not a line you can add to the listing above.
 
 ## The closing act: from one resident to many
 

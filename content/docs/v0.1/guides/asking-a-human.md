@@ -11,8 +11,8 @@ The `discord` and `slack` packages present the same channel twice, along two ind
   **controls** in front of it and block until someone completes one of them.
 
 ```katari
-data message(channel: string, author: string, text: string, files: array[file])
-// Slack's `message` carries one extra field, `thread`; see "Twins, and where they diverge".
+data message(channel: string, author: string, display_name: string, text: string, files: array[file])
+// Discord's shape. Slack's carries `thread` and no `display_name`; see "Twins, and where they diverge".
 
 type control = button | select | form
 type answer = clicked | chose | submitted
@@ -263,7 +263,7 @@ request spawn_gate(name: string, task: agent (input: null) -> null with gate_cei
 @"The session region's scope marker — one nullary phantom per nursery, per `region`'s rule."
 effect session_scope
 
-agent session(channel: string) -> never with region.crashed | io | prelude.throw[discord.discord_error | env.missing_secret | oauth.server_error] {
+agent session(channel: string) -> never with region.crashed | region.failed | io | prelude.throw[discord.discord_error | env.missing_secret | oauth.server_error] {
   use discord.provider(source = credentials.env(key = "DISCORD_TOKEN"))
   // THE ASK ADAPTER: the one place a human question becomes Discord. PARALLEL, and load-bearing —
   // several gates wait on their own questions at once, and a sequential clause would queue them, so
@@ -280,8 +280,9 @@ agent session(channel: string) -> never with region.crashed | io | prelude.throw
       next f"(asked the operator — ${region.fiber_id(handle = handle)}. Carry on; you cannot wait for this.)"
     }
   }
-  // The desks, and a `region.crashed` interpretation, are installed here — above the watch so their
-  // escalations reach the handlers above, below the ask adapter so a desk tool can reach it.
+  // The desks, and the `region.crashed` / `region.failed` interpretations, are installed here —
+  // above the watch so their escalations reach the handlers above, below the ask adapter so a desk
+  // tool can reach it. Both endings ride `watch`'s row, so `katari check` holds you to both.
   region.watch(nursery = nursery)
 }
 ```
@@ -333,12 +334,23 @@ gates]({docs}/{currentVersion}/guides/approval-gates).
 
 ## Twins, and where they diverge
 
-The two packages carry the same data types with the same fields, so a bot ports between them by
-swapping the import. Everything that differs:
+The two packages carry the same types with the same field and argument names, so a bot ports between
+them by swapping the import. The divergences are enumerated and **machine-checked** — the slack
+package's README holds the authoritative table, produced by a script that compares both surfaces and
+fails on any difference not declared with a reason. The ones a program sees:
 
-- **`message.thread`** — Slack's one extra field: the thread a message was posted in, or `null` at top
+- **`message.thread`** — Slack only: the thread a message was posted in, or `null` at top
   level. Slack addresses a thread by its parent's `ts`, which is also a message's identity, so
-  `send_message` returns a `ts` and takes `thread_ts`. Discord has no such value.
+  `send_message` returns a `ts` and takes `thread_ts` (as does `try_send`). Discord has no such value.
+- **`display_name`** — Discord only, on `message` and on all three answers: the name Discord shows for
+  the speaker. Discord's message event ships a partial guild member, so the nickname → global name →
+  username chain is free; Slack's carries only the `U…` id, so the same field would cost a `users.info`
+  call per message. It is **not an identity** either way — self-chosen and not unique — so code that
+  must read the same on both keeps its logic on `author` / `by`.
+- **The provider's credentials** — Slack takes two (`bot_source` for the `xoxb-…` Web API token,
+  `app_source` for the `xapp-…` socket token); Discord's gateway takes one, `source`.
+- **`caps.post_text`** — Slack only: it caps a posted message's text (40000) separately from a block's
+  (3000), so the two planes need two numbers. Discord's single 2000 governs both.
 - **Error classification** — both raise the same two constructors, `auth_error` and `api_error`, but
   Discord classifies them by HTTP status and Slack by its own error strings (`invalid_auth`,
   `missing_scope`, …). The unions are `discord.discord_error` and `slack.slack_error`.

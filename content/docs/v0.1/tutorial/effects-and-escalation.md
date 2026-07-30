@@ -104,7 +104,7 @@ escalation requires you to be watching:
 ```sh
 katari run bot.main --detach
 katari ls escalations        # the open question, with its id and schema
-katari answer <id> '"Grace"' # the answer is JSON, checked against the request's schema
+katari answer <id> --value '"Grace"' # the answer is JSON, checked against the request's schema
 katari status <run-id>       # done — result "Hello, Grace!"
 ```
 

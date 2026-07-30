@@ -74,26 +74,34 @@ A missing secret is an anticipated configuration failure, so `get_secret` throws
 ```katari
 @"An optional integration: a missing key disables the feature instead of failing the run."
 agent notify(message: string) -> string with io | prelude.throw[http.fetch_error] {
-  let key = {
-    use handler {
-      request prelude.throw(error: env.missing_secret) -> never { break null }
-    }
-    env.get_secret(key = "NOTIFY_API_KEY")
-  }
-  match (key) {
-    case null -> "(notifications disabled)"
-    case value -> {
-      let response = http.fetch(
-        url = "https://api.example.com/notify",
-        method = "POST",
-        headers = record.set(target = record.empty(), key = "Authorization", value = "Bearer " ++ value),
-        body = http.json(value = { text = message }),
-      )
-      response.body
+  use handler {
+    request prelude.throw(error: env.missing_secret | http.fetch_error) -> never {
+      match (error) {
+        case env.missing_secret(_) -> { break "(notifications disabled)" }
+        // The residual is exactly `http.fetch_error` — rethrown as bound, and it stays on the row.
+        case rest -> { prelude.throw(error = rest) }
+      }
     }
   }
+  let response = http.fetch(
+    url = "https://api.example.com/notify",
+    method = "POST",
+    headers = record.set(target = record.empty(), key = "Authorization", value = "Bearer " ++ env.get_secret(key = "NOTIFY_API_KEY")),
+    body = http.json(value = { text = message }),
+  )
+  response.body
 }
 ```
+
+Two things about that guard are forced rather than chosen. It wraps the **call** instead of branching
+on the value it reads, because **observing** a private value taints what you compute from it: a
+`match` on the secret would make the answer private too, and a public `string` result would stop
+compiling. Reading the secret straight into the header sink keeps the taint on the one path allowed to
+carry it, and `break` supplies the public fallback from outside that path. And the clause names
+`env.missing_secret | http.fetch_error` — the whole union the block can throw — because a
+`prelude.throw` clause cannot catch a subset; it takes everything and re-raises what it is not
+answering. See [Handler geometry]({docs}/{currentVersion}/guides/handler-geometry) for that rule and
+its geometry.
 
 ## Hand a credential to a package
 

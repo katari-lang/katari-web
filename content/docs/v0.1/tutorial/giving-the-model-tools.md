@@ -138,7 +138,7 @@ agent solve(task: string) -> string with io {
   )
   use tavily.provider(source = credentials.env(key = "TAVILY_API_KEY"))
   ai.infer_with_tools(
-    history = [types.turn(role = "user", text = task, files = [])],
+    history = [types.turn(role = types.user_role(), text = task, files = [])],
     tools = [count_letters, tavily.search, web.fetch_page],
     max_steps = 8,
   )
@@ -206,14 +206,15 @@ same loop further; the [reference](/packages/ai) is the full contract, but in br
 
   // The type is the contract — no "reply with JSON" prompting, no hand-parsing.
   let review = ai.infer_structured[verdict](
-    history = [types.turn(role = "user", text = f"Ship this diff? ${diff}", files = [])],
+    history = [types.turn(role = types.user_role(), text = f"Ship this diff? ${diff}", files = [])],
   )
   ```
 
-- **Usage rides the seam.** `infer_step` returns a `types.step_result` — the step's decision _and_
-  its `usage` (input / output tokens), where the freshest step's input count is the whole context's
-  current occupancy. Any loop over the seam can meter itself for free; that measurement is exactly
-  what `serve_session` compacts against.
+- **Usage rides the seam.** `infer_step` answers with an outcome sum — `inferred(result)` on
+  success, `inference_failed(error)` when the provider gives up — and the success's
+  `types.step_result` carries the step's decision _and_ its `usage` (input / output tokens), where
+  the freshest step's input count is the whole context's current occupancy. Any loop over the seam
+  can meter itself for free; that measurement is exactly what `serve_session` compacts against.
 
 ## Where you are
 

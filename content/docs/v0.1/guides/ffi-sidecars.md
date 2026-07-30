@@ -274,7 +274,7 @@ import slack
 
 @"Reply to one message. A transient `api_error` is caught so one failed send never ends the bot; an
 `auth_error` (a bad token) surfaces and stops it loudly — the per-message channel, a typed throw."
-agent reply(channel: string, user: string, text: string, thread_ts: string | null, files: array[file]) -> null with io | slack.connection | prelude.throw[slack.auth_error] {
+agent reply(value: slack.message) -> null with io | slack.connection | prelude.throw[slack.auth_error] {
   use handler {
     request prelude.throw(error: slack.slack_error) -> never {
       match (error) {
@@ -283,7 +283,8 @@ agent reply(channel: string, user: string, text: string, thread_ts: string | nul
       }
     }
   }
-  slack.send_message(channel = channel, text = f"you said: ${text}", files = [], thread_ts = thread_ts)
+  let _ts = slack.send_message(channel = value.channel, text = f"you said: ${value.text}", files = [], thread_ts = value.thread)
+  null
 }
 
 @"The restart-resilient bot: the panic converter re-runs connect-and-serve after a capped backoff, and
@@ -309,6 +310,92 @@ capped backoff durably and re-runs the block, so a fresh `create_slack_client` m
 where the journal replayed a dead one — the same `replay` composition
 [scheduled jobs]({docs}/{currentVersion}/guides/scheduled-jobs) use for a `time.watch`, catching a
 panic instead of a throw.
+
+### When the watcher is a region fiber
+
+The listing above watches **directly in `main`**, and that is the only shape the panic converter
+covers. Put the watcher in a [region]({docs}/{currentVersion}/concepts/parallelism#regions-fork-without-join)
+— which is what a resident does, so it can serve other traffic while it watches — and the converter
+**never fires**: the runtime intercepts a fiber's own panic at the nursery and converts it into the
+typed `region.crashed` event rather than letting it unwind past the `watch`. (A panic raised in a
+_handler body_ answering that fiber is different — that body runs in the continuation, so its panic
+travels the continuation's delegation and a converter does see it. Only the fiber's own is
+intercepted.) A resident built on the recipe above plus a nursery looks supervised and is not.
+
+The completion is one clause. Drive the replay from `region.crashed` itself, and leave
+`region.failed` **outside** the replay scope so an uncaught typed throw still stops the run instead of
+looping:
+
+```katari
+@"The watcher raised a typed failure no reconnect can fix."
+data watcher_failed(name: string, detail: string)
+
+@"The nursery's scope marker: one nullary phantom per nursery."
+effect bot_scope
+
+@"What the app does with one incoming message, wherever it came from."
+request observed(source: string, text: string) -> null
+
+// The fiber ceiling: everything a fiber of this nursery may raise.
+type bot_ceiling = observed | slack.connection | io
+
+@"The watcher, as a fiber: serve the channel forever, reporting each message."
+agent channel_source(input: string) -> never {
+  agent deliver(value: slack.message) -> null {
+    observed(source = value.channel, text = value.text)
+  }
+  slack.watch_messages(channel = input, deliver_to = deliver)
+}
+
+@"The same supervision, with the watcher as a fiber: `crashed` rebuilds the session, `failed` stops
+loudly. Read the install sites top to bottom — they are the whole design."
+agent region_main(channel: string) -> never with io | observed | prelude.throw[watcher_failed | slack.slack_error | env.missing_secret | oauth.server_error] {
+  // OUTSIDE the scope: a typed failure is not a stale handle, so it must not be replayed.
+  use handler {
+    request region.failed(id: string, name: string, error: unknown) {
+      prelude.throw(error = watcher_failed(name = name, detail = json.stringify(value = error)))
+    }
+  }
+  use replay.forever(initial_delay_milliseconds = 1000.0, factor = 2.0, max_delay_milliseconds = 60000.0)
+  // INSIDE the scope: each attempt logs in again and mints a live client handle.
+  use slack.provider(
+    bot_source = credentials.env(key = "SLACK_BOT_TOKEN"),
+    app_source = credentials.env(key = "SLACK_APP_TOKEN"),
+  )
+  let nursery: region.nursery[bot_scope, bot_ceiling] = use region.provide[bot_scope, bot_ceiling]
+  // INSIDE too, and it has to be: this clause performs `replay.interrupted`, so the provider it
+  // rebuilds must sit above it.
+  use handler {
+    request region.crashed(id: string, name: string, message: string) {
+      replay.interrupted(failure = message)
+    }
+  }
+  let _watcher = region.fork(nursery = nursery, task = channel_source, argument = channel, name = "channel-watcher")
+  region.watch(nursery = nursery)
+}
+```
+
+**`crashed` = rebuild the session; `failed` = stop loudly.** A panic is the runtime telling you a
+handle died under it, which a reconnect fixes; a typed throw is the program's own anticipated failure —
+a revoked token, config drift — which no amount of reconnecting will.
+
+The install sites decide the rest, by the general rule in [Durable
+execution]({docs}/{currentVersion}/concepts/durable-execution#what-a-replay-rebuilds-and-what-it-keeps):
+everything inside the scope is rebuilt per attempt, everything above it survives. So a pure-Katari
+provider with no process-local handle — an HTTP-only model provider — belongs **outside**, where it is
+not needlessly re-established, and so does a config-error sink, so a bad configuration stops rather
+than loops.
+
+Be precise about the cost, because it is easy to talk yourself out of: everything inside the scope is
+rebuilt, and for the common resident that **includes the desk's state**. A desk cannot simply be moved
+above the scope to save it — a clause that runs a model turn or sends on the gateway performs requests
+the providers _inside_ the scope serve, so hoisted it typechecks and then quietly escalates those
+requests out of the program (see the rule above; confirm any hoist by diffing `check`'s escalation
+report, not by the check passing). A stateful desk that only counts or accumulates plain values can be
+hoisted; one that talks to a model or a chat surface cannot, and its state has to be persisted in the
+[store]({docs}/{currentVersion}/guides/store) or carried across an app-level proxy request pair the
+supervised block serves. And whatever you hoist, hoist its consumer with it — a collecting desk above
+the scope whose closing fiber is inside accumulates into a window nobody will ever close.
 
 ## Where to go next
 

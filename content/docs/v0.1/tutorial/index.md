@@ -21,8 +21,8 @@ By the end you have:
 - a model wired in with **one `use` line**, swappable for another provider in one line;
 - the conversation history kept as **handler state**: a typed value in your program, not
   a bolted-on database;
-- a bot **deployed** to your runtime, serving a channel until you cancel it — and
-  surviving a runtime restart mid-conversation.
+- a bot **deployed** to your runtime, serving a channel until you cancel it, its
+  conversation held as durable run state.
 
 Each chapter picks up the previous chapter's file and evolves it, and each shows the
 complete code, so you can rebuild the project at any point without hunting through diffs.

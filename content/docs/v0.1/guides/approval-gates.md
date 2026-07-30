@@ -189,8 +189,12 @@ agent post_public(text: string) -> string {
     )
     match (read_form(answer = answer, body_key = "text")) {
       case granted(values => values) -> {
-        discord.try_send(channel = public_channel(), text = kept_text(values = values, key = "text", fallback = text))
-        core_message(source = "gate", content = "(approved — posted, in the wording the operator submitted; it may differ from your draft.)")
+        // `try_send` answers with its OUTCOME, and this gate reports on its own send — so it folds
+        // the outcome rather than claiming "posted" for a post the channel never received.
+        match (discord.try_send(channel = public_channel(), text = kept_text(values = values, key = "text", fallback = text))) {
+          case discord.delivered(_) -> core_message(source = "gate", content = "(approved — posted, in the wording the operator submitted; it may differ from your draft.)")
+          case discord.dropped(reason => reason) -> core_message(source = "gate", content = f"(approved, but nothing was posted: ${reason}.)")
+        }
       }
       case refused(reason => reason) -> refusal_note(what = what, reason = reason)
     }
@@ -291,10 +295,12 @@ have complained.
 
 The action a gate runs **after** the operator approved is a real-world call, and it can fail on input
 the _operator themselves_ typed — a malformed timestamp in an edited event, a Gmail 400 on a hand-fixed
-draft. `region.crashed` will not save you here: it reports a fiber's **panic**, per fiber, but a
-`throw` listed in the ceiling is simply re-emitted at the `watch` and served by whatever handler sits
-above it. In a resident that is the session's supervisor — so one bad calendar edit would restart the
-whole system and lose every conversation.
+draft. Neither region event saves you here. `region.crashed` reports a fiber's **panic**; an uncaught
+`throw` never crosses the region as a throw at all — the `watch` boundary **traps** it and delivers it
+as the typed `region.failed` event, carrying the fiber's name and the thrown value as `unknown`. So
+nothing unwinds the supervisor, but nothing useful reaches it either: it learns that a gate died, not
+which conversation was waiting on the answer, and not whether this particular failure means stop or
+carry on. One clause, one policy, every gate.
 
 The containment is app-side, and it belongs in the **spawn handler**, where one guard covers every
 gate:

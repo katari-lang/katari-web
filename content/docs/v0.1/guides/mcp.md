@@ -78,7 +78,7 @@ agent main(url: string, task: string) -> string with io {
   )
   let tools : mcp.toolbox[mcp.scope] = use mcp.provide[mcp.scope](url = url, auth = mcp.headers(values = record.empty()))
   ai.infer_with_tools(
-    history = [types.turn(role = "user", text = task, files = [])],
+    history = [types.turn(role = types.user_role(), text = task, files = [])],
     tools = record.values(target = tools),
     max_steps = 8,
   )

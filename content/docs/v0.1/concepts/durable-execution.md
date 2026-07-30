@@ -156,6 +156,46 @@ as a typed `throw`, so the error stays typed end to end. Wrap `time.watch`'s del
 `replay.forever` plus a converter and you have a daemon that survives transient failures
 with flat durable state.
 
+### What a replay rebuilds, and what it keeps
+
+A replay provider is ordinary Katari — a `forever` loop whose body **delegates** the rest of the
+block once per attempt. Nothing unwinds the enclosing agent's frame, which gives the base rule:
+
+> State installed _above_ the replay scope lives in the caller's frame and survives every attempt;
+> everything the supervised block installs is rebuilt per attempt.
+
+A provider installed inside is therefore re-established each time — exactly what you want when the
+thing being rebuilt is a connection whose handle went stale. And a stateful `var` handler could in
+principle be hoisted above the `use` to keep its state across replays. But that hoist has a strict
+precondition:
+
+> **A handler may be hoisted above a supervision boundary only if its body performs nothing that is
+> served inside that boundary** — otherwise the requests it performs escape the program.
+
+A handler that only keeps a count hoists safely. A desk whose clause runs a model turn
+(`ai.infer_step`) or posts on a chat gateway (`discord.connection`) does not: the provider serving it
+lives _inside_ the scope, so above the scope nothing answers, and the request travels out of the
+program to park as an escalation waiting for a human instead of reaching the model.
+
+**A passing `katari check` does not validate a hoist.** The mistake typechecks — the row is satisfied
+by letting the request escalate. What exposes it is the **escalation report** `check` prints, read as a
+capability diff: hoisting a model desk adds a line to it.
+
+```text
+  escalates: ai.infer_step, prelude.throw[...], io
+```
+
+`ai.infer_step` there means every model turn now leaves the program. Diff the report across the move;
+if a hoist added a request, put the handler back.
+
+For the common resident — a desk that talks to a model or a chat gateway — that settles it: **its
+state genuinely is rebuilt per attempt.** Keeping it across a restart means persisting it in the
+[store]({docs}/{currentVersion}/guides/store), or introducing an app-level request pair the supervised
+block serves as a proxy. Either way, the state and whatever consumes it must end up on the same side
+of the boundary: hoist a collecting desk but leave the fiber that _closes_ its window inside, and the
+rebuilt fiber re-arms on the next occurrence while the surviving entries pile up in a window nobody
+will ever close.
+
 ## Finalizers
 
 ```katari

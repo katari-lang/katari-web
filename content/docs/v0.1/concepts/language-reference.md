@@ -298,6 +298,37 @@ agent nullable(value: string | null) -> string {
 }
 ```
 
+A bare name in the last arm binds **everything the earlier arms did not cover**, narrowed to exactly
+that residual — so it carries the residual's fields and goes wherever the residual's type is accepted,
+with no destructure-and-rebuild:
+
+```katari
+data alpha(x: integer)
+data beta(x: integer, y: integer)
+data gamma(x: integer)
+type shape = alpha | beta | gamma
+
+agent takes_beta(value: beta) -> integer { value.y }
+agent takes_beta_or_gamma(value: beta | gamma) -> integer { value.x }
+
+agent one_left(value: alpha | beta) -> integer {
+  match (value) {
+    case alpha(_) -> 0
+    case rest -> takes_beta(value = rest) + rest.y   // residual is `beta`: its fields, its type
+  }
+}
+
+agent two_left(value: shape) -> integer {
+  match (value) {
+    case alpha(_) -> 0
+    case rest -> takes_beta_or_gamma(value = rest) + rest.x   // residual is `beta | gamma`
+  }
+}
+```
+
+This is what makes "handle these, pass the rest on" a one-liner — the shape a `prelude.throw` guard
+uses to fold the failures it owns and re-raise the others as `prelude.throw(error = rest)`.
+
 ```katari
 agent by_type(value: unknown) -> string {
   match (value) {
