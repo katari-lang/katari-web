@@ -164,16 +164,20 @@ block once per attempt. Nothing unwinds the enclosing agent's frame, which gives
 > State installed _above_ the replay scope lives in the caller's frame and survives every attempt;
 > everything the supervised block installs is rebuilt per attempt.
 
-A provider installed inside is therefore re-established each time — exactly what you want when the
-thing being rebuilt is a connection whose handle went stale. And a stateful `var` handler could in
-principle be hoisted above the `use` to keep its state across replays. But that hoist has a strict
-precondition:
+A provider installed inside is therefore re-established each time. Sometimes that is exactly the
+point — an attempt that must start from fresh setup, a new idempotency key, a credential re-resolved
+after a rotation. Sometimes it is pure cost, in which case the provider belongs above the scope. What
+it is _never_ for is keeping an FFI reference alive: a call that takes the remote name and the
+credential has nothing to re-establish, which is the rule in
+[FFI sidecars]({docs}/{currentVersion}/guides/ffi-sidecars#what-may-cross-the-boundary). A stateful
+`var` handler, meanwhile, could in principle be hoisted above the `use` to keep its state across
+replays — but that hoist has a strict precondition:
 
 > **A handler may be hoisted above a supervision boundary only if its body performs nothing that is
 > served inside that boundary** — otherwise the requests it performs escape the program.
 
 A handler that only keeps a count hoists safely. A desk whose clause runs a model turn
-(`ai.infer_step`) or posts on a chat gateway (`discord.connection`) does not: the provider serving it
+(`ai.infer_step`) or posts on a chat surface (`discord.credential`) does not: the provider serving it
 lives _inside_ the scope, so above the scope nothing answers, and the request travels out of the
 program to park as an escalation waiting for a human instead of reaching the model.
 
@@ -188,8 +192,8 @@ capability diff: hoisting a model desk adds a line to it.
 `ai.infer_step` there means every model turn now leaves the program. Diff the report across the move;
 if a hoist added a request, put the handler back.
 
-For the common resident — a desk that talks to a model or a chat gateway — that settles it: **its
-state genuinely is rebuilt per attempt.** Keeping it across a restart means persisting it in the
+For the common resident — a desk that talks to a model or a chat surface — that settles it: **its
+state genuinely is rebuilt per attempt.** Keeping it across the replays means persisting it in the
 [store]({docs}/{currentVersion}/guides/store), or introducing an app-level request pair the supervised
 block serves as a proxy. Either way, the state and whatever consumes it must end up on the same side
 of the boundary: hoist a collecting desk but leave the fiber that _closes_ its window inside, and the

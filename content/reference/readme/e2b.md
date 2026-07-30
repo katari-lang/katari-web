@@ -51,7 +51,7 @@ file, and an AI loop's result-file collection finds it and inlines a chart for t
 import e2b
 import discord
 
-agent post_the_chart(channel: string) -> discord.send_outcome with discord.connection | e2b.session | io | prelude.throw[e2b.sandbox_failure | discord.auth_error] {
+agent post_the_chart(channel: string) -> discord.send_outcome with discord.credential | e2b.session | io | prelude.throw[e2b.sandbox_failure | discord.auth_error] {
   discord.try_send(
     channel = channel,
     text = "here it is",

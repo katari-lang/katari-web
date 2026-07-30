@@ -69,7 +69,7 @@ request ask_operator(prompt: string, controls: array[discord.control]) -> discor
 
 // What a GATE fiber may do: ask, then act. (Type synonyms take no docs.)
 type gate_ceiling =
-  ask_operator | core_message | admit_worker | discord.connection | io
+  ask_operator | core_message | admit_worker | discord.credential | io
   | prelude.throw[discord.discord_error | env.missing_secret]
 
 @"FORK a gate: run @task@ — one crossing's whole question-and-consequence — as a fiber, and answer the

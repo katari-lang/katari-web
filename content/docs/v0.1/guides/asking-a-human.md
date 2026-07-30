@@ -21,7 +21,7 @@ agent ask(
   channel: string,
   prompt: string,
   controls: array[control],
-) -> answer with connection | io | prelude.throw[discord_error]
+) -> answer with credential | io | prelude.throw[discord_error]
 ```
 
 That split is the whole reason a question is safe to ask in the middle of some other work.
@@ -329,8 +329,9 @@ gates]({docs}/{currentVersion}/guides/approval-gates).
 - **At most once, and that is the honest contract.** The wait rides one external call, so a runtime
   restart while a question is open interrupts it as a catchable `panic` and the posted controls go
   stale. That is the designed outcome, not a defect to absorb: let the panic reach your supervisor and
-  ask again — whoever wanted the answer wants it still. Inventing an answer for an interaction that
-  never landed is the one thing that must not happen.
+  **ask again** — whoever wanted the answer wants it still, and a fresh ask opens its own connection
+  and posts its own question, so asking again is the whole of the recovery. Inventing an answer for an
+  interaction that never landed is the one thing that must not happen.
 
 ## Twins, and where they diverge
 
@@ -348,7 +349,9 @@ fails on any difference not declared with a reason. The ones a program sees:
   call per message. It is **not an identity** either way — self-chosen and not unique — so code that
   must read the same on both keeps its logic on `author` / `by`.
 - **The provider's credentials** — Slack takes two (`bot_source` for the `xoxb-…` Web API token,
-  `app_source` for the `xapp-…` socket token); Discord's gateway takes one, `source`.
+  `app_source` for the `xapp-…` socket token); Discord takes one, `source`. Either way the provider
+  only **serves** those credentials — it connects nothing, and each call opens what it needs for its
+  own lifetime ([why]({docs}/{currentVersion}/guides/ffi-sidecars#what-may-cross-the-boundary)).
 - **`caps.post_text`** — Slack only: it caps a posted message's text (40000) separately from a block's
   (3000), so the two planes need two numbers. Discord's single 2000 governs both.
 - **Error classification** — both raise the same two constructors, `auth_error` and `api_error`, but

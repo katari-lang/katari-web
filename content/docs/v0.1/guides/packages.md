@@ -145,8 +145,8 @@ request, and type is documented in the [reference](/packages).
 
 - **ai** — a provider-agnostic AI tool-calling loop: one `infer_step` seam with interchangeable
   Anthropic, Gemini, and OpenAI providers.
-- **discord** — a discord.js gateway client: a connection provider, watch / send agents, and file
-  attachments in both directions (ships an FFI sidecar).
+- **discord** — a discord.js gateway client: a bot-token provider, watch / send / ask agents, and
+  file attachments in both directions (ships an FFI sidecar).
 - **e2b** — run Python in a persistent e2b sandbox as a tool (ships an FFI sidecar).
 - **fleet** — the durable **desired set** behind a fiber fleet, and its difference against the live
   nursery roster; performs only store operations, so there is nothing to configure.
@@ -161,8 +161,8 @@ request, and type is documented in the [reference](/packages).
   store, split into a per-turn summary layer and full notes read back on request.
 - **persona** — a character as an ordered set of layers: assemble one role's per-turn injection note,
   and rewrite one layer under a hard cap.
-- **slack** — a Slack bot capability over Socket Mode: watch channel messages, post replies
-  (ships an FFI sidecar).
+- **slack** — a Slack bot capability over Socket Mode: a two-token provider, watch channel messages,
+  post replies, ask with Block Kit controls (ships an FFI sidecar).
 - **tavily** — web search as a tool over the Tavily API — pure Katari, no sidecar.
 - **web** — fetch a web page as a tool over `http.fetch` — pure Katari, no key.
 
