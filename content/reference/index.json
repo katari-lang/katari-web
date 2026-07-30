@@ -2,7 +2,7 @@
   "packages": [
     {
       "name": "prelude",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "modules": [
         "prelude",
         "prelude.array",

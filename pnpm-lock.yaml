@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@katari-lang/language':
-        specifier: github:katari-lang/katari#3de3aa87a3300a16e03f0fcd04bff49048580c43&path:typescript/language
-        version: https://codeload.github.com/katari-lang/katari/tar.gz/3de3aa87a3300a16e03f0fcd04bff49048580c43#path:typescript/language
+        specifier: github:katari-lang/katari#34fcea417943f6ff7a1208076d8b42f37b5dc923&path:typescript/language
+        version: https://codeload.github.com/katari-lang/katari/tar.gz/34fcea417943f6ff7a1208076d8b42f37b5dc923#path:typescript/language
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
@@ -761,9 +761,9 @@ packages:
   '@jridgewell/trace-mapping@0.3.9':
     resolution: {integrity: sha512-3Belt6tdc8bPgAtbcmdtNJlirVoTmEb5e2gC94PnkwEW9jI6CAHUeoG85tjWP5WquqfavoMtMwiG4P926ZKKuQ==}
 
-  '@katari-lang/language@https://codeload.github.com/katari-lang/katari/tar.gz/3de3aa87a3300a16e03f0fcd04bff49048580c43#path:typescript/language':
-    resolution: {path: typescript/language, tarball: https://codeload.github.com/katari-lang/katari/tar.gz/3de3aa87a3300a16e03f0fcd04bff49048580c43}
-    version: 0.1.0
+  '@katari-lang/language@https://codeload.github.com/katari-lang/katari/tar.gz/34fcea417943f6ff7a1208076d8b42f37b5dc923#path:typescript/language':
+    resolution: {path: typescript/language, tarball: https://codeload.github.com/katari-lang/katari/tar.gz/34fcea417943f6ff7a1208076d8b42f37b5dc923}
+    version: 0.1.1
 
   '@mdx-js/mdx@3.1.1':
     resolution: {integrity: sha512-f6ZO2ifpwAQIpzGWaBQT2TXxPv6z3RBzQKpVftEWN78Vl/YweF1uwussDx8ECAXVtr3Rs89fKyG9YlzUs9DyGQ==}
@@ -3797,7 +3797,7 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
-  '@katari-lang/language@https://codeload.github.com/katari-lang/katari/tar.gz/3de3aa87a3300a16e03f0fcd04bff49048580c43#path:typescript/language': {}
+  '@katari-lang/language@https://codeload.github.com/katari-lang/katari/tar.gz/34fcea417943f6ff7a1208076d8b42f37b5dc923#path:typescript/language': {}
 
   '@mdx-js/mdx@3.1.1':
     dependencies:
