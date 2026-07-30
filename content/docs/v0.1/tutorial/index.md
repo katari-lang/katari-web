@@ -58,5 +58,12 @@ complete code, so you can rebuild the project at any point without hunting throu
 Every idea the bot leans on — delegation, effects, escalation, durable runs, schemas —
 has a fuller treatment under
 [Concepts]({docs}/{currentVersion}/concepts/agents-and-delegation); the tutorial links
-out as it goes. Start with
-[Hello, Agent]({docs}/{currentVersion}/tutorial/hello-agent).
+out as it goes.
+
+The path does not stop at chapter 5.
+[A second agent: desks and mail]({docs}/{currentVersion}/guides/second-agent) grows the finished
+bot into a system with more than one agent on the bus, and
+[the examples repository](https://github.com/katari-lang/examples) holds four complete deployable
+projects that begin where chapter 5 ends — including two with no Discord in them at all.
+
+Start with [Hello, Agent]({docs}/{currentVersion}/tutorial/hello-agent).

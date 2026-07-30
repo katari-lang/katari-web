@@ -95,6 +95,20 @@ spellings, all legal in the same position:
 
 Omitting `with` entirely on a declaration lets the checker infer the row.
 
+A row that outgrows its line may **wrap**: a newline is legal before `with`, and after any `|` — in
+an effect row and in a union return type alike. The body's `{` must still sit on the same line as the
+signature's last token, so there is no Allman-brace form.
+
+```katari
+@"A row too long for one line."
+agent broadcast(message: string) -> null
+  with post |
+    prelude.throw[string] |
+    io {
+  post(message = message)
+}
+```
+
 ### Anonymous agents, agents as values, partial application
 
 ```katari

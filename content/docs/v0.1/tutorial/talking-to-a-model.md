@@ -19,7 +19,7 @@ Your `katari.toml`'s `[dependencies]` section now reads:
 ```toml
 [dependencies]
 registry = "https://raw.githubusercontent.com/katari-lang/katari-registry/main"
-snapshot = "snapshot-2026-07-29-56e87e45"
+snapshot = "snapshot-2026-07-30-f55993f8"
 packages = ["ai"]
 ```
 

@@ -13,7 +13,7 @@ of. It is the project's own memory.
 ## The store, scoped
 
 **Keys are ambient.** There is no store handle to pass around: an operation names a path-like key
-and nothing else, and *where* that key lands is decided by the **environment** rather than by a
+and nothing else, and _where_ that key lands is decided by the **environment** rather than by a
 value threaded through the code. `store.scope` is the store's `cd` — installed with `use`, it
 prefixes every operation in the rest of the block, and nested scopes accumulate. An operation no
 scope catches is project-root access.
@@ -28,7 +28,7 @@ agent note(text: string) -> null with store.get | store.set | store.delete | sto
 
 A scope catches all four operations and re-performs each one outward with the prefix applied, so
 installing it puts all four in your row even when the block only writes — the row says what the
-*block* may pass on, not what it happens to use.
+_block_ may pass on, not what it happens to use.
 
 An agent dispatched inside a scope lives in that subtree **by construction** — it holds no value it
 could widen, and there is deliberately no `..`. A path is `/`-separated segments of lowercase

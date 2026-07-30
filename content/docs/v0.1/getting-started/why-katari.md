@@ -184,7 +184,8 @@ after the block ended — and it fails the same way, because the scope marker ri
 type and only `provide` discharges it:
 
 ```text
-K3001: Left effect performs a request not present in the right effect: prelude.mcp.scope
+K3001: The actual effect performs `prelude.mcp.scope`, which the expected effect does not allow.
+Either name that request in the expected `with` row, or serve it here with a `use handler` clause.
   expected: throw[auth_error | server_error | call_error] | io
   actual:   throw[auth_error | server_error | call_error] | scope | io
 ```
@@ -195,10 +196,10 @@ code may do, and the compiler holds every caller to it.
 
 ## What Katari is not
 
-- **It is not production-ready.** v0.1.0 is pre-1.0 and breaking changes land between
-  releases. It is a good fit for hobby projects, internal tools, and experiments where you are
-  willing to be told "this changed". `v1.0.0` is the stability line; until then, do not put
-  something you cannot afford to migrate on it.
+- **Its API surface is not frozen.** 0.1 is released and usable, but it is pre-1.0: a minor
+  version may still ship breaking changes. Pin what you deploy — `katari.lock` and the runtime
+  image tag exist for exactly that — and take the upgrade when you have time to read what
+  moved. `v1.0.0` is the line past which that stops being a cost you plan for.
 - **It is not for low-latency work.** Every step is persisted before the run proceeds. That is
   the whole point when a run must survive a restart, and it is pure overhead when the budget is
   a few milliseconds. Serve your latency-critical path directly and let Katari orchestrate

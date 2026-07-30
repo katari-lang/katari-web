@@ -13,10 +13,16 @@ import { getDoc, getNavigation, latestVersion, stripMarkdown } from "../lib/cont
 import { listReferencePackages } from "../lib/reference/data";
 import { packageTagline } from "../lib/reference/tagline";
 import { siteConfig } from "../lib/site-config";
+import { EXAMPLES_INTRO, EXAMPLES_REPOSITORY_URL, EXAMPLE_PROJECTS } from "../worker/examples";
 import { firstSentence } from "../worker/first-sentence";
 
 const base = siteConfig.url.replace(/\/$/, "");
 const version = latestVersion();
+
+// The generated reference is also where the released toolchain version is readable: `prelude` is
+// the compiler's own standard library, so it carries the release the rest of these docs describe.
+const packages = listReferencePackages();
+const releaseVersion = packages.find((entry) => entry.name === "prelude")?.version;
 
 function oneLine(text: string): string {
   return text.replace(/\s+/g, " ").trim();
@@ -33,7 +39,7 @@ const lines: string[] = [
   "",
   `> ${siteConfig.description} Agents are functions, the effects they may perform are visible in their types, and execution is durable — a run survives restarts and can park on a human's answer for days.`,
   "",
-  `Katari is under construction (pre-1.0). It is a good fit for hobby projects and experiments; breaking changes land between releases, so hold off on production workloads until v1.0.0. The documentation below is ${version}, the current release.`,
+  `Status: Katari 0.1 is released and pre-1.0${releaseVersion ? ` (latest release ${releaseVersion})` : ""}. The language, toolchain, and runtime are usable today, but the API surface is not frozen: a minor version may still ship breaking changes. Pin what you deploy — the CLI's lockfile and the runtime image tag exist for exactly that. The documentation below is the ${version} line.`,
   "",
   "Every page listed here also serves its raw markdown through the documentation MCP server at " +
     `${base}/mcp — a stateless Streamable HTTP endpoint with four tools: onboarding, search, ` +
@@ -56,8 +62,21 @@ for (const section of getNavigation(version).sections) {
   lines.push("", `## ${section.label}`, "", ...bullets);
 }
 
+// Examples — the one section that is not this site. A reader who can open a whole working program
+// should, so these get their own section rather than a mention inside a page's prose.
+lines.push(
+  "",
+  "## Examples",
+  "",
+  `${oneLine(EXAMPLES_INTRO)} Repository: ${EXAMPLES_REPOSITORY_URL}`,
+  "",
+  ...EXAMPLE_PROJECTS.map(
+    (example) =>
+      `- [${example.name}](${example.url}): ${oneLine(example.useCase)} ${oneLine(example.teaches)}`,
+  ),
+);
+
 // Packages — the generated API reference, one line per package.
-const packages = listReferencePackages();
 if (packages.length > 0) {
   const bullets = packages.map((entry) => {
     // `prelude` ships no README (it is the language's own standard library, documented by the

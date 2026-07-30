@@ -7,9 +7,9 @@ Katari is a programming language for **orchestration**: the layer of a system th
 which agent runs, with what input, what happens when one asks a human a question, and what
 survives a crash. You write that layer as a typed program; a persistent runtime executes it.
 
-> **Katari is under construction.** It is a great fit for hobby projects and experiments, but
-> breaking changes land between releases — hold off on production workloads for now. `v1.0.0`
-> is the stability line.
+> **Katari 0.1 is released, and pre-1.0.** The language, toolchain, and runtime are usable
+> today, but the API surface is not frozen: a minor version may still ship breaking changes.
+> Pin what you deploy — `katari.lock` and the runtime image tag exist for exactly that.
 
 Three ideas carry the whole language:
 
@@ -65,6 +65,8 @@ effect row, the schemas, the join.
 
 ## Where to go next
 
+- [Why Katari]({docs}/{currentVersion}/getting-started/why-katari) — why orchestration is a
+  language problem, and what a text language buys that a node graph cannot.
 - [Installation]({docs}/{currentVersion}/getting-started/installation) — the CLI and a local
   runtime.
 - [Quickstart]({docs}/{currentVersion}/getting-started/quickstart) — a project running in
@@ -73,3 +75,7 @@ effect row, the schemas, the join.
   and uses your agents as tools.
 - [Concepts]({docs}/{currentVersion}/concepts/agents-and-delegation) — the execution model,
   one idea at a time.
+- [Examples](https://github.com/katari-lang/examples) — four complete, deployable resident
+  agents you can clone and run: a GitHub release monitor with no model in it, a Slack standup
+  bot with a human-approved digest, a two-desk Discord concierge, and a Gmail-to-calendar
+  butler behind an approval gate.

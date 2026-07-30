@@ -212,7 +212,10 @@ Three agents, and you have met every idea in them:
   clause you know, and the `panic` clause for failures no one anticipates typing. The
   serving order matters and says what it means: providers first, `serve_observations`
   inside them (its turns need the model), and the region innermost (its fibers' reports
-  need the server).
+  need the server). That ordering is not taste. It falls out of one rule — _if something's
+  body performs request R, then R's handler must be installed above it_ — which is the whole
+  subject of [Handler geometry]({docs}/{currentVersion}/guides/handler-geometry), the page to
+  read the first time you want to move one of these `use` lines.
 - **`resident` owns the region.** `use region.provide[bot_scope, bot_ceiling]` opens the
   nursery for the rest of the block; `fork` starts the watcher — named, so the runtime can
   tell you about it — and `region.watch` re-emits the fibers' escalations forever: each
@@ -298,19 +301,37 @@ to a dispatcher: one sequential handler holding a `record` of conversations keye
 addressee, every event carrying whose turn it is, agent-to-agent mail as a micro-fiber
 whose whole body is one perform — queued behind the current turn by the region itself.
 
-That system exists, and the next thing to read is the small version of it:
-[**concierge**](https://github.com/katari-lang/examples/tree/main/concierge) — two agents on
-one bus, where a public _face_ answers the community while its owner curates what it may know
-from a private channel, and the face's **tool set is its privacy boundary** (no tool it holds
-can write a note, so nothing it says can come from anywhere but what was published). One
-region, two desks, mail as a micro-fiber: every idea in it is one you now know. Read it as the
-sixth chapter, alongside its
-[three siblings](https://github.com/katari-lang/examples) — a release monitor with no model at
-all, a Slack standup bot whose digest a human approves, and a Gmail-to-calendar butler that
-writes nothing without a click.
+That system exists twice — as a page and as a program — and they are best read in that order.
+
+**The sixth chapter, in everything but name, is
+[A second agent: desks and mail]({docs}/{currentVersion}/guides/second-agent).** It picks up the
+resident you just built, adds one more agent to it, and derives the two rules that let several
+agents share one bus: a **desk** is one request plus one sequential handler, and **mail** between
+desks is a fiber whose whole body is one perform — never a direct call, for a reason the compiler
+will show you. It is deliberately package-free, so the mechanism is the only thing on the page.
+
+**Then read the program.**
+[**concierge**](https://github.com/katari-lang/examples/tree/main/concierge) is that guide's office
+with real packages on the bus: a public _face_ answers the community while its owner curates what it
+may know from a private channel, and the face's **tool set is its privacy boundary** — no tool it
+holds can write a note, so nothing it says can come from anywhere but what was published. Its desks
+run `ai.advance_desk`, the per-arrival form of the observation server you just installed, so the
+guide's mail bridge is the one piece that carries you from this chapter into that file.
+
+It has [three siblings](https://github.com/katari-lang/examples), worth knowing about even if you
+never build a Discord bot again: **release-watch**, a GitHub release monitor with no model in it at
+all — the durable-resident skeleton alone; **standup-scribe**, a Slack standup bot whose digest a
+human approves before it posts; and **inbox-butler**, Gmail triage that proposes calendar events and
+writes nothing without a click. All four are complete deployable projects that compile in CI against
+the published CLI, and each README states plainly what a runtime restart costs it — the part a
+tutorial cannot teach you, because it only shows up in a program that has been left running.
 
 From here:
 
+- add the second agent with
+  [A second agent: desks and mail]({docs}/{currentVersion}/guides/second-agent), and the rule
+  its install order rests on in
+  [Handler geometry]({docs}/{currentVersion}/guides/handler-geometry);
 - widen the bot's reach with [MCP]({docs}/{currentVersion}/guides/mcp) — hand it every
   tool of any MCP server without writing code — or let it receive the outside world's
   pushes with [Webhooks]({docs}/{currentVersion}/guides/webhooks) and

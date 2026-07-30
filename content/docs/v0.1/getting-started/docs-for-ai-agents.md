@@ -68,8 +68,10 @@ curl -s -X POST https://katari-lang.dev/mcp \
 ## The tools
 
 - **`onboarding`** — start here with no arguments. Returns the maturity caveat, "What is
-  Katari?" and the Quickstart in full, and a map of every documentation page with its
-  description. One call is enough context to write a first program and know what to read next.
+  Katari?" and the Quickstart in full, the four complete
+  [example projects](https://github.com/katari-lang/examples), and a map of every documentation
+  page with its description. One call is enough context to write a first program and know what
+  to read next.
 - **`search`** — one query string over the docs **and** the package API. Up to ten results, each
   with a path, a title, whether it is a page or a declaration, and a snippet.
 - **`read_doc`** — one page as raw markdown, by the path a search result or the page map gave
@@ -92,11 +94,11 @@ pages you are reading can never disagree.
 
 ## /llms.txt
 
-[`/llms.txt`](/llms.txt) is the same map without the protocol: every documentation page and
-package reference page as a URL with a one-line description, in navigation order. It is
-generated from the same content at build time, so it does not drift. Point anything that reads
-a site rather than calling tools at it — and note that each page has a **Copy** button that
-yields its raw markdown, which is what `read_doc` returns.
+[`/llms.txt`](/llms.txt) is the same map without the protocol: every documentation page, every
+package reference page, and the four example projects, as URLs with a one-line description each,
+in navigation order. It is generated from the same content at build time, so it does not drift.
+Point anything that reads a site rather than calling tools at it — and note that each page has a
+**Copy** button that yields its raw markdown, which is what `read_doc` returns.
 
 ## Related
 

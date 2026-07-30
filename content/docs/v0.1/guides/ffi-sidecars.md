@@ -233,7 +233,7 @@ katari-package-e2b/
   "type": "module",
   "dependencies": {
     "@e2b/code-interpreter": "^1.5.0",
-    "@katari-lang/port": "0.1.0"
+    "@katari-lang/port": "0.1.1"
   }
 }
 ```

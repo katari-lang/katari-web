@@ -61,10 +61,15 @@ katari check
 type to `integer` and it answers with exactly where and why:
 
 ```text
-bot:1:1 K3001: String layers are incompatible
+bot:1:1 K3001: The actual type can be a string, which the expected type does not admit
   expected: integer
   actual:   string
 ```
+
+Every diagnostic carries a position and a `K` code, and every code is listed — with what it
+usually means and what to do about it — in
+[Error codes]({docs}/{currentVersion}/toolchain/error-codes). Keep it open in a tab; K3001, the
+one above, is the mismatch you will meet most.
 
 Put the return type back to `string` before moving on.
 
@@ -158,4 +163,8 @@ the signature says so —
 
 For the fuller story of this chapter:
 [Agents and Delegation]({docs}/{currentVersion}/concepts/agents-and-delegation) and
-[Types and Schemas]({docs}/{currentVersion}/concepts/types-and-schemas).
+[Types and Schemas]({docs}/{currentVersion}/concepts/types-and-schemas). And when you catch
+yourself guessing at syntax — this language is in nobody's training data, yours or your
+assistant's — the [Language reference]({docs}/{currentVersion}/concepts/language-reference) is
+every legal form on one page, including a closing list of the things Katari deliberately does
+not have.

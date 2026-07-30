@@ -120,7 +120,8 @@ leans on it hard: see
 Look at `main`'s signature: `agent main() -> string with ask`. The `with` clause is the
 agent's **effect row** — the requests it may perform. The compiler checks it: declare a
 row that omits a performed request and `katari check` rejects the agent, naming exactly
-what leaked (`Left effect performs a request not present in the right effect: bot.ask`).
+what leaked (``The actual effect performs `bot.ask`, which the expected effect does not allow``)
+and the two edits that close it.
 Leave the row off entirely and the compiler infers it. Spell it out on the agents you
 mean others to call — it is the half of the contract that schemas cannot carry: not just
 what goes in and out, but _what this agent may ask for_ along the way.

@@ -55,7 +55,9 @@ let response = http.fetch(
   url = "https://api.example.com/lookup?key=" ++ key,   // a secret in a public position
   ...
 
-profile:3:18 K3001: Private attribute cannot be a subtype of public attribute
+profile:3:18 K3001: The actual value is private (a secret), but this position accepts only a
+public value — a secret may not flow out of the private context that observes it. Mark the
+position `of private` too, or keep the secret out of it.
   expected: public
   actual:   private
 ```

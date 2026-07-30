@@ -22,6 +22,7 @@ cd hello
   + src/hello.ktr
 Initialized hello
 hint: docker compose up -d && katari apply && katari run hello.main
+hint: Katari is pre-1.0: a minor version may still break you, so pin what you deploy — katari.lock and the runtime image tag are both in this project.
 ```
 
 `katari.toml` names the package and points at a runtime (`http://localhost:3000` by default).
@@ -65,10 +66,15 @@ katari check
 ```
 
 ```
-OK — 16 module(s), no errors
+OK — 21 module(s), no errors
+Entry points (requests that escalate to the run root):
+  hello.main
+    escalates: hello.ask_name
 ```
 
-`check` compiles locally and reports diagnostics; nothing leaves your machine. `apply`
+`check` compiles locally and reports diagnostics; nothing leaves your machine. The last block is
+the **escalation report** — the requests that would reach a human, per entry point. Here it names
+the one you are about to answer. `apply`
 compiles too, then uploads the result to the runtime as an immutable **snapshot**:
 
 ```sh
@@ -78,7 +84,7 @@ katari apply
 ```
 Creating project hello
 Deploying hello to http://localhost:3000
-  16 changed, 0 unchanged, 0 removed
+  21 changed, 0 unchanged, 0 removed
   + hello
   + prelude
   ...
@@ -123,7 +129,7 @@ katari ls escalations
 ```
 
 ```
-ID        RUN       REQUEST        QUESTION                         CREATED
+ID        RUN       REQUEST         QUESTION                         CREATED
 0affdd73  f51154d2  hello.ask_name  {"prompt":"What is your name?"}  2026-07-17 12:09
 ```
 

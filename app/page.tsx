@@ -12,7 +12,7 @@ export default function Home() {
     {
       icon: Network,
       title: "Agent Networks",
-      href: `/docs/${version}/getting-started`,
+      href: `/docs/${version}/concepts/agents-and-delegation`,
       description: "Compose multi-agent systems with clear delegation and communication patterns.",
     },
     {

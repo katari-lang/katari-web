@@ -7,8 +7,14 @@ describe("stripMarkdown", () => {
     expect(stripMarkdown(input)).toBe("before after");
   });
 
-  it("removes inline code", () => {
-    expect(stripMarkdown("use `foo` here")).toBe("use here");
+  it("keeps inline code text, dropping only the backticks", () => {
+    // The index exists to answer queries like `region.fork` or `katari check`, and every
+    // such identifier is written in backticks — deleting them left the index unable to
+    // find a single one.
+    expect(stripMarkdown("use `foo` here")).toBe("use foo here");
+    expect(stripMarkdown("call `region.fork` from a nursery")).toBe(
+      "call region.fork from a nursery",
+    );
   });
 
   it("extracts link text and drops URL", () => {

@@ -47,7 +47,7 @@ The `[dependencies]` section names the registry and the snapshot every package r
 ```toml
 [dependencies]
 registry = "https://raw.githubusercontent.com/katari-lang/katari-registry/main"
-snapshot = "snapshot-2026-07-29-56e87e45"
+snapshot = "snapshot-2026-07-30-f55993f8"
 packages = ["tavily"]
 ```
 
@@ -65,7 +65,7 @@ so `packages` is a flat list of names.
 
 ```sh
 katari update                                  # the registry's newest cut
-katari update snapshot-2026-07-29-56e87e45     # or a named one — including staging, and going back
+katari update snapshot-2026-07-30-f55993f8     # or a named one — including staging, and going back
 ```
 
 `update` re-pins `[dependencies].snapshot` and re-locks in one step. Then `katari check` compiles
@@ -94,8 +94,8 @@ again.
 ```toml
 [lock]
 version = 1
-snapshot = "snapshot-2026-07-29-56e87e45"
-katari_compiler = "0.1.0-rc12"
+snapshot = "snapshot-2026-07-30-f55993f8"
+katari_compiler = "0.1.1"
 
 [packages.tavily]
 source = "git"
@@ -116,7 +116,7 @@ the snapshot pin for everything else:
 ```toml
 [dependencies]
 registry = "https://raw.githubusercontent.com/katari-lang/katari-registry/main"
-snapshot = "snapshot-2026-07-29-56e87e45"
+snapshot = "snapshot-2026-07-30-f55993f8"
 packages = ["tavily", "discord"]
 
 # Develop a package against the app that uses it:
@@ -140,7 +140,7 @@ hash, the rev is the only thing pinning reproducibility.
 
 ## What is in the registry
 
-The pinned snapshot (`snapshot-2026-07-29-56e87e45`) carries thirteen packages. Every exported agent,
+The pinned snapshot (`snapshot-2026-07-30-f55993f8`) carries thirteen packages. Every exported agent,
 request, and type is documented in the [reference](/packages).
 
 - **ai** — a provider-agnostic AI tool-calling loop: one `infer_step` seam with interchangeable
@@ -170,6 +170,10 @@ request, and type is documented in the [reference](/packages).
 
 - [The tutorial's Discord bot]({docs}/{currentVersion}/tutorial/a-discord-bot) composes four of
   these packages into one app.
+- [The examples repository](https://github.com/katari-lang/examples) — four deployable projects
+  that put eight of them to work, each pinning a snapshot and compiling in CI: `web` + `discord` +
+  `fleet` in release-watch, `slack` + `ai` in standup-scribe, `discord` + `ai` + `memory` in
+  concierge, `gmail` + `google_calendar` + `ai` + `discord` in inbox-butler.
 - [FFI sidecars]({docs}/{currentVersion}/guides/ffi-sidecars) — how a package like `e2b` or
   `discord` ships TypeScript alongside its Katari source.
 - [CLI]({docs}/{currentVersion}/toolchain/cli) — `katari add`, `katari remove`, and the rest of

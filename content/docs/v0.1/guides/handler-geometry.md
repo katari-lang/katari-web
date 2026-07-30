@@ -265,20 +265,20 @@ instance of the same geometry that you can read and run, see
 [concierge](https://github.com/katari-lang/examples/tree/main/concierge): two desks, one bus,
 and the same reasoning at a quarter of the size.
 
-| Handler                                          | Position                                | Why                                                                                                                                                                                                                                               |
-| ------------------------------------------------ | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| The **core desk** (a sequential message handler) | Highest of the desks                    | The worker desk's undeliverable-mail bounce and the `crashed` / `failed` handlers all perform `core_message` from their bodies; a body reaches only handlers installed earlier, so core's must be first.                                                     |
-| The **`region.crashed`** / **`region.failed`** interpreters | Below the desks              | Their bodies mail core (`core_message`) — which the core desk above them serves. Both ride `watch`'s row, so both must be installed.                                                                                                              |
-| The **worker table** (`var workers`)             | Above the dispatcher                    | Its mutators are tools that run inside a dispatched turn, so the table must enclose the turn.                                                                                                                                                     |
-| The **ask adapter** (`ask_operator`)             | Above the desks _and_ above the `watch` | Both a desk _tool_ and a gate _fiber_ perform `ask_operator`, and a fiber's perform surfaces at `region.watch` — so the adapter must enclose the watch as well as the desks. See [Approval gates]({docs}/{currentVersion}/guides/approval-gates). |
-| The **gate bridge** (`spawn_gate`)               | Below the nursery, above the desks      | It forks into the nursery, so it needs the handle in scope; its clauses are reached from desk tools, so it must still enclose the desks.                                                                                                          |
+| Handler                                                     | Position                                | Why                                                                                                                                                                                                                                               |
+| ----------------------------------------------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The **core desk** (a sequential message handler)            | Highest of the desks                    | The worker desk's undeliverable-mail bounce and the `crashed` / `failed` handlers all perform `core_message` from their bodies; a body reaches only handlers installed earlier, so core's must be first.                                          |
+| The **`region.crashed`** / **`region.failed`** interpreters | Below the desks                         | Their bodies mail core (`core_message`) — which the core desk above them serves. Both ride `watch`'s row, so both must be installed.                                                                                                              |
+| The **worker table** (`var workers`)                        | Above the dispatcher                    | Its mutators are tools that run inside a dispatched turn, so the table must enclose the turn.                                                                                                                                                     |
+| The **ask adapter** (`ask_operator`)                        | Above the desks _and_ above the `watch` | Both a desk _tool_ and a gate _fiber_ perform `ask_operator`, and a fiber's perform surfaces at `region.watch` — so the adapter must enclose the watch as well as the desks. See [Approval gates]({docs}/{currentVersion}/guides/approval-gates). |
+| The **gate bridge** (`spawn_gate`)                          | Below the nursery, above the desks      | It forks into the nursery, so it needs the handle in scope; its clauses are reached from desk tools, so it must still enclose the desks.                                                                                                          |
 
 Read a stack this way — "what does each clause body perform, and is that handler above it?" — and the
 order stops being arbitrary.
 
 ## When the geometry is wrong
 
-There is, in v0.1.0, **no dedicated diagnostic for a misplaced handler**. A handler in the wrong
+There is, in 0.1, **no dedicated diagnostic for a misplaced handler**. A handler in the wrong
 position surfaces as an ordinary row mismatch — a **K3001** subtype error — reported at the **perform
 site**, not at the handler you moved. A body that performs a request whose handler is now below it
 leaves that request in a row where it cannot be discharged, and the checker points at the perform. The

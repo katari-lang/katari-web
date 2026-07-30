@@ -94,7 +94,9 @@ back_message(source = "front", content = content, hop = hop + 1)
 It does not compile, and the diagnostic is worth reading in full because it names the real problem:
 
 ```text
-office:33:1 K3001: Left effect performs a request not present in the right effect: office.back_message
+office:33:1 K3001: The actual effect performs `office.back_message`, which the expected effect does
+not allow. Either name that request in the expected `with` row, or serve it here with a
+`use handler` clause.
   Note: `office.back_message` is served by the handler installed at line 82, but a handler body's
   performs escalate from its own install site and reach only handlers installed ABOVE it — move that
   handler earlier, or this perform later.
@@ -348,11 +350,17 @@ Now the useful part. Delete the back desk's handler and the report changes like 
     escalates: office.back_message, io
 ```
 
-Nothing failed. The program still compiles — it just quietly grew a **question for a human**: every
-`back_message` now parks the run and waits for someone to answer it. That is the correct default (an
-unhandled request is a question, which is
+That reading depends on `office`'s row. The listing above writes it out — `agent office() -> string
+with io` — so deleting the desk does not compile at all: `back_message` no longer fits the declared
+row and `check` fails with a K3001 on the `agent office()` line, which is the outcome you want. Drop
+the `with io` and let the checker infer the row instead, and the same deletion compiles — the program
+just quietly grew a **question for a human**: every `back_message` now parks the run and waits for
+someone to answer it. That is the correct default (an unhandled request is a question, which is
 [the whole escalation model]({docs}/{currentVersion}/concepts/escalation)) and it is exactly the wrong
-thing for a bus. So the discipline for adding an agent is:
+thing for a bus.
+
+Which is the argument for spelling a composition root's row rather than inferring it — and, either
+way, for reading the report. So the discipline for adding an agent is:
 
 1. Add its request and its sequential handler.
 2. Add its addressee arm to the mail bridge's `match`.
@@ -362,6 +370,9 @@ thing for a bus. So the discipline for adding an agent is:
 
 ## Where to go next
 
+- [**concierge**](https://github.com/katari-lang/examples/tree/main/concierge) — this office with
+  real packages on the bus: two Discord desks, a mail bridge, and `ai.advance_desk` where the
+  arithmetic was. It is the shortest complete program that uses everything on this page.
 - [Handler geometry]({docs}/{currentVersion}/guides/handler-geometry) — the install-site rule this
   page leans on, and how to read a stack of handlers.
 - [Parallelism]({docs}/{currentVersion}/concepts/parallelism#regions-fork-without-join) — regions,

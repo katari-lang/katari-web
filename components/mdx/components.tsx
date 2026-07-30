@@ -5,6 +5,15 @@ import { CodeBlockPre } from "@/components/mdx/code-block-figure";
 import { DocCards, makeDocCard } from "@/components/mdx/doc-card";
 import { resolveDocHref, type MdxBuildContext } from "@/lib/mdx/resolve-href";
 
+// ルートではなく静的アセットを指すパス (`/llms.txt` 等)。next/link に渡すと
+// クライアントルーターがルートとして解決しようとして壊れるので、素の <a> で出す。
+// 判定は「最後のセグメントに拡張子があるか」。ルートの slug に `.` は使っていない。
+function isStaticAssetHref(href: string): boolean {
+  const path = href.split(/[?#]/, 1)[0] ?? "";
+  const lastSegment = path.slice(path.lastIndexOf("/") + 1);
+  return /\.[a-z0-9]+$/i.test(lastSegment);
+}
+
 function isInternalHref(href: string): boolean {
   // `/`, `./`, `../`, `#` で始まるものを内部リンク扱い (next/link 経由)。
   // それ以外 (http://, mailto:, tel: 等) は外部リンク。
@@ -17,6 +26,10 @@ function makeMdxLink(ctx: MdxBuildContext) {
   return function MdxLink({ href = "", ...rest }: ComponentProps<"a">) {
     const resolved = resolveDocHref(href, ctx);
     if (isInternalHref(resolved)) {
+      // 同一オリジンの静的ファイルは新規タブに飛ばさず、素の <a> で普通に開かせる。
+      if (isStaticAssetHref(resolved)) {
+        return <a href={resolved} {...rest} />;
+      }
       return <Link href={resolved} {...rest} />;
     }
     return <a href={resolved} target="_blank" rel="noopener noreferrer" {...rest} />;

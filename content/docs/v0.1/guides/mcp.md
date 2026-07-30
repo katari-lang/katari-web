@@ -253,7 +253,7 @@ endpoint, so for per-request resilience wrap the tool's body in a handler — th
 
 ## Trust boundary
 
-v0.1.0's MCP integration assumes the servers you connect to are **trusted**. When you consume a
+0.1's MCP integration assumes the servers you connect to are **trusted**. When you consume a
 server — through `mcp.provide`, `mcp.open`, or a `katari mcp pull` binding — its tool responses are
 decoded onto the value plane, and the runtime does not yet authenticate that a decoded value which
 looks like a callable actually originated inside your program. A malicious server could therefore, in

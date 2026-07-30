@@ -7,8 +7,11 @@ export function stripMarkdown(md: string): string {
     md
       // fenced code
       .replace(/```[\s\S]*?```/g, " ")
-      // inline code
-      .replace(/`[^`]*`/g, " ")
+      // inline code: KEEP the text, drop only the backticks. Every identifier a reader
+      // searches for — `region.fork`, `use handler`, `katari check`, a K-code — is written
+      // in backticks, so deleting these made the index unable to answer the queries it
+      // exists for.
+      .replace(/`([^`]*)`/g, "$1")
       // images
       .replace(/!\[[^\]]*]\([^)]*\)/g, " ")
       // links: [text](url) → text

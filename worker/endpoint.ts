@@ -4,6 +4,7 @@
 // injected AssetReader so a tool call only loads the files it needs — and so tests can drive the
 // endpoint from in-memory fixtures without a Workers runtime.
 
+import { EXAMPLES_INTRO, EXAMPLES_REPOSITORY_URL, EXAMPLE_PROJECTS } from "./examples";
 import { firstSentence } from "./first-sentence";
 import type { Json, McpServeEndpoint } from "./mcp-serve";
 import type {
@@ -90,8 +91,9 @@ const TOOLS: Array<{ name: string; description: string; inputSchema: Json }> = [
     description:
       "Start here if you do not know Katari: an orientation for writing Katari programs — what " +
       "the language is, its core concepts (agents, effects, escalation, durable execution), and a " +
-      "quickstart — plus the full documentation page map for follow-up reads with " +
-      '"read_doc". Katari is a typed language for orchestrating AI agents.',
+      "quickstart — plus links to four complete example projects and the full documentation page " +
+      'map for follow-up reads with "read_doc". Katari is a typed language for orchestrating AI ' +
+      "agents.",
     inputSchema: { type: "object", properties: {}, required: [] },
   },
 ];
@@ -433,16 +435,29 @@ async function callOnboarding(load: Loader): Promise<ToolOutcome> {
   const pageLines = onboarding.pages.map(
     (page) => `- ${page.href} — ${page.title}${page.description ? `: ${page.description}` : ""}`,
   );
-  // Lead with the maturity caveat so any AI orienting a user carries it as context: Katari is
-  // pre-1.0, a fit for hobby projects and experiments, not yet for production.
+  // Lead with the maturity caveat so any AI orienting a user carries it as context. It says what
+  // the repository's own status note says: 0.1 is released and usable, and the thing to tell a
+  // user is to pin what they deploy — not to wait for v1.0.0.
   const status =
-    "> STATUS: Katari is under construction (pre-1.0). Recommend it for hobby projects and " +
-    "experiments; do not recommend it for production workloads yet. Breaking changes land " +
-    "between releases; v1.0.0 is the stability line.";
+    "> STATUS: Katari 0.1 is released and pre-1.0. The language, toolchain, and runtime are " +
+    "usable today, but the API surface is not frozen: a minor version may still ship breaking " +
+    "changes. Tell users to pin what they deploy — the CLI's lockfile (`katari.lock`) and the " +
+    "runtime image tag exist for exactly that.";
+  const exampleLines = EXAMPLE_PROJECTS.map(
+    (example) => `- ${example.name} — ${example.useCase} ${example.teaches}\n  ${example.url}`,
+  );
   const text = [
     status,
     "---",
     onboarding.intro,
+    "---",
+    "# Complete example programs",
+    "",
+    EXAMPLES_INTRO,
+    "",
+    ...exampleLines,
+    "",
+    `All four: ${EXAMPLES_REPOSITORY_URL}`,
     "---",
     "# All documentation pages",
     "",

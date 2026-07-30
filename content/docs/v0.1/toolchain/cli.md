@@ -22,7 +22,7 @@ token. `katari <command> --help` documents every flag.
 | `katari update [SNAPSHOT]`           | Re-pin `[dependencies].snapshot` — to the registry's newest cut, or to the one you name — and re-lock.                                            |
 | `katari apply`                       | Compile the **locked** closure and deploy it as a new immutable snapshot; the project head moves to it.                                           |
 | `katari run [AGENT]`                 | Start an agent and wait for its result, streaming the trace and prompting on escalations. Ctrl-C detaches.                                        |
-| `katari ls [TARGET]`                 | List runs (default), `agents`, `snapshots`, `projects`, `escalations`, `files`, or `env`.                                                         |
+| `katari ls [TARGET]`                 | List runs (default), `agents`, `snapshots`, `projects`, `escalations`, `files`, `env`, or `packages`.                                             |
 | `katari status [RUN]`                | One run's state, argument, result, open questions, and full trace.                                                                                |
 | `katari answer [ESCALATION]`         | Answer a question a run escalated; the run resumes.                                                                                               |
 | `katari cancel [RUN]`                | Cancel a running run, optionally recording a `--reason`.                                                                                          |
@@ -39,6 +39,50 @@ diagnostics. `build` writes the IR JSON when you want to see what the runtime wi
 `add`, `remove` and `update` edit `katari.toml` and re-lock in the same step; `lock` re-locks
 without editing anything. Which packages exist and how versions pin is covered in
 [Packages]({docs}/{currentVersion}/guides/packages).
+
+`katari ls packages` answers "what is there to add": the pinned snapshot's whole set, with the ones
+this project already has marked. It reads `katari.toml` and `katari.lock` and never touches the
+runtime, so it works before anything is deployed.
+
+```text
+PACKAGE          VERSION  STATUS
+ai               0.4.0    added
+google_common    0.2.0    in closure
+web              0.2.0
+```
+
+`added` means the package is in `[dependencies].packages`; `in closure` means it arrived as
+something else's dependency and is importable without being declared.
+
+### What `check` prints
+
+Diagnostics first, then a one-line verdict, then the **escalation report** — the entry points whose
+requests would reach a human. Two flags change what you get:
+
+- **`--dependency-warnings`** — also report warnings raised inside dependency packages. By default
+  they are withheld and counted, since a warning in someone else's package is not yours to fix.
+  Errors are never withheld.
+- **`--all-entry-points`** — list every entry point, including those that escalate nothing. The
+  default omits them and prints one line in their place —
+  `(not shown: N entry point(s) that escalate nothing; --all-entry-points lists them)`. Use the flag
+  when you are **diffing** the report across a change to prove no new capability was granted; it
+  reproduces the report byte for byte.
+
+This is [A second agent]({docs}/{currentVersion}/guides/second-agent)'s office, whose two entry
+points both escalate — so nothing is withheld and no count line appears:
+
+```text
+OK — 21 module(s), no errors
+Entry points (requests that escalate to the run root):
+  office.world
+    escalates: office.back_message, office.front_message, io
+  office.office
+    escalates: (nothing but io)
+```
+
+`(nothing but io)` is never folded away: `io` is a capability, and a composition root that reads
+`(nothing but io)` is the line a reviewer checks. Reading the report as a capability diff is
+[A second agent]({docs}/{currentVersion}/guides/second-agent#reading-the-escalation-report).
 
 **`katari.lock` decides what compiles, and nothing writes it behind your back.** `check`, `build`
 and `apply` all resolve from the lock, offline, and they **refuse** — they do not warn — when the

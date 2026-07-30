@@ -25,7 +25,7 @@ katari --version
 ```
 
 ```
-katari 0.1.0
+katari 0.1.1
 ```
 
 **Note:** the package installs a prebuilt binary for linux-x64 and darwin-arm64. On another
@@ -46,7 +46,7 @@ inside the stack and how to self-host it for real.
 Install the **Katari** extension from the VSCode Marketplace, or from the command line:
 
 ```sh
-code --install-extension yukikurage.katari-vscode
+code --install-extension katari-lang.katari-vscode
 ```
 
 It gives you `.ktr` syntax highlighting, diagnostics as you type, hover types, go-to-definition,

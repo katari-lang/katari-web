@@ -6,7 +6,7 @@ description: Every diagnostic the compiler can print, by code — what the messa
 `katari check` prints one line per diagnostic, and every diagnostic carries a stable code:
 
 ```text
-bot:12:5 K3001: Number layers are incompatible
+bot:12:5 K3001: The actual type can be a number, which the expected type does not admit
   expected: string
   actual:   integer
 ```
@@ -26,25 +26,36 @@ The ranges say which phase rejected the program, which is also the order the pha
 
 Almost everything is a **K3xxx**, because almost everything Katari checks is a type or an effect.
 
-Every code is an error except **K1002**, which is a warning: the compilation still succeeds.
+Two codes are **warnings** — **K1002** and **K3028**. The compilation still succeeds; everything
+else stops it. A warning raised inside a **dependency** is withheld from your build and replaced by
+a count, because a warning you cannot act on teaches you to stop reading warnings:
+
+```text
+note: 2 warning(s) from dependency packages hidden; `katari check --dependency-warnings` shows them
+```
+
+Errors are never withheld, wherever they come from.
 
 There is no K3002, K3003 or K3004. They were retired; nothing emits them.
 
-## Read the bottom of the list first
+## One mistake, several lines
 
 The compiler does not stop at the first error — it reports everything it found, and one real mistake
-often produces several lines. When a name fails to resolve, the checker gives the expression the type
-`never` and carries on, so the **first** line you see can be a consequence of the **last** one:
+often produces several lines. When an expression fails to check, the checker gives it the type
+`never` and carries on, so a line further down can be a **consequence** of one further up.
+
+The commonest instance of this is handled for you. A misspelled name used to print a derived
+`has type never` line _above_ the diagnostic that named the typo; since 0.1.1, when a file reports an
+unresolved name the compiler drops the `never` lines it caused, so what you see is the mistake
+itself, with a suggestion:
 
 ```text
-bot:2:25 K3014: Expected a callable agent, but the expression has type never
-bot:2:30 K2002: Module prelude.json has no exported member no_such_thing
+bot:2:10 K2002: Module prelude.string has no exported member `jion`; did you mean `join`?
 ```
 
-There is one mistake here (a misspelled member), and the diagnostic naming it is second. The rule
-that follows: **a K3014 that says `has type never` is a symptom, not a cause.** Fix the K2xxx line,
-or whatever error precedes it, and the `never` line goes with it. See
-[When a type is `never`](#when-a-type-is-never).
+The rule still holds for every other cascade: **a K3014 that says `has type never` is a symptom, not
+a cause.** Look for the earlier error on the same expression, fix that, and the `never` line goes
+with it. See [When a type is `never`](#when-a-type-is-never).
 
 ## K1xxx — the parser
 
@@ -55,16 +66,36 @@ or whatever error precedes it, and the `never` line goes with it. See
 
 ## K2xxx — names and modules
 
-| Code      | What it says                                | Usually                                                                                                             | Fix                                                                                                                                                                                                      |
-| --------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **K2001** | `Undefined name: x`                         | A typo, or a name that lives in a module you did not import.                                                        | Import it (`import prelude.json`), or qualify it. The prelude and its sub-modules (`array`, `record`, `string`, `time`, `region`, …) are in scope everywhere; nothing else is.                           |
-| **K2002** | `Module M has no exported member x`         | `M.x` where `M` resolved but has no `x`. A misremembered API name — the single most common AI-written error.        | Look the module up in the [package reference](/packages) (or the `packages` MCP tool) and use the real name. Expect a K3014 saying `has type never` on the same expression; it disappears with this one. |
-| **K2003** | `Duplicate declaration of x`                | Two top-level declarations claiming one name in one namespace.                                                      | Rename one. Note that values and types are **separate** namespaces, so an agent and a type may share a name; a `request` or `data` declaration occupies both.                                            |
-| **K2004** | `x is not a module`                         | `x.y` in a **type** position where `x` resolves to something that is not a module — an agent, a data type, a local. | You wanted a field access (an expression) or a different qualifier. In type position only a module name may precede the dot.                                                                             |
-| **K2005** | `Imported module does not exist: M`         | An import of a module no package in the closure provides.                                                           | Check the spelling, and check that the package is in `katari.toml` — `katari add <pkg>`. A module's name is its path under the package: `src/bot/mail.ktr` in package `bot` is module `bot.mail`.        |
-| **K2006** | `Module M does not export x`                | `import { x } from M` where `M` has no `x` — the selective-import form of K2002.                                    | Fix the name, or add `type` for a type-namespace item: `import { parse, type parse_error } from prelude.json`.                                                                                           |
-| **K2007** | `x is not a loop or handler state variable` | `next with { x = … }` naming something that is not a `var` of the enclosing `for` or handler.                       | `with { … }` may only update the enclosing construct's own `var` bindings. Declare it — `for (… , var x: T = init)` — or assign an ordinary local instead.                                               |
-| **K2008** | `Module name M is reserved by the compiler` | A user module named exactly like a stdlib module, or anything under `primitive.*`.                                  | Rename the file. The module would otherwise shadow the stdlib for every program in the closure, so it is excluded rather than merged.                                                                    |
+| Code      | What it says                                      | Usually                                                                                                             | Fix                                                                                                                                                                                               |
+| --------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **K2001** | ``Nothing in scope is named `x` ``                | A typo, or a name that lives in a module you did not import.                                                        | Import it (`import prelude.json`), or qualify it. The prelude and its sub-modules (`array`, `record`, `string`, `time`, `region`, …) are in scope everywhere; nothing else is.                    |
+| **K2002** | ``Module M has no exported member `x` ``          | `M.x` where `M` resolved but has no `x`. A misremembered API name — the single most common AI-written error.        | Look the module up in the [package reference](/packages) (or the `packages` MCP tool) and use the real name.                                                                                      |
+| **K2003** | `Duplicate declaration of x`                      | Two top-level declarations claiming one name in one namespace.                                                      | Rename one. Note that values and types are **separate** namespaces, so an agent and a type may share a name; a `request` or `data` declaration occupies both.                                     |
+| **K2004** | `x is not a module`                               | `x.y` in a **type** position where `x` resolves to something that is not a module — an agent, a data type, a local. | You wanted a field access (an expression) or a different qualifier. In type position only a module name may precede the dot.                                                                      |
+| **K2005** | `Imported module does not exist: M`               | An import of a module no package in the closure provides.                                                           | Check the spelling, and check that the package is in `katari.toml` — `katari add <pkg>`. A module's name is its path under the package: `src/bot/mail.ktr` in package `bot` is module `bot.mail`. |
+| **K2006** | ``Module M does not export `x` ``                 | `import { x } from M` where `M` has no `x` — the selective-import form of K2002.                                    | Fix the name, or add `type` for a type-namespace item: `import { parse, type parse_error } from prelude.json`.                                                                                    |
+| **K2007** | `` `x` is not a loop or handler state variable `` | `next with { x = … }` naming something that is not a `var` of the enclosing `for` or handler.                       | `with { … }` may only update the enclosing construct's own `var` bindings. Declare it — `for (… , var x: T = init)` — or assign an ordinary local instead.                                        |
+| **K2008** | `Module name M is reserved by the compiler`       | A user module named exactly like a stdlib module, or anything under `primitive.*`.                                  | Rename the file. The module would otherwise shadow the stdlib for every program in the closure, so it is excluded rather than merged.                                                             |
+
+### These five suggest
+
+K2001, K2002, K2005, K2006 and K2007 look for a near miss and name it, drawing candidates from the
+namespace the lookup actually failed in — locals for a bare name, that module's exports for a member,
+the enclosing `var` bindings for a `next with`:
+
+```text
+bot:2:10 K2002: Module prelude.string has no exported member `jion`; did you mean `join`?
+bot:5:3 K2007: `totl` is not a loop or handler state variable; did you mean `total`?
+```
+
+With more than one candidate the tail reads ``did you mean one of `join`, `joins`?`` — at most three,
+nearest first. The distance measure counts a swapped pair of letters as one edit, so `jion` still
+finds `join`. Names under three characters get no suggestion, and neither does a name with nothing
+near it — those print a longer tail instead, naming what would bring the name into scope.
+
+**A suggestion is a guess, not a resolution.** It is computed from spelling alone, so it can offer a
+real name with the wrong meaning. For a member of a package, confirm against the
+[package reference](/packages) (or the `packages` MCP tool) before taking it.
 
 ## K3xxx — types and effects
 
@@ -72,7 +103,7 @@ or whatever error precedes it, and the `never` line goes with it. See
 
 | Code      | What it says                                        | Usually                                                                                                                                                                           | Fix                                                                                                                                                                                                          |
 | --------- | --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **K3001** | `<reason>` + an `expected:` / `actual:` pair        | **The whole subtype check.** A wrong argument type, a return that does not fit, a leaked private value, and — most importantly — an effect row that does not fit its declaration. | Read the `expected` / `actual` pair first; the reason names which part disagreed. The vocabulary is decoded in [Reading a K3001](#reading-a-k3001).                                                          |
+| **K3001** | `<reason>` + an `expected:` / `actual:` pair        | **The whole subtype check.** A wrong argument type, a return that does not fit, a leaked private value, and — most importantly — an effect row that does not fit its declaration. | The reason is a sentence: it says which part disagreed and what edit closes it, and the two lines under it are the types. [Reading a K3001](#reading-a-k3001) is the tour.                                   |
 | **K3014** | `Expected <shape>, but the expression has type <T>` | An expression used in a position that needs a particular shape: called (`a callable agent`), iterated (`a sequence (array or tuple)`), spread or dotted (`an object`).            | If `<T>` is `never`, this is a cascade — fix the earlier error instead ([below](#when-a-type-is-never)). Otherwise the value genuinely is not the shape: you probably forgot a call, or dotted a non-record. |
 
 ### Types and annotations
@@ -112,6 +143,34 @@ or whatever error precedes it, and the `never` line goes with it. See
 | **K3018** | ``Unknown reactor `x` in a `from` clause``                       | A typo. The message lists the reactors that exist: `ffi`, `http`, `webhook`, `mcp`, `time`, `oauth`, `region`. | Use one of them — for your own code that is `ffi`.                                                                                                                                                                             |
 | **K3022** | ``The `http` reactor serves only the compiled stdlib externals`` | A user module claiming a built-in reactor.                                                                     | Those reactors dispatch on stdlib keys, so a user-declared external would arrive with a key they cannot serve. Omit the `from` clause, or write `from "ffi"`. See [FFI sidecars]({docs}/{currentVersion}/guides/ffi-sidecars). |
 
+### K3028 — a statement that answered, and nothing read it
+
+The one warning in the K3xxx range, and the one an AI author trips most:
+
+```text
+bot:16:3 K3028: This statement produces a value and nothing reads it. Bind what it answers (`let outcome = ...`) and act on it, or write `let _ = ...` to say the discard is deliberate.
+  discarded: sent
+```
+
+A statement in the middle of a block threw its value away, and the detail line names the discarded
+value's type. The build still succeeds — this is a warning — but the value is usually the answer to
+the question the call was making. The motivating
+case is exactly that: an agent that changed from returning nothing to reporting whether its post
+landed, and a dozen call sites that kept compiling while dropping the report on the floor.
+
+Two fixes, and the choice between them is the point:
+
+```katari
+let outcome = post(message = text)   // read the answer, and act on it
+let _ = post(message = text)         // say the discard is deliberate
+```
+
+It does **not** fire when there is nothing to read. `null` and `never` are exempt, and so are
+containers of them — an effect-only `for` evaluates to `array[null]`, so loops for their effects
+alone stay quiet. **Callables are exempt too**: a capability says what you _may_ do, never what
+happened, so `region.fork`'s fiber handle discards without complaint. A block's trailing expression
+is the block's value, not a discard, so `if` and `match` arms are unaffected.
+
 ## K4xxx — lowering
 
 | Code      | What it says                                   | Usually                                                                                                                             | Fix                                                                                 |
@@ -121,56 +180,63 @@ or whatever error precedes it, and the `never` line goes with it. See
 ## Reading a K3001
 
 K3001 is one code covering the entire subtype relation, so its message is assembled from a **reason**
-plus an `expected` / `actual` pair. The reason is written in the checker's own vocabulary, and two of
-its habits are worth learning once.
+plus an `expected` / `actual` pair. Two things are worth knowing before you read one.
 
-### "Layers"
+**`actual` is what your code produces; `expected` is what the position wants.** Every reason is
+phrased from that pair, so it always names the actual side first. (Before 0.1.1 these were called
+_left_ and _right_ and the reasons spoke of _layers_ and _subtypes_; if you are reading an old
+transcript, `left` is `actual` and `right` is `expected`.) Names in the two lines are printed bare
+unless two modules claim the same one, in which case both lines qualify it.
 
-A Katari type is a set of independent **layers** — the null layer, the number layer, the string layer,
-the boolean layer, the file layer, the function layer, the sequence layer, the object layer — and a
-subtype check compares them one at a time. So the reason names the layer that disagreed, not the type:
+**The reason usually contains the fix.** It is a sentence, not a label:
 
 ```text
-bot:2:25 K3001: Number layers are incompatible
+bot:6:1 K3001: The actual type can be a number, which the expected type does not admit
   expected: string
   actual:   integer
 ```
 
-**Read it as: "you passed an `integer` where a `string` was wanted."** The layer name is only saying
-which of the eight comparisons failed first. `String layers are incompatible` between two string
-literal types means the same thing at a finer grain (a literal type is a set of permitted strings);
-`Object layers are incompatible` means two record shapes disagree, and the `expected` / `actual` lines
-below carry the fields. In every case the two lines under the reason are the message.
+### When a type does not fit
 
-One layer reason is not about shape at all: `Private attribute cannot be a subtype of public
-attribute` means a value derived from a secret reached a position that is not marked private. See
-[Types and schemas]({docs}/{currentVersion}/concepts/types-and-schemas).
+The type reasons all follow one shape — _the actual type can be X, which the expected type does not
+admit_ — with X being a number, a string, a boolean, a file, an agent, an array or tuple, an object
+or record, or null. Read it as "you produced an `integer` where a `string` was wanted"; the two
+lines below carry the whole types. The ones that say more than that:
 
-### "Left effect"
+| Reason                                                                                               | What it means                                                                                                                                                                                   |
+| ---------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ``Required argument `x` is missing``                                                                 | A call left out a parameter that has no default. The commonest K3001 there is, and it lands on the call.                                                                                        |
+| ``Required field `x` is missing from the actual type``                                               | The record you built lacks a field the position requires.                                                                                                                                       |
+| ``Field `x` is optional in the actual type but required in the expected type``                       | The field exists but may be absent, and the position needs it present.                                                                                                                          |
+| ``The actual agent requires the parameter `x`, but the expected agent type does not always pass it`` | An agent passed as a value wants an argument its callers will not supply. Give the parameter a default (`?=`), or widen the expected agent type.                                                |
+| ``The expected type is an `integer`, but the actual type is a `number`, which may carry a fraction`` | `integer` is the narrower slot. Round or truncate first.                                                                                                                                        |
+| `The expected type admits only the string literals it lists, and the actual type is not within them` | A literal type is a set of permitted strings, and this is not one of them. The `expected` line lists them.                                                                                      |
+| `The actual type has fewer fixed positions than the expected type requires`                          | A tuple is too short. An absent position is not `null`.                                                                                                                                         |
+| ``The actual type can be `x`, which the expected type does not admit``                               | A `data` constructor reached a position that does not accept it. **If this is a `match`, add an arm for it** — the message says so.                                                             |
+| ``The actual type is `unknown`, so nothing is known about the value``                                | Usually a field or key that the type does not declare — check the name. Otherwise narrow the value with a `match` before using it.                                                              |
+| `The actual value is private (a secret), but this position accepts only a public value`              | A value derived from a secret reached a position not marked private. Mark it `of private`, or keep the secret out. See [Types and schemas]({docs}/{currentVersion}/concepts/types-and-schemas). |
 
-When the disagreement is in an **effect row**, the reason starts with `Left effect`. "Left" is the
-`actual` side — what the code does — and "right" is `expected`, what the signature permits:
+### When an effect row does not fit
+
+When the disagreement is in an **effect row**, the reason starts with `The actual effect`:
 
 ```text
-bot:4:1 K3001: Left effect performs a request not present in the right effect: bot.audit
+bot:4:1 K3001: The actual effect performs `bot.audit`, which the expected effect does not allow. Either name that request in the expected `with` row, or serve it here with a `use handler` clause.
   expected: io
   actual:   audit
 ```
 
-**Read it as: "this body performs `audit`, and its declared row does not include `audit`."** Two
-edits close it, and choosing between them is the whole design decision: **handle** the request (add a
-`use handler` above the perform) or **carry** it (add it to the row after `with`).
+Those two edits are the whole design decision: **handle** the request (a `use handler` above the
+perform) or **carry** it (add it to the row after `with`). The variants:
 
-The variants, all in the same voice:
-
-| Reason                                                                           | What it means                                                                                                              |
-| -------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `performs a request not present in the right effect: R`                          | `R` is performed and not admitted. Handle it or declare it.                                                                |
-| `performs io, which the right effect does not allow (io cannot be discharged)`   | The body touches the outside world and the signature claims it does not. `io` has no handler — it can only be declared.    |
-| `carries a global escape not present in the right effect`                        | A `break` / `next` crossing a boundary the target row does not carry.                                                      |
-| `has an effect generic not present in the right effect`                          | A row variable `E` appears on the left and not on the right — usually a forwarded row that was dropped from the signature. |
-| `A left-only effect generic is unbounded, so the left effect is effectively any` | An unconstrained `E` can carry anything, so it fits no concrete row. Bound it (`E extends …`) or name the requests.        |
-| `Any effect cannot be a subtype of a known effect`                               | The `all` effect met a concrete row. Narrow the source.                                                                    |
+| Reason                                                                               | What it means                                                                                                                               |
+| ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| ``performs `R`, which the expected effect does not allow``                           | `R` is performed and not admitted. Handle it or declare it.                                                                                 |
+| ``performs io (an `external` call), which the expected effect does not allow``       | The body touches the outside world and the signature claims it does not. `io` has no handler — it can only be declared, so write `with io`. |
+| `carries a control escape … that the expected effect does not carry`                 | A `return` / `break` / `next` aimed at an enclosing boundary the target row does not carry.                                                 |
+| `carries an effect parameter that the expected effect does not declare`              | A row variable `E` appears on the actual side and not on the expected one — usually a forwarded row dropped from the signature.             |
+| ``carries an effect parameter … and that parameter has no `extends` bound``          | An unconstrained `E` can carry anything, so it fits no concrete row. Bound it (`E extends …`) or name the requests.                         |
+| ``The actual effect is `all` — it may perform ANY request — so no row can cover it`` | The `all` effect met a concrete row. Narrow the source.                                                                                     |
 
 ### The geometry note
 
@@ -178,7 +244,7 @@ When the request **does** have a handler but that handler is installed in the wr
 appends a note naming the line:
 
 ```text
-bot:4:1 K3001: Left effect performs a request not present in the right effect: bot.audit
+bot:4:1 K3001: The actual effect performs `bot.audit`, which the expected effect does not allow. …
   Note: `bot.audit` is served by the handler installed at line 11, but a handler body's
   performs escalate from its own install site and reach only handlers installed ABOVE it — move that
   handler earlier, or this perform later.
@@ -205,13 +271,17 @@ cascade is always K3014, one per use site:
 
 ```text
 bot:6:16 K3014: Expected a callable agent, but the expression has type never
-bot:6:21 K2002: Module prelude.json has no exported member parse_json
 bot:7:15 K3014: Expected a callable agent, but the expression has type never
 ```
 
-Three lines, one misspelling, and the one that names it is in the middle. **When a K3014 says
-`has type never`, do not fix the line it points at.** Look for a K2xxx — an undefined name or an
-undefined member — or an earlier K3xxx on the same expression, fix that, and the whole cascade goes.
+**When a K3014 says `has type never`, do not fix the line it points at.** Look for the earlier error
+on the same expression, fix that, and the whole cascade goes.
+
+For the commonest source of these — a name that does not resolve — the compiler now does the
+filtering itself: when a file reports a K2001, K2002, K2004, K2005 or K2006, every derived
+`has type never` line in that file is dropped from the report, leaving only the misspelling (with a
+suggestion). So a run of bare `never` lines with no name error above them means the cause is a
+**type** error further up, not a typo.
 
 Two `never`s that are **not** cascades, and mean what they say:
 
@@ -227,13 +297,13 @@ Before the compiler runs at all, the project layer assembles the package closure
 print without a K code — they are about `katari.toml` and `katari.lock`, not about your source. The
 ones you are most likely to meet:
 
-| Message                                                         | What happened                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| --------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Package p provides module m, which is outside its p namespace` | A file under `src/` whose module name does not start with the package name. `src/mail.ktr` in package `bot` is module `mail`, which package `bot` may not provide — move it to `src/bot/mail.ktr` (module `bot.mail`), or rename it `src/bot.ktr`. **This is the first error a new project hits**, because `katari init` names the entry module after the package and a second file added beside it lands outside the namespace. |
-| `katari.lock no longer matches katari.toml: …`                  | The lock and the manifest disagree. Every offline load **refuses** rather than compiling the wrong closure. The fix is always `katari lock`; the block lists each disagreement.                                                                                                                                                                                                                                                  |
-| `Module m is provided by two packages: a and b`                 | Two packages in the closure claim one module name. One of them is misnamed.                                                                                                                                                                                                                                                                                                                                                      |
-| ``Dependency d is not in the cache (…); run `katari lock` ``    | A locked dependency's source is not on disk. `katari lock` fetches it.                                                                                                                                                                                                                                                                                                                                                           |
-| `Package name p is reserved by the compiler`                    | The K2008 check, raised early where you can act on it — a package named after the stdlib.                                                                                                                                                                                                                                                                                                                                        |
+| Message                                                         | What happened                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Package p provides module m, which is outside its p namespace` | A file under `src/` whose module name does not start with the package name. `src/mail.ktr` in package `bot` is module `mail`, which package `bot` may not provide. **This is the first error a new project hits**, because `katari init` names the entry module after the package and a second file added beside it lands outside the namespace. The message carries the move on its own `Fix:` line — `move src/mail.ktr to src/bot/mail.ktr, so the module becomes bot.mail`. |
+| `katari.lock no longer matches katari.toml: …`                  | The lock and the manifest disagree. Every offline load **refuses** rather than compiling the wrong closure. The fix is always `katari lock`; the block lists each disagreement.                                                                                                                                                                                                                                                                                                 |
+| `Module m is provided by two packages: a and b`                 | Two packages in the closure claim one module name. One of them is misnamed.                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ``Dependency d is not in the cache (…); run `katari lock` ``    | A locked dependency's source is not on disk. `katari lock` fetches it.                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `Package name p is reserved by the compiler`                    | The K2008 check, raised early where you can act on it — a package named after the stdlib.                                                                                                                                                                                                                                                                                                                                                                                       |
 
 ## Where to go next
 
