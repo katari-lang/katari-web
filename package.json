@@ -25,7 +25,7 @@
     "cf:preview": "wrangler versions upload"
   },
   "dependencies": {
-    "@katari-lang/language": "github:katari-lang/katari#81f09bc91cc63974d27b124719d80bdeb5fca708&path:typescript/language",
+    "@katari-lang/language": "github:katari-lang/katari#3de3aa87a3300a16e03f0fcd04bff49048580c43&path:typescript/language",
     "clsx": "^2.1.1",
     "culori": "^4.0.2",
     "flexsearch": "^0.8.212",
