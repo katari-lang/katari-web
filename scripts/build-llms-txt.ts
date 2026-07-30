@@ -62,13 +62,15 @@ for (const section of getNavigation(version).sections) {
   lines.push("", `## ${section.label}`, "", ...bullets);
 }
 
-// Examples — the one section that is not this site. A reader who can open a whole working program
-// should, so these get their own section rather than a mention inside a page's prose.
+// Example programs — the one section that is not this site. A reader who can open a whole working
+// program should, so these get their own section rather than a mention inside a page's prose. The
+// heading says "programs" because the docs nav has its own "Examples" section (the page that
+// orients a human in the same four projects), and two identical `##` headings would collide.
 lines.push(
   "",
-  "## Examples",
+  "## Example programs",
   "",
-  `${oneLine(EXAMPLES_INTRO)} Repository: ${EXAMPLES_REPOSITORY_URL}`,
+  `${oneLine(EXAMPLES_INTRO)} Repository: ${EXAMPLES_REPOSITORY_URL}. Orientation, reading order and the run recipe: ${base}/docs/${version}/examples`,
   "",
   ...EXAMPLE_PROJECTS.map(
     (example) =>

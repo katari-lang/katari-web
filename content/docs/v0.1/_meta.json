@@ -1,4 +1,4 @@
 {
   "label": "v0.1",
-  "order": ["getting-started", "tutorial", "concepts", "guides", "toolchain"]
+  "order": ["getting-started", "tutorial", "examples", "concepts", "guides", "toolchain"]
 }

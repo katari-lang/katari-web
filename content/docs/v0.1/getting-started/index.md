@@ -75,7 +75,7 @@ effect row, the schemas, the join.
   and uses your agents as tools.
 - [Concepts]({docs}/{currentVersion}/concepts/agents-and-delegation) — the execution model,
   one idea at a time.
-- [Examples](https://github.com/katari-lang/examples) — four complete, deployable resident
-  agents you can clone and run: a GitHub release monitor with no model in it, a Slack standup
-  bot with a human-approved digest, a two-desk Discord concierge, and a Gmail-to-calendar
-  butler behind an approval gate.
+- [Examples]({docs}/{currentVersion}/examples) — four complete, deployable resident agents you
+  can clone and run: a GitHub release monitor with no model in it, a Slack standup bot with a
+  human-approved digest, a two-desk Discord concierge, and a Gmail-to-calendar butler behind an
+  approval gate.

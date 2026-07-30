@@ -303,33 +303,31 @@ whose whole body is one perform — queued behind the current turn by the region
 
 That system exists twice — as a page and as a program — and they are best read in that order.
 
-**The sixth chapter, in everything but name, is
-[A second agent: desks and mail]({docs}/{currentVersion}/guides/second-agent).** It picks up the
+**That is chapter 6:
+[A Second Agent]({docs}/{currentVersion}/tutorial/a-second-agent).** It picks up the
 resident you just built, adds one more agent to it, and derives the two rules that let several
 agents share one bus: a **desk** is one request plus one sequential handler, and **mail** between
 desks is a fiber whose whole body is one perform — never a direct call, for a reason the compiler
 will show you. It is deliberately package-free, so the mechanism is the only thing on the page.
 
 **Then read the program.**
-[**concierge**](https://github.com/katari-lang/examples/tree/main/concierge) is that guide's office
+[**concierge**](https://github.com/katari-lang/examples/tree/main/concierge) is that chapter's office
 with real packages on the bus: a public _face_ answers the community while its owner curates what it
 may know from a private channel, and the face's **tool set is its privacy boundary** — no tool it
 holds can write a note, so nothing it says can come from anywhere but what was published. Its desks
 run `ai.advance_desk`, the per-arrival form of the observation server you just installed, so the
-guide's mail bridge is the one piece that carries you from this chapter into that file.
+chapter's mail bridge is the one piece that carries you from this page into that file.
 
-It has [three siblings](https://github.com/katari-lang/examples), worth knowing about even if you
-never build a Discord bot again: **release-watch**, a GitHub release monitor with no model in it at
-all — the durable-resident skeleton alone; **standup-scribe**, a Slack standup bot whose digest a
-human approves before it posts; and **inbox-butler**, Gmail triage that proposes calendar events and
-writes nothing without a click. All four are complete deployable projects that compile in CI against
-the published CLI, and each README states plainly what a runtime restart costs it — the part a
-tutorial cannot teach you, because it only shows up in a program that has been left running.
+It has three siblings, and
+[the example programs]({docs}/{currentVersion}/examples) says what each one is for. All four are
+complete deployable projects that compile in CI against the published CLI, and each README states
+plainly what a runtime restart costs it — the part a tutorial cannot teach you, because it only
+shows up in a program that has been left running.
 
 From here:
 
 - add the second agent with
-  [A second agent: desks and mail]({docs}/{currentVersion}/guides/second-agent), and the rule
+  [chapter 6]({docs}/{currentVersion}/tutorial/a-second-agent), and the rule
   its install order rests on in
   [Handler geometry]({docs}/{currentVersion}/guides/handler-geometry);
 - widen the bot's reach with [MCP]({docs}/{currentVersion}/guides/mcp) — hand it every

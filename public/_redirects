@@ -1,0 +1,4 @@
+# Workers Static Assets reads this file (like public/_headers) and never serves it.
+# Pages that moved after publication. The examples repository's READMEs and anything
+# already indexed still point at the old path, so it has to keep resolving.
+/docs/v0.1/guides/second-agent /docs/v0.1/tutorial/a-second-agent 301

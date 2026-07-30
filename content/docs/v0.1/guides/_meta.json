@@ -8,7 +8,6 @@
     "secrets-and-credentials",
     "store",
     "handler-geometry",
-    "second-agent",
     "asking-a-human",
     "approval-gates",
     "ffi-sidecars"

@@ -1,11 +1,11 @@
 ---
-title: "A second agent: desks and mail"
+title: A Second Agent
 description: Growing one resident into two. A desk is a request plus a sequential handler; mail between desks is a fiber whose whole body is one perform — which is what keeps two agents from deadlocking on each other.
 ---
 
-[The tutorial's last chapter]({docs}/{currentVersion}/tutorial/a-discord-bot) leaves you with one
-resident: a nursery, a source fiber that reports what it hears, and one handler that serves those
-reports in order. This guide adds the second agent, and the whole of it is two ideas:
+[Chapter 5]({docs}/{currentVersion}/tutorial/a-discord-bot) leaves you with one resident: a nursery,
+a source fiber that reports what it hears, and one handler that serves those reports in order. This
+chapter adds the second agent, and the whole of it is two ideas:
 
 > **A desk is one request plus one sequential handler** — a serialization domain, with its own state
 > and its own FIFO.
@@ -32,7 +32,7 @@ request back_message(source: string, content: string, hop: integer ?= 0) -> null
 ```
 
 Each is served by its own **sequential** handler — one with `var` state. Here is a whole one-desk
-program, which is the tutorial's shape with everything but the desk taken away:
+program, which is chapter 5's shape with everything but the desk taken away:
 
 ```katari
 request desk_message(source: string, content: string) -> null
@@ -368,10 +368,16 @@ way, for reading the report. So the discipline for adding an agent is:
 4. **Check that the composition root's `escalates` line did not grow.** If it did, you added a desk
    and forgot its desk.
 
-## Where to go next
+## Where you are
 
-- [**concierge**](https://github.com/katari-lang/examples/tree/main/concierge) — this office with
-  real packages on the bus: two Discord desks, a mail bridge, and `ai.advance_desk` where the
+That is the tutorial: six chapters, one bot, and a rule for putting a second agent beside it. Every
+agent after this one is another desk and another arm on the mail bridge, not another ordering
+problem.
+
+- [**The example programs**]({docs}/{currentVersion}/examples) — four complete residents you can
+  clone and run, and the one this chapter points at is
+  [**concierge**](https://github.com/katari-lang/examples/tree/main/concierge): this office with
+  real packages on the bus — two Discord desks, a mail bridge, and `ai.advance_desk` where the
   arithmetic was. It is the shortest complete program that uses everything on this page.
 - [Handler geometry]({docs}/{currentVersion}/guides/handler-geometry) — the install-site rule this
   page leans on, and how to read a stack of handlers.

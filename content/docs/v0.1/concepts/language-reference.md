@@ -672,7 +672,7 @@ detached fiber into it; `post` is `fork` for a task that is one inline perform; 
 fiber's escalations, and returns `never`. There is no join — a fiber reports through its escalations.
 `crashed` and `failed` ride `watch`'s row, so the compiler makes you handle them. See
 [Parallelism]({docs}/{currentVersion}/concepts/parallelism#regions-fork-without-join) and
-[A second agent]({docs}/{currentVersion}/guides/second-agent).
+[A Second Agent]({docs}/{currentVersion}/tutorial/a-second-agent).
 
 ### `finally`
 

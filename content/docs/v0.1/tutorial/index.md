@@ -1,9 +1,9 @@
 ---
 title: "Tutorial: an AI Discord bot"
-description: Five chapters from an empty project to a deployed Discord bot that talks to a model and uses your agents as tools.
+description: Six chapters from an empty project to a deployed Discord bot that talks to a model, uses your agents as tools, and ends with a second agent beside it.
 ---
 
-This tutorial builds one program, five chapters long: a Discord bot that holds a
+This tutorial builds one program, six chapters long: a Discord bot that holds a
 conversation with an AI model — and hands that model **tools**: web search, page fetch,
 and an agent you wrote yourself.
 
@@ -22,10 +22,13 @@ By the end you have:
 - the conversation history kept as **handler state**: a typed value in your program, not
   a bolted-on database;
 - a bot **deployed** to your runtime, serving a channel until you cancel it, its
-  conversation held as durable run state.
+  conversation held as durable run state;
+- a **second agent** beside it, reached by mail rather than by a call — the shape every
+  further agent joins without re-opening the ordering question.
 
-Each chapter picks up the previous chapter's file and evolves it, and each shows the
-complete code, so you can rebuild the project at any point without hunting through diffs.
+Chapters 1 through 5 each pick up the previous chapter's file and evolve it; chapter 6
+starts a small package-free program of its own. Every chapter shows its complete code, so
+you can rebuild the project at any point without hunting through diffs.
 
 ## What you need
 
@@ -36,7 +39,7 @@ complete code, so you can rebuild the project at any point without hunting throu
   deployed a project and run an agent once.
 - Later chapters bring their own credentials — an Anthropic API key (chapter 3), a Tavily
   API key (chapter 4), and a Discord bot token (chapter 5). The first two chapters need
-  no keys at all.
+  no keys at all, and neither does the sixth.
 
 ## The route
 
@@ -54,16 +57,19 @@ complete code, so you can rebuild the project at any point without hunting throu
 5. [A Discord Bot]({docs}/{currentVersion}/tutorial/a-discord-bot) — connect the loop to
    a channel as a **resident**: a region fiber watches Discord, the observation server
    keeps the conversation, and the whole thing deploys as one durable run.
+6. [A Second Agent]({docs}/{currentVersion}/tutorial/a-second-agent) — put a second agent
+   on the resident's bus: a **desk** is one request plus one sequential handler, and
+   **mail** between desks is a fiber whose whole body is one perform. Package-free, so
+   the mechanism is the only thing on the page.
 
 Every idea the bot leans on — delegation, effects, escalation, durable runs, schemas —
 has a fuller treatment under
 [Concepts]({docs}/{currentVersion}/concepts/agents-and-delegation); the tutorial links
 out as it goes.
 
-The path does not stop at chapter 5.
-[A second agent: desks and mail]({docs}/{currentVersion}/guides/second-agent) grows the finished
-bot into a system with more than one agent on the bus, and
-[the examples repository](https://github.com/katari-lang/examples) holds four complete deployable
-projects that begin where chapter 5 ends — including two with no Discord in them at all.
+The path does not stop at chapter 6:
+[the example programs]({docs}/{currentVersion}/examples) are four complete deployable
+projects that begin where this tutorial ends — including one with no Discord in it at all,
+and one with no model in it at all.
 
 Start with [Hello, Agent]({docs}/{currentVersion}/tutorial/hello-agent).

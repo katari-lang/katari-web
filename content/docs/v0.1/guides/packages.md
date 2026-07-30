@@ -170,10 +170,10 @@ request, and type is documented in the [reference](/packages).
 
 - [The tutorial's Discord bot]({docs}/{currentVersion}/tutorial/a-discord-bot) composes four of
   these packages into one app.
-- [The examples repository](https://github.com/katari-lang/examples) — four deployable projects
-  that put eight of them to work, each pinning a snapshot and compiling in CI: `web` + `discord` +
-  `fleet` in release-watch, `slack` + `ai` in standup-scribe, `discord` + `ai` + `memory` in
-  concierge, `gmail` + `google_calendar` + `ai` + `discord` in inbox-butler.
+- [The example programs]({docs}/{currentVersion}/examples) — four deployable projects that put
+  eight of them to work, each pinning a snapshot and compiling in CI: `web` + `discord` + `fleet`
+  in release-watch, `slack` + `ai` in standup-scribe, `discord` + `ai` + `memory` in concierge,
+  `gmail` + `google_calendar` + `ai` + `discord` in inbox-butler.
 - [FFI sidecars]({docs}/{currentVersion}/guides/ffi-sidecars) — how a package like `e2b` or
   `discord` ships TypeScript alongside its Katari source.
 - [CLI]({docs}/{currentVersion}/toolchain/cli) — `katari add`, `katari remove`, and the rest of

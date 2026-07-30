@@ -68,7 +68,7 @@ requests would reach a human. Two flags change what you get:
   when you are **diffing** the report across a change to prove no new capability was granted; it
   reproduces the report byte for byte.
 
-This is [A second agent]({docs}/{currentVersion}/guides/second-agent)'s office, whose two entry
+This is [A Second Agent]({docs}/{currentVersion}/tutorial/a-second-agent)'s office, whose two entry
 points both escalate — so nothing is withheld and no count line appears:
 
 ```text
@@ -82,7 +82,7 @@ Entry points (requests that escalate to the run root):
 
 `(nothing but io)` is never folded away: `io` is a capability, and a composition root that reads
 `(nothing but io)` is the line a reviewer checks. Reading the report as a capability diff is
-[A second agent]({docs}/{currentVersion}/guides/second-agent#reading-the-escalation-report).
+[A Second Agent]({docs}/{currentVersion}/tutorial/a-second-agent#reading-the-escalation-report).
 
 **`katari.lock` decides what compiles, and nothing writes it behind your back.** `check`, `build`
 and `apply` all resolve from the lock, offline, and they **refuse** — they do not warn — when the
