@@ -8,8 +8,12 @@ served by the `katari-lsp` language server, and command-palette entries that dri
 `katari` CLI. Install it from the Marketplace:
 
 ```sh
-code --install-extension yukikurage.katari-vscode
+code --install-extension katari-lang.katari-vscode
 ```
+
+Editors that use [Open VSX](https://open-vsx.org/extension/katari-lang/katari-vscode) instead of
+the Marketplace — VSCodium, Cursor, Windsurf — find it under the same name in their own extension
+view.
 
 ## Language features
 
