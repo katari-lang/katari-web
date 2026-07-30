@@ -284,12 +284,16 @@ to a dispatcher: one sequential handler holding a `record` of conversations keye
 addressee, every event carrying whose turn it is, agent-to-agent mail as a micro-fiber
 whose whole body is one perform — queued behind the current turn by the region itself.
 
-That system exists, and it is where this tutorial's bot grew up:
-[**tsukasa**](https://github.com/yukikurage/discord-bot-example) — a multi-agent resident
-built on exactly these pieces: a private _core_ agent that runs its operator's tasks,
-memory and schedule; a public-facing _herald_ whose **tool set is its privacy boundary**
-(no tool it holds can reach private data); and mail-driven workers. One region, one
-dispatcher, and every idea in it is one you now know. Read it as the sixth chapter.
+That system exists, and the next thing to read is the small version of it:
+[**concierge**](https://github.com/katari-lang/examples/tree/main/concierge) — two agents on
+one bus, where a public _face_ answers the community while its owner curates what it may know
+from a private channel, and the face's **tool set is its privacy boundary** (no tool it holds
+can write a note, so nothing it says can come from anywhere but what was published). One
+region, two desks, mail as a micro-fiber: every idea in it is one you now know. Read it as the
+sixth chapter, alongside its
+[three siblings](https://github.com/katari-lang/examples) — a release monitor with no model at
+all, a Slack standup bot whose digest a human approves, and a Gmail-to-calendar butler that
+writes nothing without a click.
 
 From here:
 

@@ -259,8 +259,11 @@ Putting the two rules together gives a decision procedure for every handler:
   which mutate its `var` state — must sit **above** the dispatcher that runs those turns, because the
   tool call happens inside the dispatched turn, below the dispatcher.
 
-A resident Discord bot (the tsukasa reference program) is the worked example; every one of its
-handler positions falls out of the test above:
+A multi-agent resident Discord bot (the tsukasa reference program, which is not public) is the
+worked example; every one of its handler positions falls out of the test above. For a smaller
+instance of the same geometry that you can read and run, see
+[concierge](https://github.com/katari-lang/examples/tree/main/concierge): two desks, one bus,
+and the same reasoning at a quarter of the size.
 
 | Handler                                          | Position                                | Why                                                                                                                                                                                                                                               |
 | ------------------------------------------------ | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
