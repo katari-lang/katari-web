@@ -66,7 +66,7 @@
     },
     {
       "name": "gmail",
-      "version": "0.5.3",
+      "version": "0.5.4",
       "modules": [
         "gmail"
       ],
@@ -74,7 +74,7 @@
     },
     {
       "name": "google_calendar",
-      "version": "0.5.2",
+      "version": "0.5.3",
       "modules": [
         "google_calendar"
       ],
@@ -98,7 +98,7 @@
     },
     {
       "name": "memory",
-      "version": "0.4.1",
+      "version": "0.5.0",
       "modules": [
         "memory"
       ],

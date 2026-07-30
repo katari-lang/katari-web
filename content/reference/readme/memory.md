@@ -10,7 +10,8 @@ meant to sit in the model's context every turn, and the full note read back only
 
 - `memory.remember(key, summary, body)` — save (or overwrite) one note under a short path-like key.
 - `memory.recall(key)` — read one note's full body back.
-- `memory.forget(key)` — delete a note, summary and body together.
+- `memory.forget(key)` — delete a note, summary and body together, and say which of two things
+  happened: `forgot` or `was_absent` (see [Breaking changes in 0.5.0](#breaking-changes-in-050)).
 - `memory.list_memories()` — every saved memory as one `- key: summary` line, so the model can see
   what it has without guessing keys.
 - `memory.search(pattern)` — scan **keys, summaries and full bodies** for a plain substring and answer
@@ -94,9 +95,9 @@ What keeps it affordable:
   with no memories pays nothing.
 
 Cost per call, for the record: `index_note()` and `list_memories()` are one store read each; `recall`
-is one; `remember` and `forget` are one read plus two writes inside one critical section; `search` is
-one listing per key group plus **one read per stored note** — it is a full scan, deliberately (see
-below).
+is one; `remember` is one read plus two writes inside one critical section; `forget` is two reads plus
+those two writes — and reads only, no writes at all, when the key held nothing; `search` is one listing
+per key group plus **one read per stored note** — it is a full scan, deliberately (see below).
 
 ## Searching bodies
 
@@ -141,6 +142,10 @@ otherwise lose one summary. The serial domain is the **caller's** — install it
 installed, the runtime serves `exclusive` as the project-wide root domain, which is still correct, just
 wider than it needs to be.
 
+`forget`'s **verdict is read inside that same section**, which is what makes the answer trustworthy
+rather than merely likely: a presence check taken before entering is a read the next `remember` can
+invalidate before the delete lands.
+
 **Reads.** Every read in this package degrades instead of throwing, because an injection that runs every
 turn must not be able to fail the run:
 
@@ -153,13 +158,59 @@ turn must not be able to fail the run:
 None of these are error channels the caller has to handle: `search`, `recall`, `list_memories` and
 `index_note` throw nothing.
 
+## Breaking changes in 0.5.0
+
+**`memory.forget(key)` answers a sum instead of a sentence.** Its type is
+`forgot(message) | was_absent(message)` where it was `string`.
+
+```text
+// was: the answer was a confirmation whatever happened, so a caller that must not lie read the index
+// first and hoped nothing wrote in between.
+if (record.has(target = memory.index(), key = key)) {
+  let _confirmation = memory.forget(key = key)
+  operator_note(text = f"(retracted \"${key}\".)")
+} else {
+  operator_note(text = f"(nothing is published under \"${key}\".)")
+}
+
+// is: the call itself says which ending it had, decided inside the critical section that acts on it.
+match (memory.forget(key = key)) {
+  case memory.forgot(_) -> operator_note(text = f"(retracted \"${key}\".)")
+  case memory.was_absent(_) -> operator_note(text = f"(nothing is published under \"${key}\".)")
+}
+```
+
+A model-facing caller passes the arm's `message` straight through — both arms carry an accurate
+sentence, and `was_absent`'s says outright that nothing was deleted.
+
+Three consequences beyond the shape:
+
+- **`was_absent` means BOTH rows were missing.** Presence is the index line *or* the body, because each
+  is independently visible to the model — the index line is what it reads every turn, the body is what
+  `recall` answers with and what `search` enumerates. A note whose index row was somehow lost is still a
+  note, and `forget` still removes it, so it comes back `forgot`.
+- **`forget` on a missing key now writes nothing at all.** It used to rewrite the index with the key
+  already absent from it, so a misspelling touched the record every turn's injection is read from.
+- **Its row gains `prelude.throw[json.validation_error]`**, because the verdict crosses `store.exclusive`
+  and comes back through `store.exclusive_as`. It cannot fire — a mismatch there could only be this
+  package declaring one shape and returning another — but it is in the type, so a caller that calls
+  `forget` **directly** names it. Handing `forget` to a model as a tool costs nothing: a tool set's row
+  already bounds throws (`ai.advance_desk` takes `prelude.throw[unknown]`), so the desk absorbs it and
+  the escalation report is unchanged.
+
+**Why.** The old answer was `"Forgot \"key\"."` for a key that had never existed: the doc called it a
+no-op and the sentence claimed a deletion. Anything with a person behind it had to work around that —
+the `concierge` example pre-read the index for exactly this reason, with a comment saying so — and a
+caller that did not know to work around it told an operator their note was gone. A no-op and a deletion
+are two different endings of one call, so they are two arms.
+
 ## Usage
 
 ```katari
 import memory
 
 @"Stands in for your own agent loop — this package knows nothing about it."
-request your_model_loop(context: string, tools: array[agent never -> unknown with store.exclusive | store.get | store.set | store.delete | store.list], text: string) -> string
+request your_model_loop(context: string, tools: array[agent never -> unknown with store.exclusive | store.get | store.set | store.delete | store.list | prelude.throw[unknown]], text: string) -> string
 
 @"One turn of a resident desk: the memory index goes into the prompt, the memory tools go to the model."
 agent take_turn(text: string) -> string with store.get | store.set | store.delete | store.list | your_model_loop {
