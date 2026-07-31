@@ -67,7 +67,7 @@ next occurrence is persisted; if occurrences were missed while the runtime was d
 watch fires exactly once on recovery (the earliest missed one), then continues on schedule.
 Deliveries are serialized, so a slow delivery rate-limits the ticks rather than queueing
 them. A delivery that throws kills the watch by design — resilience is composed around it
-with a replay provider, below. See
+with a supervise provider, below. See
 [Scheduled jobs]({docs}/{currentVersion}/guides/scheduled-jobs) for the operational side.
 
 ## Looping forever
@@ -129,13 +129,13 @@ agent resilient() -> string {
       break f"gave up: ${json.stringify(value = error)}"
     }
   }
-  // MECHANISM: re-run the rest of the block each time `replay.interrupted` is performed.
-  use replay.exponential(initial_delay_milliseconds = 1000.0, factor = 2.0, max_attempts = 5.0)
+  // MECHANISM: re-run the rest of the block each time `supervise.interrupted` is performed.
+  use supervise.exponential(initial_delay_milliseconds = 1000.0, factor = 2.0, max_attempts = 5.0)
   // POLICY: a converter — an ordinary handler — decides which failures replay.
   use handler {
     request prelude.throw(error: transient | fatal) -> never {
       match (error) {
-        case transient(_) -> { replay.interrupted(failure = error) }
+        case transient(_) -> { supervise.interrupted(failure = error) }
         case fatal(_) -> { prelude.throw(error = error) }
       }
     }
@@ -145,15 +145,15 @@ agent resilient() -> string {
 ```
 
 Retry is split into two parts that compose. A **replay provider**
-(`replay.immediate` / `replay.forever` / `replay.exponential`) is the mechanism: it re-runs
-the rest of the block whenever the `replay.interrupted` request is performed, sleeping its
+(`supervise.immediate` / `supervise.forever` / `supervise.exponential`) is the mechanism: it re-runs
+the rest of the block whenever the `supervise.interrupted` request is performed, sleeping its
 policy's delay durably in between — and it knows nothing about what counts as retriable. A
 **converter** — an ordinary handler you install between the provider and the body — is the
 policy: it catches the failures you choose and turns exactly those into `interrupted`,
 rethrowing the rest. Here `transient` replays with backoff and `fatal` leaves immediately
 for the fallback; when a bounded provider exhausts its budget, it re-raises the last failure
 as a typed `throw`, so the error stays typed end to end. Wrap `time.watch`'s delivery in
-`replay.forever` plus a converter and you have a daemon that survives transient failures
+`supervise.forever` plus a converter and you have a daemon that survives transient failures
 with flat durable state.
 
 ### What a replay rebuilds, and what it keeps

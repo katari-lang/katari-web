@@ -108,7 +108,7 @@ agent report() -> string {
 ```
 
 `use quietly()` rewrites the rest of `report` into the `continuation` argument. This is the
-shape every stdlib and package provider uses: `use replay.exponential(...)` serves the replay
+shape every stdlib and package provider uses: `use supervise.exponential(...)` serves the replay
 signal, `use mcp.provide(url = ...)` serves an MCP server's tools for the extent of the block
 (and `let tools = use mcp.provide(...)` binds the value the provider passes to its
 continuation). The scoping is the point — the capability exists exactly for the block, and

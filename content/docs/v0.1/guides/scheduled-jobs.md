@@ -5,7 +5,7 @@ description: Run agents on an interval or a cron schedule with time.watch, and c
 
 `time.watch` calls an agent once per schedule occurrence, forever, with durable timers: the next
 occurrence is persisted, so a restart re-arms it instead of forgetting it. Retry is deliberately
-**not** built in — you compose it around the watch with a `replay` provider, which is why one
+**not** built in — you compose it around the watch with a `supervise` provider, which is why one
 small surface covers cron jobs, pollers, and resilient daemons alike.
 
 ## Run on a cron schedule
@@ -48,20 +48,20 @@ A `deliver_to` that throws or panics is **not retried** — the failure propagat
 watch, exactly as an uncaught failure in any callee does. Resilience is composed at the call
 site, from two pieces:
 
-- a **`replay` provider** — the mechanism. It re-runs the rest of the block whenever the
-  `replay.interrupted` signal is performed, applying its delay policy. It knows nothing about
+- a **`supervise` provider** — the mechanism. It re-runs the rest of the block whenever the
+  `supervise.interrupted` signal is performed, applying its delay policy. It knows nothing about
   what counts as a retriable failure.
 - a **converter** — the policy. An ordinary handler you install between the provider and the
-  body, turning exactly the failures you choose into `replay.interrupted`.
+  body, turning exactly the failures you choose into `supervise.interrupted`.
 
 ```katari
 @"The resilient daemon: a failed delivery re-runs the watch after a capped exponential backoff,
 and the watch re-arms from its persisted next occurrence."
 agent main() -> never with io {
-  use replay.forever(initial_delay_milliseconds = 1000, factor = 2, max_delay_milliseconds = 60000)
+  use supervise.forever(initial_delay_milliseconds = 1000, factor = 2, max_delay_milliseconds = 60000)
   use handler {
     request prelude.throw(error: http.fetch_error) -> never {
-      replay.interrupted(failure = error)
+      supervise.interrupted(failure = error)
     }
   }
   time.watch(
@@ -82,10 +82,10 @@ agent poll_upstream(time: number) -> null with io | prelude.throw[http.fetch_err
 }
 ```
 
-When a poll fails, the converter performs `replay.interrupted`, `replay.forever` sleeps its
+When a poll fails, the converter performs `supervise.interrupted`, `supervise.forever` sleeps its
 current backoff (durably — the delay survives a restart) and re-runs the block, and `watch`
 re-arms from its persisted next occurrence. The durable footprint stays flat no matter how many
-failures the daemon has survived. `replay.interrupted` with no provider in scope fails the run,
+failures the daemon has survived. `supervise.interrupted` with no provider in scope fails the run,
 so the composition is explicit in source.
 
 ## Retry selectively, with a bound
@@ -111,11 +111,11 @@ agent push_report(time: number) -> null with io | prelude.throw[http.fetch_error
 @"Retry ONE delivery up to five times with exponential backoff — but only on transport errors.
 The fatal arm rethrows, leaving the loop immediately; exhaustion re-raises the last failure typed."
 agent deliver_with_retry(time: number) -> null with io | prelude.throw[http.fetch_error | invalid_payload] {
-  use replay.exponential(initial_delay_milliseconds = 1000, factor = 2, max_attempts = 5)
+  use supervise.exponential(initial_delay_milliseconds = 1000, factor = 2, max_attempts = 5)
   use handler {
     request prelude.throw(error: http.fetch_error | invalid_payload) -> never {
       match (error) {
-        case http.fetch_error(_) -> { replay.interrupted(failure = error) }
+        case http.fetch_error(_) -> { supervise.interrupted(failure = error) }
         case invalid_payload(_) -> { prelude.throw(error = error) }
       }
     }

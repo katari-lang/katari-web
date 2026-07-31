@@ -374,7 +374,7 @@ agent main(channel: string) -> never with io | prelude.throw[slack.slack_error |
 }
 ```
 
-There is no `replay` provider here and no panic converter, and that is not an omission. `main`'s watch
+There is no `supervise` provider here and no panic converter, and that is not an omission. `main`'s watch
 _is_ the run: if the interrupted call ends it, the run ends, and the runtime tells you so. A resident
 that must outlive its watcher runs the watch as a **fiber**, and then the recovery has somewhere to
 live — one `region.crashed` clause:
@@ -428,7 +428,7 @@ check` holds you to writing both. And note where the watcher's `slack_error` wen
 boundary and arrives as `failed`'s `error` — which is why `watcher_failed` is `resident`'s own throw and
 the package's is not.
 
-Note what is _not_ in either listing: no `replay` provider around the provider install, no `panic`
+Note what is _not_ in either listing: no `supervise` provider around the provider install, no `panic`
 converter, no epoch to compare, no session to rebuild. If you find yourself reaching for that
 machinery to keep an FFI reference alive, the reference is the thing to fix.
 
