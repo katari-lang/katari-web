@@ -212,7 +212,7 @@ Three agents, and you have met every idea in them:
   `region.watch` re-emits the fibers' escalations forever: each `ai.observation` wells up
   here and is answered by the server installed just outside. The restart lives INSIDE
   `channel_source`: `supervise.signal_panics` turns the interrupted call into a signal and
-  `supervise.exponential` opens a fresh connection after a backoff, because the bot token is
+  `supervise.forever` opens a fresh connection after a backoff, because the bot token is
   the whole of what the call needs. `forever` rather than `exponential`, because
   `exponential`'s budget is a LIFETIME count that never resets: a watch meant to outlive
   every deploy would die on its fifth restart. The delay ceiling is what bounds a

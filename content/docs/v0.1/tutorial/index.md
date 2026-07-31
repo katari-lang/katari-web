@@ -59,8 +59,8 @@ you can rebuild the project at any point without hunting through diffs.
    keeps the conversation, and the whole thing deploys as one durable run.
 6. [A Second Agent]({docs}/{currentVersion}/tutorial/a-second-agent) — put a second agent
    on the resident's bus: a **desk** is one request plus one sequential handler, and
-   **mail** between desks is a fiber whose whole body is one perform. Package-free, so
-   the mechanism is the only thing on the page.
+   **mail** between desks is a fiber whose whole body is one perform. Package-free while
+   it builds the mechanism, then swaps a desk body for a model turn.
 
 Every idea the bot leans on — delegation, effects, escalation, durable runs, schemas —
 has a fuller treatment under

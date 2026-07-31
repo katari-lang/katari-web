@@ -15,8 +15,9 @@ chapter adds the second agent, and the whole of it is two ideas:
 Everything else follows, including why the second one has to be true.
 
 The example below is deliberately package-free: the two desks do arithmetic instead of running a
-model turn, so the mechanism is the only thing on the page. Swap a desk body for
-`ai.advance_desk(...)` and it is the real thing.
+model turn, so the mechanism is the only thing on the page. The last two sections do the swap —
+`ai.advance_desk` where the arithmetic was, and what changes when the desks are minted at run time
+rather than written down.
 
 ## A desk is a request plus a sequential handler
 
@@ -147,13 +148,34 @@ _below_ the desks in the block. A desk body cannot see it. So the desks perform 
 one handler installed between the nursery and the desks turns it into mail:
 
 ```katari
+@"Address the front desk."
+data to_front()
+
+@"Address the back desk."
+data to_back()
+
+// Who a piece of mail is for. (Type synonyms take no docs.)
+type addressee = to_front | to_back
+
 @"Mail one agent from another. The only request a desk body performs to reach another desk."
-request send(to: string, content: string, hop: integer) -> null
+request send(to: addressee, sender: string, content: string, hop: integer) -> null
 ```
 
-That handler is the **mail bridge**. It is the single place the addressee string is dispatched onto a
-desk request — one flat `match`, written once — and it is the reason a desk body never touches
+That handler is the **mail bridge**. It is the single place an addressee is dispatched onto a desk
+request — one flat `match`, written once — and it is the reason a desk body never touches
 `region.post`, the nursery, or the name of any other desk's request.
+
+**The addressee is a sum, not a string, and that is load-bearing.** A `to: string` bridge needs a
+catch-all arm, and a catch-all silently routes an addressee nobody has written a case for — so adding
+a third desk and forgetting its arm delivers its mail to whichever desk the fallback names, forever,
+with nothing to notice. One `data` per desk makes the bridge's `match` exhaustive: forget the arm and
+the chapter's own rule applies to you, because `katari check` stops compiling until you write it.
+Strings at the boundary, a sum everywhere after.
+
+`sender` is a parameter for the same reason. The bridge knows the destination, not the origin, so a
+bridge that labelled mail by which arm it took would have to guess — and it would guess wrong for the
+crash policy, whose notices go to the front desk but come from neither desk. Provenance is carried by
+whoever has it.
 
 The install order for the whole block falls out of one test — _if handler A's body performs request R,
 then R's handler must be above A_:
@@ -180,19 +202,24 @@ Two desks, mutual mail, a source, and a crash policy — a complete `src/office.
 
 @"The front desk's inbox. @hop@ counts how many agent-to-agent hops this message has taken."
 request front_message(source: string, content: string, hop: integer ?= 0) -> null
-
 @"The back desk's inbox."
 request back_message(source: string, content: string, hop: integer ?= 0) -> null
 
+@"Address the front desk."
+data to_front()
+@"Address the back desk."
+data to_back()
+// Who a piece of mail is for. One arm per desk, so a desk added later cannot be half-added:
+// the bridge's `match` stops compiling until it has one. (Type synonyms take no docs.)
+type addressee = to_front | to_back
+
 @"Mail one agent from another. The only request a desk body performs to reach another desk."
-request send(to: string, content: string, hop: integer) -> null
+request send(to: addressee, sender: string, content: string, hop: integer) -> null
 
 @"The region's scope marker: one nullary phantom per nursery."
 effect office_scope
-
 // Everything a fiber of this nursery may raise.
 type office_ceiling = front_message | back_message | io
-
 data done(transcript: string)
 
 // ── a source: the world, arriving as escalations ──────────────────────────────────────
@@ -214,34 +241,23 @@ agent office() -> string with io {
       match (error) { case done(transcript => text) -> { break text } }
     }
   }
-
   let nursery: region.nursery[office_scope, office_ceiling] = use region.provide[office_scope, office_ceiling]
-
   // THE MAIL BRIDGE. Below the nursery, because it needs the handle; above the desks,
-  // because their bodies perform it.
+  // because their bodies perform it. The addressee is a SUM, so this match is exhaustive.
   use handler {
-    request send(to: string, content: string, hop: integer) {
+    request send(to: addressee, sender: string, content: string, hop: integer) {
       match (to) {
-        case "back" -> {
-          let _mail = region.post(
-            nursery = nursery,
-            task = agent () -> null with back_message { back_message(source = "front", content = content, hop = hop) },
-            name = "front->back",
-          )
+        case to_back(_) -> {
+          region.post(nursery = nursery, task = agent () -> null with back_message { back_message(source = sender, content = content, hop = hop) }, name = "front->back")
           next null
         }
-        case _ -> {
-          let _mail = region.post(
-            nursery = nursery,
-            task = agent () -> null with front_message { front_message(source = "back", content = content, hop = hop) },
-            name = "back->front",
-          )
+        case to_front(_) -> {
+          region.post(nursery = nursery, task = agent () -> null with front_message { front_message(source = sender, content = content, hop = hop) }, name = "back->front")
           next null
         }
       }
     }
   }
-
   // DESK ONE — the front. Sequential, so its `var` state is sound.
   use handler (var transcript: array[string] = []) {
     request front_message(source: string, content: string, hop: integer) {
@@ -250,12 +266,11 @@ agent office() -> string with io {
       if (array.length(target = grown) >= 6) {
         prelude.throw(error = done(transcript = string.join(parts = grown, separator = " | ")))
       } else {
-        if (hop < 2) { send(to = "back", content = content, hop = hop + 1) } else { null }
+        if (hop < 2) { send(to = to_back(), sender = "front", content = content, hop = hop + 1) } else { null }
         next null with { transcript = grown }
       }
     }
   }
-
   // DESK TWO — the back. Its own state, its own FIFO, interleaved with the front's.
   use handler (var seen: record[integer] = record.empty()) {
     request back_message(source: string, content: string, hop: integer) {
@@ -263,23 +278,21 @@ agent office() -> string with io {
         case null -> 1
         case previous -> previous + 1
       }
-      send(to = "front", content = f"${content} x${string.to_string(value = count)}", hop = hop + 1)
+      send(to = to_front(), sender = "back", content = f"${content} x${string.to_string(value = count)}", hop = hop + 1)
       next null with { seen = record.set(target = seen, key = content, value = count) }
     }
   }
-
   // The crash policy, below the desks: its body may mail them directly.
   use handler {
     request region.crashed(id: string, name: string, message: string) {
-      send(to = "front", content = f"fiber ${name} panicked: ${message}", hop = 2)
+      send(to = to_front(), sender = "supervisor", content = f"fiber ${name} panicked: ${message}", hop = 2)
       next null
     }
     request region.failed(id: string, name: string, error: unknown) {
-      send(to = "front", content = f"fiber ${name} threw", hop = 2)
+      send(to = to_front(), sender = "supervisor", content = f"fiber ${name} threw", hop = 2)
       next null
     }
   }
-
   let _world = region.fork(nursery = nursery, task = world, argument = null, name = "world")
   region.watch(nursery = nursery)
 }
@@ -310,7 +323,7 @@ thinks about it. Every desk that mails onward stamps `hop + 1`, and every desk r
 past a ceiling:
 
 ```katari
-if (hop < 2) { send(to = "back", content = content, hop = hop + 1) } else { null }
+if (hop < 2) { send(to = to_back(), sender = "front", content = content, hop = hop + 1) } else { null }
 ```
 
 Three properties are worth having on purpose. **The hop is a field, not a parsed prefix** — the moment
@@ -367,6 +380,91 @@ way, for reading the report. So the discipline for adding an agent is:
 3. Add its request to the nursery ceiling, so fibers may address it.
 4. **Check that the composition root's `escalates` line did not grow.** If it did, you added a desk
    and forgot its desk.
+
+## When the desks run a model
+
+The office above does arithmetic so that the mechanism is the only thing on the page. Nothing about a
+desk changes when its body runs a model turn — a desk is still one request and one sequential handler,
+and its `var` is still the thing no two turns may touch at once. Only what the `var` holds changes:
+
+```katari
+// A desk that runs a model escalates two things the arithmetic one did not: the model step, and the
+// one throw a tool set can raise. Both are served ABOVE, at the composition root, by the provider.
+type desk_effects = ai.infer_step | prelude.throw[ai.duplicate_tool] | send | io
+
+agent front_desk() -> null with {...desk_effects} {
+  use handler (var face: ai.desk = ai.new_desk()) {
+    request front_message(source: string, content: string, hop: integer) {
+      let advanced = ai.advance_desk(
+        state = face,
+        arrival = ai.arrival(source = source, content = content, hop = hop, files = [], author = null),
+        tools = [],
+        persona = ai.no_persona,
+        // The reply LEAVES through the same bridge every desk uses. It is a send, not a return.
+        deliver_to = agent (reply: string) -> null with send {
+          send(to = to_back(), sender = "front", content = reply, hop = hop + 1)
+        },
+      )
+      next null with { face = advanced.state }
+    }
+  }
+  null
+}
+```
+
+That is the entire diff: `array[string]` became `ai.desk`, the `+=` became `ai.advance_desk`, and the
+mail the body used to send by hand now leaves through `deliver_to`. The bridge, the nursery, the crash
+policy and the hop counter are untouched. `ai.desk` is what a resident conversation needs — the history,
+its measured occupancy, the arrivals held while the model could not be called — as one value the handler
+carries, and one arrival is one `advance_desk`.
+
+Two things the type moved for you. The desk's row grew `ai.infer_step` and one throw, which is the
+compiler telling you a model desk needs a provider above it — `anthropic.provider(...)` at the
+composition root, the same one [chapter 5]({docs}/{currentVersion}/tutorial/a-discord-bot)
+installed. And the reply
+still leaves as a **send**, because a model turn that answers by returning would be answering the fiber
+that delivered the mail, which is nobody.
+
+What a production desk adds is [chapter 5]({docs}/{currentVersion}/tutorial/a-discord-bot)'s rule, not new
+structure: one turn must not re-run (`deliver_to` may already have posted), so the call goes inside
+`supervise.once` with `supervise.signal_panics[never]`, and an interrupted turn costs that one message
+instead of the whole conversation. [`concierge`]({docs}/{currentVersion}/examples) is exactly this desk with that
+wrapper, real tools, and Discord on both ends.
+
+### Why not `serve_observations` here
+
+Chapter 5's bot had **one** desk, and `ai.serve_observations` is that packaging: it owns the `var`, and
+every `ai.observation` performed inside it advances the one conversation behind it. Two desks cannot
+both be that, because both would be serving the single `observation` request and the inner clause would
+shadow the outer — the second desk would never see mail addressed to it. The moment a program has two
+conversations it declares **its own** request per desk, and calls `advance_desk` itself. That is the
+whole cost of the second desk, and it is the code above.
+
+## When the desks come and go
+
+`ai` also has **`ai.desk_table`** — `record[ai.desk]` behind `ai.advance_in_table`, which looks a key up,
+runs that key's desk, and writes it back. It is worth knowing exactly when it replaces the shape above,
+because the answer is not "when you have more than one desk".
+
+**A front and a back are two `var`s, not a two-row table.** They are two names the program was written
+around, and folding them into a keyed collection buys nothing while costing the thing this chapter is
+about: one handler is **one** serialization domain, so a table's slow turn for one key delays every
+other key. Front and back exist precisely so they do not wait on each other.
+
+The table earns its keep where keys are **minted while the program runs** — one desk per worker admitted
+by name, one per customer conversation. There the arithmetic decides it: a desk costs a request, a
+handler, a bridge arm and a ceiling entry, and you cannot write four declarations per worker when the
+workers arrive at run time. One request carrying a key, one handler, and a table makes adding an agent
+**a row instead of an edit**.
+
+That form comes with one rule you would otherwise write yourself. A name is reusable — dismiss `scribe`,
+admit `scribe` again for a different errand — and the second scribe must inherit neither the first one's
+conversation nor its still-in-flight mail. So the roster mints a higher **generation** at each admit,
+every arrival carries the one it was dispatched under, and an arrival older than the table's is dropped
+as `stale`. See the [`ai` reference](/packages/ai) for `advance_in_table` and `forget_desk`.
+
+A program that has both is normal: fixed desks as their own `var`s, and one table beside them for the
+population that changes.
 
 ## Where you are
 
