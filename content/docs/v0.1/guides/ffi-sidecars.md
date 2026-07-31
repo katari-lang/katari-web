@@ -392,11 +392,13 @@ type bot_ceiling = slack.credential | io
 
 @"The watcher, as a fiber — and it SUPERVISES ITSELF. A runtime restart interrupts the watch and the
 frame panics; `signal_panics` turns that into the supervision signal and `exponential` opens a fresh
-connection after a backoff, because the credential is the whole of what the call needs. The budget is
-what makes this a recovery rather than a loop: a defect that panics on EVERY attempt spends it and
-throws, and that throw leaves the fiber as `failed`."
-agent channel_source(input: string) -> never with slack.credential | io | prelude.throw[slack.slack_error | supervise.panicked] {
-  use supervise.exponential(initial_delay_milliseconds = 1000.0, factor = 2.0, max_attempts = 5.0)
+connection after a backoff, because the credential is the whole of what the call needs. `forever` and
+not `exponential`: this watch is meant to outlive every deploy, and `exponential`'s budget is a LIFETIME
+count that never resets, so a bounded one would kill the watcher on its fifth restart. What bounds a
+reproducing defect here is the delay ceiling — the loop settles to one attempt every fifteen minutes,
+which is visible in the run's events rather than expensive."
+agent channel_source(input: string) -> never with slack.credential | io | prelude.throw[slack.slack_error] {
+  use supervise.forever(initial_delay_milliseconds = 1000.0, factor = 2.0, max_delay_milliseconds = 900000.0)
   use supervise.signal_panics[never]()
   slack.watch_messages(channel = input, deliver_to = reply)
 }

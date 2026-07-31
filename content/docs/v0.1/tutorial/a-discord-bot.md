@@ -140,8 +140,8 @@ agent count_letters(word: string, letter: string) -> integer {
 interrupts the watch and the frame panics; the converter turns that into the supervision
 signal and the provider opens a fresh connection after a backoff, because the bot token is
 the whole of what the call needs. Only a budget it cannot keep escapes, as a throw."
-agent channel_source(input: string) -> never with bot_ceiling | prelude.throw[discord.discord_error | env.missing_secret | oauth.server_error | supervise.panicked] {
-  use supervise.exponential(initial_delay_milliseconds = 1000.0, factor = 2.0, max_attempts = 5.0)
+agent channel_source(input: string) -> never with bot_ceiling | prelude.throw[discord.discord_error | env.missing_secret | oauth.server_error] {
+  use supervise.forever(initial_delay_milliseconds = 1000.0, factor = 2.0, max_delay_milliseconds = 900000.0)
   use supervise.signal_panics[never]()
   discord.watch_messages(channel = input, deliver_to = agent (value: discord.message) -> null {
     ai.observation(
@@ -213,8 +213,10 @@ Three agents, and you have met every idea in them:
   here and is answered by the server installed just outside. The restart lives INSIDE
   `channel_source`: `supervise.signal_panics` turns the interrupted call into a signal and
   `supervise.exponential` opens a fresh connection after a backoff, because the bot token is
-  the whole of what the call needs. The budget is what makes that a recovery rather than a
-  loop — a defect that panics on every attempt spends it and throws.
+  the whole of what the call needs. `forever` rather than `exponential`, because
+  `exponential`'s budget is a LIFETIME count that never resets: a watch meant to outlive
+  every deploy would die on its fifth restart. The delay ceiling is what bounds a
+  reproducing defect instead — the loop settles to one attempt every fifteen minutes.
   So the two death events are left with what is genuinely yours to decide. `failed` is an
   uncaught throw — a revoked token, a channel the bot was removed from, a watch that spent
   its budget — and no fresh watcher fixes one, so it stops the bot. `crashed` has nothing to
