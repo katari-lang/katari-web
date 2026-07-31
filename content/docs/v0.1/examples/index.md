@@ -59,9 +59,10 @@ A public _face_ answers the community from published notes only; its owner curat
 a private channel with three commands, and a question the notes do not cover is mailed to that
 channel instead of guessed at.
 
-Read it as [chapter 6]({docs}/{currentVersion}/tutorial/a-second-agent)'s office with real packages
-on the bus: the same two desks and the same mail bridge, with `ai.advance_desk` where the
-arithmetic was. The face's **tool set is its privacy boundary** —
+Read it as [chapter 6]({docs}/{currentVersion}/tutorial/a-second-agent)'s two-desk bot with a
+second channel: the same desks, the same mail, and the wrapper that chapter leaves out — every
+`advance_desk` inside `supervise.once`, so an interrupted turn costs one message rather than the
+conversation. The face's **tool set is its privacy boundary** —
 `[memory.recall, memory.search, memory.list_memories, flag_unknown]`, three reads and a flag, no
 writes — so nothing it says can come from anywhere but what the owner published. Its conversation is
 a handler `var`, which is to say run state, so it survives a runtime restart intact: the clearest
@@ -92,7 +93,8 @@ in it, so region, fibers, desk, store and crash policy are legible without an AI
 of them.
 
 Then take one of the middle two, for one model surface each: **concierge** if you arrived from the
-tutorial, since its mail bridge is the piece that carries you straight in from chapter 6;
+tutorial, since its two desks and its one-way mail are chapter 6 with a second channel in place of
+the researcher;
 **standup-scribe** if what you need next is a human's approval before an irreversible step.
 
 Read **inbox-butler** last. It installs four providers over three credentials, and it is a much

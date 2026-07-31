@@ -310,8 +310,8 @@ will show you. It is deliberately package-free, so the mechanism is the only thi
 with real packages on the bus: a public _face_ answers the community while its owner curates what it
 may know from a private channel, and the face's **tool set is its privacy boundary** — no tool it
 holds can write a note, so nothing it says can come from anywhere but what was published. Its desks
-run `ai.advance_desk`, the per-arrival form of the observation server you just installed, so the
-chapter's mail bridge is the one piece that carries you from this page into that file.
+run `ai.advance_desk`, the per-arrival form of the observation server you just installed — which is
+exactly the step [the next chapter]({docs}/{currentVersion}/tutorial/a-second-agent) takes.
 
 It has three siblings, and
 [the example programs]({docs}/{currentVersion}/examples) says what each one is for. All four are

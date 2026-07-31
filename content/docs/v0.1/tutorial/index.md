@@ -26,9 +26,8 @@ By the end you have:
 - a **second agent** beside it, reached by mail rather than by a call — the shape every
   further agent joins without re-opening the ordering question.
 
-Chapters 1 through 5 each pick up the previous chapter's file and evolve it; chapter 6
-starts a small package-free program of its own. Every chapter shows its complete code, so
-you can rebuild the project at any point without hunting through diffs.
+Every chapter picks up the previous chapter's file and evolves it, and every chapter shows
+its complete code, so you can rebuild the project at any point without hunting through diffs.
 
 ## What you need
 
@@ -59,8 +58,8 @@ you can rebuild the project at any point without hunting through diffs.
    keeps the conversation, and the whole thing deploys as one durable run.
 6. [A Second Agent]({docs}/{currentVersion}/tutorial/a-second-agent) — put a second agent
    on the resident's bus: a **desk** is one request plus one sequential handler, and
-   **mail** between desks is a fiber whose whole body is one perform. Package-free while
-   it builds the mechanism, then swaps a desk body for a model turn.
+   **mail** between desks is a fiber whose whole body is one perform — so a minute-long
+   search stops freezing the channel.
 
 Every idea the bot leans on — delegation, effects, escalation, durable runs, schemas —
 has a fuller treatment under
