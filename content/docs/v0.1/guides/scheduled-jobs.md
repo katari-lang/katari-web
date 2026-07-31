@@ -1,6 +1,6 @@
 ---
 title: Scheduled jobs
-description: Run agents on an interval or a cron schedule with time.watch, and compose retry policies around them with replay.
+description: Run agents on an interval or a cron schedule with time.watch, and compose retry policies around them with supervise.
 ---
 
 `time.watch` calls an agent once per schedule occurrence, forever, with durable timers: the next
@@ -169,4 +169,4 @@ agent main() -> string {
   to be durable at all.
 - [Webhooks]({docs}/{currentVersion}/guides/webhooks) — push instead of poll, with the same
   lifetime patterns.
-- The `time` and `replay` modules in the [reference](/packages).
+- The `time` and `supervise` modules in the [reference](/packages).

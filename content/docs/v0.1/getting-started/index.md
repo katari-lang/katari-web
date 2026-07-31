@@ -54,7 +54,7 @@ effect row, the schemas, the join.
 
 - A **compiler** that lowers Katari source to an IR, and a **runtime server** that executes
   IR snapshots against PostgreSQL — runs, escalations, and schedules all persist.
-- A **standard library** (`http`, `json`, `time`, `webhook`, `mcp`, `oauth`, `replay`, …) and
+- A **standard library** (`http`, `json`, `time`, `webhook`, `mcp`, `oauth`, `supervise`, …) and
   a **package registry** — `ai` (model-agnostic tool-calling over Anthropic / Gemini /
   OpenAI), `discord`, `slack`, `google_calendar`, `tavily`, and more. Every API is documented
   in the [reference](/packages).

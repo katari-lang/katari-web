@@ -25,7 +25,7 @@ katari --version
 ```
 
 ```
-katari 0.1.1
+katari 0.1.4
 ```
 
 **Note:** the package installs a prebuilt binary for linux-x64 and darwin-arm64. On another

@@ -451,12 +451,12 @@ Note what is _not_ in either listing: no `supervise` provider around the provide
 converter, no epoch to compare, no session to rebuild. If you find yourself reaching for that
 machinery to keep an FFI reference alive, the reference is the thing to fix.
 
-### Where `replay` still belongs
+### Where `supervise` still belongs
 
-`replay` is for a failure that **heals on a retry** — a rate limit, a 5xx, a cold upstream. That is
+`supervise` is for a failure that **heals on a retry** — a rate limit, a 5xx, a cold upstream. That is
 what [scheduled jobs]({docs}/{currentVersion}/guides/scheduled-jobs) wrap a `time.watch` delivery in,
 and it is unaffected by any of the above: the failure there is a typed throw the converter chooses to
-replay, not a pointer that went stale.
+re-run, not a pointer that went stale.
 
 What it is _not_ for is re-establishing a reference. It is worth knowing the cost you avoid by not
 needing it here, because that cost is what made the old recipe expensive: everything installed inside a

@@ -58,6 +58,12 @@ packages = ["tavily"]
   become the next snapshot. Use it for early access to a just-merged package, and switch back to
   the next immutable cut.
 
+**`katari init` scaffolds `staging`, and that is not the recommendation contradicting itself.**
+`init` runs offline — it has no way to learn the name of the newest cut without asking the registry —
+and `staging` is the one name that is always valid. Your first `katari lock` freezes an exact
+resolution from it either way, so nothing moves under you; `katari update` then re-pins you to a
+real immutable cut, which is where a project you deploy should sit.
+
 There are no per-package version constraints to solve: the snapshot already fixed every version,
 so `packages` is a flat list of names.
 

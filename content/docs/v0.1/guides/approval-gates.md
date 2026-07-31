@@ -22,8 +22,8 @@ The whole idiom fits in one sentence — **the turn does not wait; a fiber does*
 
 ## The gate is app code, not a package
 
-Katari shipped an `approval` package once. Deleting it is the design decision this page is really
-about, because a gate _looks_ like a reusable facility right up until you write one.
+A gate _looks_ like a reusable facility right up until you write one, and this page is really about
+why it is not — the argument is worth having before you reach for a library that does not exist.
 
 A gate is three things stuck together — **fork, ask, branch** — and only the fork is generic. Hold all
 three in a package and the package inherits every difficulty of not knowing the other two:
@@ -47,12 +47,12 @@ is no residual to keep precise — and no re-emitted `region.crashed` phantom ei
 **The honest accounting.** The reference bot did not get shorter for this: its source grew by about 70
 lines, because six editable drafts are six forms of prefilled fields, and because the failure guard
 below is a new capability rather than a replacement. What shrank is the number of things a reader must
-hold at once — one dependency fewer, three concepts fewer (an `approve_async` request, a `serve`
+hold at once — one dependency fewer, three concepts fewer (a generic approve request, a `serve`
 provider with its scope marker and its own second nursery, and a root-escalated confirm, all replaced
 by `spawn_gate` + `ask_operator`), and one nursery instead of two. The
 [escalation]({docs}/{currentVersion}/concepts/escalation) report `katari check` prints came out **39%
-shorter**: fourteen tools that each declared `approval.approve_async[<the entire ceiling>]` — a
-700-character row, printed fourteen times — now declare `spawn_gate`, one name.
+shorter**: fourteen tools that had each declared an approve request carrying `<the entire ceiling>` as
+a type argument — a 700-character row, printed fourteen times — now declare `spawn_gate`, one name.
 
 The law worth keeping is narrow: **a facility whose mechanism is a fork is cheaper to inline than to
 abstract.** The abstraction paid for itself while the answer was a boolean. It stopped paying the

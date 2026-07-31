@@ -108,7 +108,7 @@ agent report() -> string {
 ```
 
 `use quietly()` rewrites the rest of `report` into the `continuation` argument. This is the
-shape every stdlib and package provider uses: `use supervise.exponential(...)` serves the replay
+shape every stdlib and package provider uses: `use supervise.exponential(...)` serves the supervision
 signal, `use mcp.provide(url = ...)` serves an MCP server's tools for the extent of the block
 (and `let tools = use mcp.provide(...)` binds the value the provider passes to its
 continuation). The scoping is the point — the capability exists exactly for the block, and
@@ -138,7 +138,7 @@ agent timed[R, effect E](
 `[effect E]` declares an effect generic: `timed` works over an action with any row and
 propagates it unchanged, adding `io` — the built-in, un-dischargeable effect every external
 call (HTTP, the clock, an FFI sidecar) performs. Higher-order agents in the stdlib
-(`time.watch`, `replay.*`, `reflection.call_agent`) all have this shape; see the
+(`time.watch`, `supervise.*`, `reflection.call_agent`) all have this shape; see the
 [reference](/packages) for their rows.
 
 ## Marker effects
@@ -184,7 +184,7 @@ at any handler on the way.
 
 - [Escalation]({docs}/{currentVersion}/concepts/escalation) — what happens when no handler
   is in scope.
-- [Durable execution]({docs}/{currentVersion}/concepts/durable-execution) — `replay`
+- [Durable execution]({docs}/{currentVersion}/concepts/durable-execution) — `supervise`
   providers and converters, the mechanism / policy split.
 - [Effects and escalation]({docs}/{currentVersion}/tutorial/effects-and-escalation) — the
   tutorial pass over this material.

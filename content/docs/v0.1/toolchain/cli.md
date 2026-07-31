@@ -15,7 +15,7 @@ token. `katari <command> --help` documents every flag.
 | `katari init [NAME]`                 | Scaffold a new project: `katari.toml`, `src/<name>.ktr` (the starter module under the package namespace), and a compose file for a local runtime. |
 | `katari check`                       | Compile the project and report diagnostics. Local only — nothing reaches the runtime.                                                             |
 | `katari build`                       | Compile to IR JSON on disk (`.katari/dist/ir.json`), for inspection or CI artifacts.                                                              |
-| `katari docs`                        | Emit the package's library API reference as JSON; `--stdlib` documents the prelude instead.                                                       |
+| `katari docs`                        | Emit **this** package's library API reference as JSON; `--stdlib` documents the prelude instead. It does not read a dependency — for a package you depend on, the [reference](/packages) or the docs MCP server is the source. |
 | `katari add PKG...`                  | Add dependencies from the pinned registry snapshot and refresh `katari.lock`.                                                                     |
 | `katari remove PKG...`               | Remove dependencies and refresh `katari.lock`.                                                                                                    |
 | `katari lock`                        | Resolve the closure `katari.toml` declares and write `katari.lock`. No compile, no deploy.                                                        |

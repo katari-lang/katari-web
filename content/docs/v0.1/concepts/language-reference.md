@@ -714,6 +714,36 @@ it rides the effect row like anything else and is caught with an ordinary handle
 broken invariant). It never appears in a row, and the only thing you can write about it is the handler
 clause above.
 
+## Words you cannot bind
+
+Two sets of words are unavailable as a binding, a parameter or a field name, for two different
+reasons — and the second set is the one that surprises people.
+
+**Keywords**, rejected by the lexer with `keyword "x" cannot be used as an identifier`:
+
+```text
+agent    request  external  primitive  data     type
+import   from     as        use        handler
+for      parallel if        else       match    case
+return   next     break     var        let
+finally  then     in        with       of
+true     false    null
+```
+
+**Type names**, rejected because a bare type name in a **pattern** is a type filter (`case
+integer(n) -> …`), and `let` takes a pattern:
+
+```text
+null  boolean  integer  number  string  file
+array  record  unknown  never   pure    all
+```
+
+`let number = 3` therefore fails, and the message is `expected a pattern` pointing at the `=` —
+accurate about the grammar, silent about the cause. The convention when the word you want is taken is
+a trailing noun (`number` → `attempt_number`, `type` → `content_type`), which reads better in a
+labelled-argument language anyway. A record KEY may still be any of these if you quote it —
+`{ "type" = "message" }` — because a quoted key is not an identifier.
+
 ## Things that look like they should exist, and do not
 
 | Assumed                   | Reality                                                                         |

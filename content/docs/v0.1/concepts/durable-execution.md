@@ -131,7 +131,7 @@ agent resilient() -> string {
   }
   // MECHANISM: re-run the rest of the block each time `supervise.interrupted` is performed.
   use supervise.exponential(initial_delay_milliseconds = 1000.0, factor = 2.0, max_attempts = 5.0)
-  // POLICY: a converter — an ordinary handler — decides which failures replay.
+  // POLICY: a converter — an ordinary handler — decides which failures re-run.
   use handler {
     request prelude.throw(error: transient | fatal) -> never {
       match (error) {
@@ -144,13 +144,13 @@ agent resilient() -> string {
 }
 ```
 
-Retry is split into two parts that compose. A **replay provider**
+Retry is split into two parts that compose. A **supervise provider**
 (`supervise.immediate` / `supervise.forever` / `supervise.exponential`) is the mechanism: it re-runs
 the rest of the block whenever the `supervise.interrupted` request is performed, sleeping its
 policy's delay durably in between — and it knows nothing about what counts as retriable. A
 **converter** — an ordinary handler you install between the provider and the body — is the
 policy: it catches the failures you choose and turns exactly those into `interrupted`,
-rethrowing the rest. Here `transient` replays with backoff and `fatal` leaves immediately
+rethrowing the rest. Here `transient` re-runs with backoff and `fatal` leaves immediately
 for the fallback; when a bounded provider exhausts its budget, it re-raises the last failure
 as a typed `throw`, so the error stays typed end to end. Wrap `time.watch`'s delivery in
 `supervise.forever` plus a converter and you have a daemon that survives transient failures
@@ -161,12 +161,12 @@ budget bounds it, and only a budget it could not keep escapes — as a throw, wh
 `failed`. That is why there is no separate supervision API to learn. A supervisor restarts a fiber with
 a budget; a `supervise` provider re-runs a block with a budget; a fiber's body is a block.
 
-### What a replay rebuilds, and what it keeps
+### What a re-run rebuilds, and what it keeps
 
-A replay provider is ordinary Katari — a `forever` loop whose body **delegates** the rest of the
+A supervise provider is ordinary Katari — a `forever` loop whose body **delegates** the rest of the
 block once per attempt. Nothing unwinds the enclosing agent's frame, which gives the base rule:
 
-> State installed _above_ the replay scope lives in the caller's frame and survives every attempt;
+> State installed _above_ the supervised scope lives in the caller's frame and survives every attempt;
 > everything the supervised block installs is rebuilt per attempt.
 
 A provider installed inside is therefore re-established each time. Sometimes that is exactly the
@@ -176,7 +176,7 @@ it is _never_ for is keeping an FFI reference alive: a call that takes the remot
 credential has nothing to re-establish, which is the rule in
 [FFI sidecars]({docs}/{currentVersion}/guides/ffi-sidecars#what-may-cross-the-boundary). A stateful
 `var` handler, meanwhile, could in principle be hoisted above the `use` to keep its state across
-replays — but that hoist has a strict precondition:
+attempts — but that hoist has a strict precondition:
 
 > **A handler may be hoisted above a supervision boundary only if its body performs nothing that is
 > served inside that boundary** — otherwise the requests it performs escape the program.
@@ -198,7 +198,7 @@ capability diff: hoisting a model desk adds a line to it.
 if a hoist added a request, put the handler back.
 
 For the common resident — a desk that talks to a model or a chat surface — that settles it: **its
-state genuinely is rebuilt per attempt.** Keeping it across the replays means persisting it in the
+state genuinely is rebuilt per attempt.** Keeping it across the attempts means persisting it in the
 [store]({docs}/{currentVersion}/guides/store), or introducing an app-level request pair the supervised
 block serves as a proxy. Either way, the state and whatever consumes it must end up on the same side
 of the boundary: hoist a collecting desk but leave the fiber that _closes_ its window inside, and the

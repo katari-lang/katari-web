@@ -115,8 +115,16 @@ agent route(to: string) -> string {
 }
 ```
 
-Number literals work the same way (`case 1 -> ...`, `case n -> ...`). Relatedly, the
-comparison operators order strings too: `<` on strings is lexicographic by Unicode code
+Number literals work the same way (`case 1 -> ...`, `case n -> ...`).
+
+**The binder arm is not optional here, and this is where literals differ from constructors.**
+Listing every constructor of a `data` union IS exhaustive — that is the check that breaks a
+`match` when you add a third shape. Listing every member of a literal union is NOT: a closed
+`"page" | "ticket" | "noise"` is closed for assignment but open for `match`, so covering all
+three still leaves a residual and `check` reports `expected: never` against what is left. Write
+the binder arm, and put in it whatever an unforeseen value should mean.
+
+Relatedly, the comparison operators order strings too: `<` on strings is lexicographic by Unicode code
 point, so `"2026-07-01" < "2026-08-01"` is `true`.
 
 ## Generics
