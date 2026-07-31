@@ -156,6 +156,11 @@ as a typed `throw`, so the error stays typed end to end. Wrap `time.watch`'s del
 `supervise.forever` plus a converter and you have a daemon that survives transient failures
 with flat durable state.
 
+Put that pair INSIDE a fiber and you have a supervisor: the fiber answers its own interruption, the
+budget bounds it, and only a budget it could not keep escapes — as a throw, which the region reports as
+`failed`. That is why there is no separate supervision API to learn. A supervisor restarts a fiber with
+a budget; a `supervise` provider re-runs a block with a budget; a fiber's body is a block.
+
 ### What a replay rebuilds, and what it keeps
 
 A replay provider is ordinary Katari — a `forever` loop whose body **delegates** the rest of the

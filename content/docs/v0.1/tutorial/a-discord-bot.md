@@ -227,7 +227,13 @@ Three agents, and you have met every idea in them:
   simply connects again. `failed` stops the bot, because an uncaught throw is a failure the
   program anticipated typing — a revoked token, a channel the bot was removed from — and no
   number of fresh watchers fixes one. Handling both is not optional politeness: they ride
-  `watch`'s row, so `katari check` holds you to it. Note also what is _not_ on
+  `watch`'s row, so `katari check` holds you to it. (One watcher and one clause is the
+  smaller thing to learn, and it is what this chapter uses. A resident with several fibers
+  puts the restart INSIDE each one instead — `supervise.exponential` + `signal_panics`
+  around the watch, which answers the interruption where it happens, bounds it with a
+  budget, and leaves this clause nothing to do. The
+  [FFI sidecars guide]({docs}/{currentVersion}/guides/ffi-sidecars#what-a-restart-costs-and-what-a-re-fork-gets-back)
+  shows both and says why the budget is the point.) Note also what is _not_ on
   `bot_ceiling` — the watcher's own `discord_error`. A fiber's uncaught throw never crosses
   the region as a throw; it arrives as `failed`'s `error`, which is why `watcher_failed` is
   this bot's throw and the package's is not.

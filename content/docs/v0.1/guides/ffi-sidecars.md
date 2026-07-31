@@ -390,15 +390,20 @@ effect bot_scope
 // uncaught throw never crosses the region as a throw. (Type synonyms take no docs.)
 type bot_ceiling = slack.credential | io
 
-@"The watcher, as a fiber: serve the channel forever. `fork` applies it to the channel id — the
-parameter is named `input` because `fork` declares its task as `agent (input: A) -> null`."
-agent channel_source(input: string) -> never {
+@"The watcher, as a fiber — and it SUPERVISES ITSELF. A runtime restart interrupts the watch and the
+frame panics; `signal_panics` turns that into the supervision signal and `exponential` opens a fresh
+connection after a backoff, because the credential is the whole of what the call needs. The budget is
+what makes this a recovery rather than a loop: a defect that panics on EVERY attempt spends it and
+throws, and that throw leaves the fiber as `failed`."
+agent channel_source(input: string) -> never with slack.credential | io | prelude.throw[slack.slack_error | supervise.panicked] {
+  use supervise.exponential(initial_delay_milliseconds = 1000.0, factor = 2.0, max_attempts = 5.0)
+  use supervise.signal_panics()
   slack.watch_messages(channel = input, deliver_to = reply)
 }
 
 @"The same bot with the watcher detached, so the resident can serve other traffic while it listens.
-The recovery is one clause: `crashed` forks another watch, which connects; `failed` stops loudly,
-because no reconnect fixes a revoked token."
+Because the watch supervises itself, the region's two events are left with what is genuinely the
+program's: `failed` — a fault no fresh start heals — and `crashed`, which nothing here can now raise."
 agent resident(channel: string) -> never with io | prelude.throw[watcher_failed | env.missing_secret | oauth.server_error] {
   use slack.provider(
     bot_source = credentials.env(key = "SLACK_BOT_TOKEN"),
@@ -407,8 +412,7 @@ agent resident(channel: string) -> never with io | prelude.throw[watcher_failed 
   let nursery: region.nursery[bot_scope, bot_ceiling] = use region.provide[bot_scope, bot_ceiling]
   use handler {
     request region.crashed(id: string, name: string, message: string) {
-      // The interrupted call died with the restart; a fresh one resolves the tokens and connects.
-      let _replacement = region.fork(nursery = nursery, task = channel_source, argument = channel, name = name)
+      // A fiber that carries no supervisor of its own would land here; this one does, so nothing does.
       next null
     }
     request region.failed(id: string, name: string, error: unknown) {
@@ -420,9 +424,22 @@ agent resident(channel: string) -> never with io | prelude.throw[watcher_failed 
 }
 ```
 
-**`crashed` = fork it again; `failed` = stop loudly.** A panic means the call was interrupted, which a
-fresh call fixes. A typed throw is the program's own anticipated failure — a revoked token, a channel
-the bot was removed from — which no number of fresh calls will. Both ride `watch`'s row, so `katari
+**Put the restart INSIDE the fiber, and the budget with it.** A supervisor restarts a fiber with a
+budget; a `supervise` provider re-runs a block with a budget; a fiber's body is a block — so the two
+are the same mechanism, and the one already in the prelude is the one to use. Written this way the
+panic is answered where it happened and never becomes a `crashed` event at all, which is why the clause
+above has nothing to do.
+
+The older shape — a `crashed` clause outside the fiber holding a `region.fork` per arm — still
+compiles and you will meet it in the tutorial, where one watcher and one clause is the smaller thing to
+learn. It costs a name constant per fiber so the policy can compare the name the event reports, a sum
+to dispatch that comparison on, and, in every version of it anyone wrote, **no bound on the restarts**:
+a defect that panics on every attempt is then a fork loop with nothing to stop it. The budget is the
+whole reason to prefer the inside form.
+
+**A panic means the call was interrupted, which a fresh call fixes; a typed throw is the program's own
+anticipated failure — a revoked token, a channel the bot was removed from — which no number of fresh
+calls will.** That split is why the fiber's own supervisor answers the first and lets the second fly. Both ride `watch`'s row, so `katari
 check` holds you to writing both. And note where the watcher's `slack_error` went: it is not on
 `bot_ceiling` and not on `resident`'s row, because a fiber's uncaught throw is trapped at the region
 boundary and arrives as `failed`'s `error` — which is why `watcher_failed` is `resident`'s own throw and
