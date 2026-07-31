@@ -446,10 +446,20 @@ whole cost of the second desk, and it is the code above.
 runs that key's desk, and writes it back. It is worth knowing exactly when it replaces the shape above,
 because the answer is not "when you have more than one desk".
 
-**A front and a back are two `var`s, not a two-row table.** They are two names the program was written
-around, and folding them into a keyed collection buys nothing while costing the thing this chapter is
-about: one handler is **one** serialization domain, so a table's slow turn for one key delays every
-other key. Front and back exist precisely so they do not wait on each other.
+**A table is storage, not concurrency.** `advance_in_table` takes a table value and returns a new one;
+where it runs is decided by its call site, and its call site is one handler holding one `var`. So a
+table is **N conversations on one lane** — a slow turn for one key delays every other key. It is worth
+saying plainly, because "a table of desks" sounds like the opposite.
+
+That is not an oversight in the package. What serializes in Katari is a sequential handler, and a
+handler is lexical, so **the number of lanes is the number of handlers you wrote**. Two desks are two
+lanes because two `use handler` clauses are on the page. Keys minted at run time cannot mint handlers,
+so they share one. The concurrency in this chapter is entirely in the fibers, and desks are deliberately
+the part that is not concurrent.
+
+**So a front and a back are two `var`s, not a two-row table.** They are two names the program was
+written around, and folding them into a keyed collection would trade the thing this chapter is about —
+two lanes that do not wait on each other — for nothing.
 
 The table earns its keep where keys are **minted while the program runs** — one desk per worker admitted
 by name, one per customer conversation. There the arithmetic decides it: a desk costs a request, a
@@ -464,7 +474,13 @@ every arrival carries the one it was dispatched under, and an arrival older than
 as `stale`. See the [`ai` reference](/packages/ai) for `advance_in_table` and `forget_desk`.
 
 A program that has both is normal: fixed desks as their own `var`s, and one table beside them for the
-population that changes.
+population that changes. The lane a table shares is usually fine for the reason a real one gives — a
+worker computes only when it is mailed, so two keys wanting the same instant is rare. When it is not
+fine, nothing new is needed either: the dispatch clause `region.post`s the turn as a fiber and takes
+the finished desk back on one more request, keeping a per-key busy flag in its `var` so one key still
+never runs twice at once. That is a per-key scheduler out of the pieces this chapter already used, and
+the reason it is not the default is that every fiber that can crash mid-turn is a flag somebody has to
+clear.
 
 ## Where you are
 
