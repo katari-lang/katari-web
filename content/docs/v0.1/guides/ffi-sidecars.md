@@ -397,7 +397,7 @@ what makes this a recovery rather than a loop: a defect that panics on EVERY att
 throws, and that throw leaves the fiber as `failed`."
 agent channel_source(input: string) -> never with slack.credential | io | prelude.throw[slack.slack_error | supervise.panicked] {
   use supervise.exponential(initial_delay_milliseconds = 1000.0, factor = 2.0, max_attempts = 5.0)
-  use supervise.signal_panics()
+  use supervise.signal_panics[never]()
   slack.watch_messages(channel = input, deliver_to = reply)
 }
 
