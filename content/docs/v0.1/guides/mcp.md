@@ -3,10 +3,11 @@ title: MCP
 description: Consume any MCP server's tools as typed agents — dynamically or through generated bindings — and serve your own agents as an MCP server.
 ---
 
-Katari speaks MCP in both directions, with no sidecar and nothing to install: `mcp.provide` plugs
-a server's tools into a program as ordinary agent values, `katari mcp pull` freezes a server's
-tools into a typed binding module at dev time, and `mcp.serve` publishes your own agents as a
-live MCP server.
+There is no client library to install and no connection object to hold. `mcp.provide` mints one agent
+per server tool for the extent of a block, `katari mcp pull` freezes the same listing into a typed
+module at dev time, and `mcp.serve` mints a capability URL for the outbound direction. Every call is
+validated against a schema on the way through, so a server's tool is as safe to hand a model as an
+agent you wrote yourself.
 
 ## Connect to a server
 
@@ -19,7 +20,7 @@ agent main(url: string) -> string {
       break f"mcp failed: ${json.stringify(value = error)}"
     }
   }
-  let tools : mcp.toolbox[mcp.scope] = use mcp.provide[mcp.scope](url = url, auth = mcp.headers(values = record.empty()))
+  let tools : mcp.toolbox[mcp.scope] = use mcp.provide[mcp.scope](url = url, auth = mcp.headers(values = {}))
   match (record.get(target = tools, key = "add")) {
     case null -> "(no add tool)"
     case tool -> json.stringify(value = reflection.call_agent(target = tool, args = { x = 19, y = 23 }))
@@ -27,38 +28,38 @@ agent main(url: string) -> string {
 }
 ```
 
-Each entry in the toolbox **is an agent**, minted by the runtime with the server-declared name,
-description, and input schema: `reflection.get_metadata` reads them, and a call is validated
-against the schema before the server is ever contacted. There is no connection to manage — the
-runtime connects lazily, reuses the connection across calls, and reconnects transparently after a
-failure or a restart.
+Each entry in the toolbox is an agent, minted by the runtime with the server-declared name,
+description, and input schema: `reflection.get_metadata` reads them, and a call is validated against
+the schema before the server is ever contacted. There is no connection to manage — the runtime
+connects lazily, reuses the connection across calls, and reconnects transparently after a failure or
+a restart. Pass `prefix = "notion"` to publish the server's `search` as `notion_search`, which is
+what keeps two servers' identically named tools apart in front of a model.
 
-The tools are **scoped**: a tool's effect row carries a scope marker, which only `provide`'s block
+The tools are scoped: a tool's effect row carries a scope marker, which only `provide`'s block
 discharges, so a tool cannot outlive its connection — returning one out of the block is a type error.
-`provide` is generic over the marker it discharges; you pass one in the `[...]` (`mcp.provide[mcp.scope]`
-above) and it rides the toolbox type, so the toolbox is `mcp.toolbox[mcp.scope]`. `mcp.scope` is the
-built-in marker for direct, dynamic connections; a `katari mcp pull` binding declares its own instead.
+You pass the marker in the `[...]` (`mcp.provide[mcp.scope]` above) and it rides the toolbox type.
+`mcp.scope` is the built-in marker for direct, dynamic connections; a `katari mcp pull` binding
+declares its own instead.
 
-**Declare one marker per logical connection.** When you call `provide` directly you choose the marker,
-so sharing one marker across two connections **merges** their scopes at the type level — the two servers'
-tools become interchangeable in any row that carries that marker. This is only a type distinction:
-routing and the live-`provide` backstop are always enforced by each tool value's own `{url, auth}`
-descriptor, so a call never reaches the wrong server — at worst a tool whose `provide` has already closed
-fails with a typed `mcp.server_error`. Generated bindings need no such care: the module namespace mints a
-distinct marker (`github.connection`) per connection automatically.
+Declare one marker per logical connection. Sharing one across two connections merges their scopes at
+the type level, so the two servers' tools become interchangeable in any row carrying that marker.
+That is a type distinction only: routing follows each tool value's own `{url, auth}` descriptor, so a
+call never reaches the wrong server, and a tool whose `provide` has closed fails with a typed
+`mcp.server_error`. Generated bindings mint a distinct marker (`github.connection`) per connection
+automatically.
 
-When the toolbox itself would never be read — you call tools statically through `mcp.call`
-rather than handing minted agents to a loop — `mcp.open` is the **listing-free** form of the
-same scoped contract: it registers the connection's scope and starts the block immediately,
-with no server round-trip at open, so the first tool call is the first contact. That makes a
-per-call connection plain data at no server cost; it is what a generated binding's `connect`
-uses. Because nothing is contacted at open, authentication surfaces at the first call — a
-missing OAuth credential parks _that call_ on the authorization escalation.
+When the toolbox would never be read — you call tools statically through `mcp.call` rather than
+handing minted agents to a loop — `mcp.open` is the listing-free form of the same scoped contract: it
+registers the connection's scope and starts the block immediately, with no server round-trip at open,
+so the first tool call is the first contact. It is what a generated binding's `connect` uses. Because
+nothing is contacted at open, authentication surfaces at the first call, and a missing OAuth
+credential parks that call on the authorization escalation.
 
 ## Hand the tools to a model
 
-`record.values` flattens the toolbox into the array shape the `ai` package's loop takes — the
-model sees each tool's server-declared schema and calls them like any other agent:
+The toolbox is a `record`, and the `ai` package's loop takes an array, so one comprehension over
+`record.entries` carries the values across. The model sees each tool's server-declared schema and
+calls them like any other agent:
 
 ```katari
 import ai
@@ -72,14 +73,11 @@ agent main(url: string, task: string) -> string with io {
       break f"failed: ${json.stringify(value = error)}"
     }
   }
-  use gemini.provider(
-    model = "gemini-3.5-flash",
-    source = credentials.env(key = "GEMINI_API_KEY"),
-  )
-  let tools : mcp.toolbox[mcp.scope] = use mcp.provide[mcp.scope](url = url, auth = mcp.headers(values = record.empty()))
+  use gemini.provider(model = "gemini-3.5-flash", source = credentials.env(key = "GEMINI_API_KEY"))
+  let tools : mcp.toolbox[mcp.scope] = use mcp.provide[mcp.scope](url = url, auth = mcp.headers(values = {}))
   ai.infer_with_tools(
     history = [types.turn(role = types.user_role(), text = task, files = [])],
-    tools = record.values(target = tools),
+    tools = for (let [_name, tool] in record.entries(target = tools)) { next tool },
     max_steps = 8,
   )
 }
@@ -150,9 +148,9 @@ agent main(url: string) -> string with io {
   let key = env.get_secret(key = "MCP_BEARER_KEY")
   let tools : mcp.toolbox[mcp.scope] = use mcp.provide[mcp.scope](
     url = url,
-    auth = mcp.headers(values = record.set(target = record.empty(), key = "Authorization", value = "Bearer " ++ key)),
+    auth = mcp.headers(values = { "Authorization" = "Bearer " ++ key }),
   )
-  f"connected: ${string.to_string(value = array.length(target = record.values(target = tools)))} tools"
+  f"connected: ${string.to_string(value = record.size(target = tools))} tools"
 }
 ```
 
@@ -172,7 +170,7 @@ agent main() -> string with io {
   }
   let tools : mcp.toolbox[mcp.scope] =
     use mcp.provide[mcp.scope](url = "https://mcp.notion.com/mcp", auth = mcp.oauth(name = "notion"))
-  f"the server publishes ${string.to_string(value = array.length(target = record.values(target = tools)))} tools"
+  f"the server publishes ${string.to_string(value = record.size(target = tools))} tools"
 }
 ```
 
@@ -243,34 +241,28 @@ agent main() -> never with announce | io {
 }
 ```
 
-The URL **is** the key: possession grants access, nothing else does. The subscriber hands it to
-whoever should connect (an AI session, a teammate's MCP client) and stays alive while calls
-should be served; when it returns — or the run is cancelled — the URL deactivates. A `tools/call`
-whose arguments violate the published schema is rejected at the boundary as invalid params; a
-served tool that throws or panics on a well-formed call proxies up and cancels the whole
-endpoint, so for per-request resilience wrap the tool's body in a handler — the same contract as
+The URL is the key: possession grants access, nothing else does. The subscriber hands it to whoever
+should connect (an AI session, a teammate's MCP client) and stays alive while calls should be served;
+when it returns — or the run is cancelled — the URL deactivates. A `tools/call` whose arguments
+violate the published schema is rejected at the boundary as invalid params; a served tool that throws
+or panics on a well-formed call proxies up and cancels the whole endpoint, so per-request resilience
+is a handler around the tool's body — the same contract as
 [webhooks]({docs}/{currentVersion}/guides/webhooks).
 
 ## Trust boundary
 
-0.1's MCP integration assumes the servers you connect to are **trusted**. When you consume a
-server — through `mcp.provide`, `mcp.open`, or a `katari mcp pull` binding — its tool responses are
-decoded onto the value plane, and the runtime does not yet authenticate that a decoded value which
-looks like a callable actually originated inside your program. A malicious server could therefore, in
-principle, return a crafted response that forges one. Routing is never affected — a tool value always
-carries its own `{url, auth}`, so a call cannot be redirected to the wrong server — but the decode
-surface itself is not yet locked down.
-
-In practice this means: **connect only to MCP servers you control or trust**, the same standard you
-would apply to any code you run in-process. The general authorization that closes this surface —
-per-capability authz on decoded callables — is planned for v0.2. This is a caveat about _untrusted_
-servers, not a reason to avoid MCP: a server you operate, or a well-known provider's official server,
-is exactly the trusted case the integration is built for.
+0.1's MCP integration is built for servers you control or trust — the standard you would apply to any
+code you run in-process. Consuming a server decodes its tool responses onto the value plane, and the
+runtime does not yet authenticate that a decoded value which looks like a callable originated inside
+your program, so a crafted response could in principle forge one. Routing is unaffected either way: a
+tool value carries its own `{url, auth}`, so a call cannot be redirected. The general authorization
+that closes the decode surface — per-capability authz on decoded callables — is planned for v0.2.
 
 ## Where to go next
 
-- [Giving the model tools]({docs}/{currentVersion}/tutorial/giving-the-model-tools) — the
-  tutorial chapter this guide generalizes.
-- [Effects and handlers]({docs}/{currentVersion}/concepts/effects-and-handlers) — why a scope can
-  live in an effect row at all.
-- The `mcp` module in the [reference](/packages) — every signature and error, in detail.
+<DocCards>
+  <DocCard href="{docs}/{currentVersion}/tutorial/giving-the-model-tools" />
+  <DocCard href="{docs}/{currentVersion}/concepts/effects-and-handlers" />
+</DocCards>
+
+The `mcp` module's every signature and error is in the [reference](/packages).

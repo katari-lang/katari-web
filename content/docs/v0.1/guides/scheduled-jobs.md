@@ -3,10 +3,9 @@ title: Scheduled jobs
 description: Run agents on an interval or a cron schedule with time.watch, and compose retry policies around them with supervise.
 ---
 
-`time.watch` calls an agent once per schedule occurrence, forever, with durable timers: the next
-occurrence is persisted, so a restart re-arms it instead of forgetting it. Retry is deliberately
-**not** built in — you compose it around the watch with a `supervise` provider, which is why one
-small surface covers cron jobs, pollers, and resilient daemons alike.
+The delivered agent is ordinary code: its effects flow to your handlers unchanged, so what it may do
+is whatever the calling block serves. `time.watch` itself holds only the timer, which is durable —
+the next occurrence is persisted, and a restart re-arms it.
 
 ## Run on a cron schedule
 
@@ -16,7 +15,6 @@ agent send_daily_summary(time: number) -> null with io | prelude.throw[http.fetc
   let _response = http.fetch(
     url = "https://api.example.com/daily-summary",
     method = "POST",
-    headers = record.empty(),
     body = http.json(value = { scheduled = time }),
   )
   null
@@ -31,22 +29,18 @@ agent main() -> never with io | prelude.throw[http.fetch_error] {
 }
 ```
 
-`time.cron` takes a standard 5-field expression (or the 6-field form with a leading seconds
-field) and an IANA timezone name. The timezone is required and explicit: "every day at 09:00" is
-a different instant in every zone, and a durable scheduler must not guess which one you meant. A
-malformed expression or an unknown zone is a panic — a correct program never supplies one.
+`time.cron` takes a standard 5-field expression (or the 6-field form with a leading seconds field)
+and an IANA timezone name. The timezone is required and explicit: "every day at 09:00" is a
+different instant in every zone, and a durable scheduler must not guess which one you meant.
 
 The other schedule is `time.interval(milliseconds = ...)`: an occurrence every interval after the
-watch starts (the first one is one interval in, not at the start).
-
-`watch` never resolves on its own (`-> never`); it runs until the run is cancelled. The delivered
-agent's effects flow to your handlers unchanged — which is exactly what the next section exploits.
+watch starts (the first one is one interval in, not at the start). `watch` never resolves on its own
+(`-> never`); it runs until the run is cancelled.
 
 ## Keep a job alive across failures
 
-A `deliver_to` that throws or panics is **not retried** — the failure propagates and kills the
-watch, exactly as an uncaught failure in any callee does. Resilience is composed at the call
-site, from two pieces:
+A `deliver_to` that throws or panics propagates and ends the watch, exactly as an uncaught failure
+in any callee does. Resilience is composed at the call site, from two pieces:
 
 - a **`supervise` provider** — the mechanism. It re-runs the rest of the block whenever the
   `supervise.interrupted` signal is performed, applying its delay policy. It knows nothing about
@@ -58,35 +52,31 @@ site, from two pieces:
 @"The resilient daemon: a failed delivery re-runs the watch after a capped exponential backoff,
 and the watch re-arms from its persisted next occurrence."
 agent main() -> never with io {
-  use supervise.forever(initial_delay_milliseconds = 1000, factor = 2, max_delay_milliseconds = 60000)
+  use supervise.forever()
   use handler {
     request prelude.throw(error: http.fetch_error) -> never {
       supervise.interrupted(failure = error)
     }
   }
-  time.watch(
-    schedule = time.interval(milliseconds = 300000),
-    deliver_to = poll_upstream,
-  )
+  time.watch(schedule = time.interval(milliseconds = 300000), deliver_to = poll_upstream)
 }
 
 @"One poll; a downstream outage surfaces as `http.fetch_error` and kills the watch — by design."
 agent poll_upstream(time: number) -> null with io | prelude.throw[http.fetch_error] {
-  let _response = http.fetch(
-    url = "https://api.example.com/poll",
-    method = "GET",
-    headers = record.empty(),
-    body = http.text(content = ""),
-  )
+  let _response = http.fetch(url = "https://api.example.com/poll")
   null
 }
 ```
 
-When a poll fails, the converter performs `supervise.interrupted`, `supervise.forever` sleeps its
-current backoff (durably — the delay survives a restart) and re-runs the block, and `watch`
-re-arms from its persisted next occurrence. The durable footprint stays flat no matter how many
-failures the daemon has survived. `supervise.interrupted` with no provider in scope fails the run,
-so the composition is explicit in source.
+`supervise.forever`'s cadence is defaulted — one second, doubling, capped at fifteen minutes — so
+the bare `use supervise.forever()` is the ordinary form and a named argument means you disagree with
+one of the three.
+
+When a poll fails, the converter performs `supervise.interrupted`, the provider sleeps its current
+backoff (durably — the delay survives a restart) and re-runs the block, and `watch` re-arms from its
+persisted next occurrence. The durable footprint stays flat no matter how many failures the daemon
+has survived. `supervise.interrupted` with no provider in scope fails the run, so the composition is
+explicit in source.
 
 ## Retry selectively, with a bound
 
@@ -102,16 +92,15 @@ agent push_report(time: number) -> null with io | prelude.throw[http.fetch_error
   let _response = http.fetch(
     url = "https://api.example.com/report",
     method = "POST",
-    headers = record.empty(),
     body = http.json(value = { scheduled = time }),
   )
   null
 }
 
-@"Retry ONE delivery up to five times with exponential backoff — but only on transport errors.
-The fatal arm rethrows, leaving the loop immediately; exhaustion re-raises the last failure typed."
+@"Retry one delivery up to five times with exponential backoff, but only on transport errors. The
+fatal arm rethrows, leaving the loop immediately; exhaustion re-raises the last failure typed."
 agent deliver_with_retry(time: number) -> null with io | prelude.throw[http.fetch_error | invalid_payload] {
-  use supervise.exponential(initial_delay_milliseconds = 1000, factor = 2, max_attempts = 5)
+  use supervise.exponential(max_attempts = 5)
   use handler {
     request prelude.throw(error: http.fetch_error | invalid_payload) -> never {
       match (error) {
@@ -165,8 +154,13 @@ agent main() -> string {
 
 ## Where to go next
 
-- [Durable execution]({docs}/{currentVersion}/concepts/durable-execution) — why a clock read has
-  to be durable at all.
-- [Webhooks]({docs}/{currentVersion}/guides/webhooks) — push instead of poll, with the same
-  lifetime patterns.
-- The `time` and `supervise` modules in the [reference](/packages).
+A watch that reports to an AI rather than to an API is the same call with a `deliver_to` that mails:
+that is what a resident's `sources` entries are.
+
+<DocCards>
+  <DocCard href="{docs}/{currentVersion}/guides/residents" />
+  <DocCard href="{docs}/{currentVersion}/concepts/durable-execution" />
+  <DocCard href="{docs}/{currentVersion}/guides/webhooks" />
+</DocCards>
+
+The `time` and `supervise` modules' own signatures are in the [reference](/packages).

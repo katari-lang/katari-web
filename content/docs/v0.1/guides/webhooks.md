@@ -3,11 +3,10 @@ title: Webhooks
 description: Mint a public inbound URL from inside a program, turn every POST into a typed callback call, and own the endpoint's lifetime.
 ---
 
-`webhook.inbound` inverts `http.fetch`: instead of the program calling the outside world, the
-outside world calls the program. The runtime mints a fresh, unguessable public URL and, for as
-long as a **subscriber** agent runs, converts every POST to that URL into a call of a
-**callback** agent — the JSON request body is the argument, the callback's result is the JSON
-response.
+`webhook.inbound` takes two agents. The **callback** is called once per POST, with the JSON body as
+its argument record and its result as the JSON response; the **subscriber** receives the minted URL
+and owns how long the endpoint lives. Both agents' effects flow to the caller's handlers unchanged,
+so a callback is ordinary code that happens to be triggered from outside.
 
 ## Mint an endpoint
 
@@ -21,12 +20,7 @@ agent on_delivery(value: integer) -> integer {
 
 @"POST one delivery to the minted URL, then return — which deactivates the endpoint."
 agent try_once(url: string) -> string {
-  let response = http.fetch(
-    url = url,
-    method = "POST",
-    headers = record.empty(),
-    body = http.json(value = { value = 21 }),
-  )
+  let response = http.fetch(url = url, method = "POST", body = http.json(value = { value = 21 }))
   response.body
 }
 
@@ -36,17 +30,11 @@ agent main() -> string {
 ```
 
 `main` returns `"42"`: the POST body was validated against `on_delivery`'s input schema, the
-callback ran, and its result came back as the response body. The outbound POST uses `http.json`,
-one of `http.fetch`'s four body shapes (`http.text` / `http.binary` / `http.multipart` /
-`http.json`): it serialises the value tree you pass and sets the `application/json` Content-Type.
-Put a `file` anywhere in that tree and just that leaf becomes the base64 of its bytes on the wire,
-read from the blob store only at the send boundary — so a large upload rides through as a slim
-handle and never materialises onto the value plane or the trace. When `try_once` returns, the URL
+callback ran, and its result came back as the response body. When `try_once` returns, the URL
 deactivates and its result becomes `inbound`'s result.
 
-The URL is a **capability**: whoever holds it can invoke the callback, nobody else can. The route
-lives outside the runtime's bearer-authenticated API surface, and the token is generated fresh
-per call.
+The URL is a capability: whoever holds it can invoke the callback, nobody else can. The route lives
+outside the runtime's bearer-authenticated API surface, and the token is generated fresh per call.
 
 ## Register the URL and stay subscribed
 
@@ -79,10 +67,9 @@ agent main() -> never with register_url | io {
 ```
 
 The escalation shows up in the admin console and `katari status` with the URL in its argument;
-answering it (from the console or `katari answer`) resumes the subscriber, which then holds the
-endpoint open. A registration that must be renewed periodically renews in a loop instead — the
-subscriber is an ordinary agent, so the renewal cadence is just code. An API-driven registration
-typically calls an FFI external a library ships.
+answering it resumes the subscriber, which then holds the endpoint open. A registration that must
+be renewed periodically renews in a loop instead — the subscriber is an ordinary agent, so the
+renewal cadence is just code.
 
 ## The delivery contract
 
@@ -99,9 +86,9 @@ The HTTP caller waits for the callback and receives:
   different from a malformed one: the throw or panic **proxies up** like any escalation and
   cancels the whole endpoint — the run fails unless a handler above the subscriber catches it.
 
-One bad delivery can therefore drop the endpoint. That is the honest default — a callback failure
-is a real failure — but when deliveries should fail independently, catch inside the callback and
-answer with a value:
+One bad delivery therefore drops the endpoint, which is the right default for a callback whose
+failure is the run's failure. When deliveries should fail independently, catch inside the callback
+and answer with a value:
 
 ```katari
 data ingest_failed(message: string)
@@ -136,8 +123,9 @@ The endpoint is part of the run's durable state, so it follows the rules of
 
 ## Where to go next
 
-- [Scheduled jobs]({docs}/{currentVersion}/guides/scheduled-jobs) — the polling twin of a
-  webhook, and the retry patterns both compose with.
-- [MCP]({docs}/{currentVersion}/guides/mcp) — `mcp.serve` mints capability URLs with the same
-  lifetime contract.
-- The `webhook` module in the [reference](/packages).
+<DocCards>
+  <DocCard href="{docs}/{currentVersion}/guides/scheduled-jobs" />
+  <DocCard href="{docs}/{currentVersion}/guides/mcp" />
+</DocCards>
+
+The `webhook` module's own signatures are in the [reference](/packages).

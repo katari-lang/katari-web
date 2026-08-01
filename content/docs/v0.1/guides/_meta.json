@@ -8,8 +8,8 @@
     "secrets-and-credentials",
     "store",
     "handler-geometry",
+    "residents",
     "asking-a-human",
-    "approval-gates",
     "ffi-sidecars"
   ]
 }

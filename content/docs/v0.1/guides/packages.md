@@ -4,7 +4,7 @@ description: Add registry packages to a project, pin an immutable snapshot, and 
 ---
 
 A Katari project declares its dependencies in `katari.toml`. Each name in
-`[dependencies].packages` resolves through a pinned **registry snapshot** — a curated set of
+`[dependencies].packages` resolves through a pinned registry snapshot — a curated set of
 `(package, version)` pins that are guaranteed to compile together — or through a local
 `[overrides]` entry. The CLI fetches each pinned tarball, verifies its content hash, and records
 the exact resolution in `katari.lock`.
@@ -58,11 +58,10 @@ packages = ["tavily"]
   become the next snapshot. Use it for early access to a just-merged package, and switch back to
   the next immutable cut.
 
-**`katari init` scaffolds `staging`, and that is not the recommendation contradicting itself.**
-`init` runs offline — it has no way to learn the name of the newest cut without asking the registry —
-and `staging` is the one name that is always valid. Your first `katari lock` freezes an exact
-resolution from it either way, so nothing moves under you; `katari update` then re-pins you to a
-real immutable cut, which is where a project you deploy should sit.
+`katari init` scaffolds `staging` because it runs offline: it has no way to learn the newest cut's
+name without asking the registry, and `staging` is the one name that is always valid. Your first
+`katari lock` freezes an exact resolution from it either way, so nothing moves under you, and
+`katari update` then re-pins you to an immutable cut — where a project you deploy should sit.
 
 There are no per-package version constraints to solve: the snapshot already fixed every version,
 so `packages` is a flat list of names.
@@ -78,10 +77,10 @@ katari update snapshot-2026-07-30-f55993f8     # or a named one — including st
 against the new set, and its diagnostics are the upgrade's real cost — a package whose signature
 moved shows up here, before anything is deployed.
 
-**Editing the pin by hand is not enough**, and the CLI will say so rather than let it slide: with a
+Editing the pin by hand is not enough, and the CLI says so rather than let it slide: with a
 `snapshot` line the lock has not been resolved against, `check`, `build` and `apply` refuse and tell
-you to run `katari lock`. That refusal exists because the alternative is quiet and wrong — a check
-that resolves from a stale lock reports green about the packages you just stopped asking for.
+you to run `katari lock`. The alternative would be quiet and wrong — a check that resolves from a
+stale lock reports green about the packages you just stopped asking for.
 
 Note that a snapshot's name does not tell you its age: the trailing hex is a content hash with no
 order, so two cuts from the same day sort arbitrarily. `update` reads the registry's index instead
@@ -149,38 +148,37 @@ hash, the rev is the only thing pinning reproducibility.
 The pinned snapshot (`snapshot-2026-07-30-f55993f8`) carries thirteen packages. Every exported agent,
 request, and type is documented in the [reference](/packages).
 
-- **ai** — a provider-agnostic AI tool-calling loop: one `infer_step` seam with interchangeable
-  Anthropic, Gemini, and OpenAI providers.
-- **discord** — a discord.js gateway client: a bot-token provider, watch / send / ask agents, and
-  file attachments in both directions (ships an FFI sidecar).
-- **e2b** — run Python in a persistent e2b sandbox as a tool (ships an FFI sidecar).
-- **fleet** — the durable **desired set** behind a fiber fleet, and its difference against the live
+- **ai** — provider-agnostic AI: one `infer_step` seam with interchangeable Anthropic, Gemini and
+  OpenAI providers, one turn loop, and over them the route — `ai.spawn` hires an AI per line,
+  `ai.mail` carries a report between them, `ai.dismiss` lets one go.
+- **discord** — a discord.js gateway client: a bot-token provider, the message plane (watch / send /
+  read-the-gap, files both ways) and `ask`, one blocking question whose controls are data (ships an
+  FFI sidecar).
+- **e2b** — run Python in a persistent e2b sandbox, and move files in and out of it, as tools (ships
+  an FFI sidecar).
+- **fleet** — the durable desired set behind a fiber fleet, and its difference against the live
   nursery roster; performs only store operations, so there is nothing to configure.
-- **gmail** — mail tools (`list_recent` / `read_body` / `fetch_attachment` / `send`), label editing
-  and a watcher over Gmail's REST API — pure Katari, no sidecar.
-- **google_calendar** — calendar tools (list / create / watch) over the OAuth refresh-token
-  grant — pure Katari, no sidecar.
-- **google_common** — the Google REST plumbing `gmail` and `google_calendar` share; a library for
-  packages, not a tool set, and it arrives as their transitive dependency.
-- **imagegen** — edit images with the Gemini image model as a tool (ships an FFI sidecar).
-- **memory** — persistent memory for resident agents: five model-callable tools over the durable
-  store, split into a per-turn summary layer and full notes read back on request.
-- **persona** — a character as an ordered set of layers: assemble one role's per-turn injection note,
-  and rewrite one layer under a hard cap.
-- **slack** — a Slack bot capability over Socket Mode: a two-token provider, watch channel messages,
-  post replies, ask with Block Kit controls (ships an FFI sidecar).
+- **gmail** — mail tools (`list_recent` / `read_body` / `fetch_attachment` / `send` /
+  `modify_labels` / `watch`) over the runtime's stored OAuth credential — pure Katari, no sidecar.
+- **google_calendar** — calendar tools (`list_events` / `create_event` / `watch`) over the same
+  stored credential — pure Katari, no sidecar.
+- **google_common** — the Google REST plumbing `gmail` and `google_calendar` share, pagination
+  included; a library for packages rather than a tool set, arriving as their transitive dependency.
+- **imagegen** — generate and edit images with the Gemini image model as tools — pure Katari.
+- **memory** — two-layer persistent memory for resident agents: one-line summaries injected every
+  turn, full bodies read on demand, and a substring search over those bodies.
+- **persona** — a character as an ordered set of capped layers with per-role visibility: assemble
+  one role's injection note, and refine one layer under a hard cap.
+- **slack** — a Slack bot capability over Socket Mode: a two-token provider, watch / send /
+  read-the-gap, and `ask` with Block Kit controls (ships an FFI sidecar).
 - **tavily** — web search as a tool over the Tavily API — pure Katari, no sidecar.
 - **web** — fetch a web page as a tool over `http.fetch` — pure Katari, no key.
 
 ## Where to go next
 
-- [The tutorial's Discord bot]({docs}/{currentVersion}/tutorial/a-discord-bot) composes four of
-  these packages into one app.
-- [The example programs]({docs}/{currentVersion}/examples) — four deployable projects that put
-  eight of them to work, each pinning a snapshot and compiling in CI: `web` + `discord` + `fleet`
-  in release-watch, `slack` + `ai` in standup-scribe, `discord` + `ai` + `memory` in concierge,
-  `gmail` + `google_calendar` + `ai` + `discord` in inbox-butler.
-- [FFI sidecars]({docs}/{currentVersion}/guides/ffi-sidecars) — how a package like `e2b` or
-  `discord` ships TypeScript alongside its Katari source.
-- [CLI]({docs}/{currentVersion}/toolchain/cli) — `katari add`, `katari remove`, and the rest of
-  the toolchain.
+<DocCards>
+  <DocCard href="{docs}/{currentVersion}/tutorial/a-discord-bot" />
+  <DocCard href="{docs}/{currentVersion}/examples" />
+  <DocCard href="{docs}/{currentVersion}/guides/ffi-sidecars" />
+  <DocCard href="{docs}/{currentVersion}/toolchain/cli" />
+</DocCards>

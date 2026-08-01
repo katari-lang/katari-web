@@ -2,3 +2,4 @@
 # Pages that moved after publication. The examples repository's READMEs and anything
 # already indexed still point at the old path, so it has to keep resolving.
 /docs/v0.1/guides/second-agent /docs/v0.1/tutorial/a-second-agent 301
+/docs/v0.1/guides/approval-gates /docs/v0.1/guides/asking-a-human 301

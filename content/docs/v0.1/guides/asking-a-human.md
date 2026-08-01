@@ -1,135 +1,80 @@
 ---
 title: Asking a human
-description: A chat surface has two planes — a stream of messages, and one blocking question. `ask` takes its controls as data and returns the answer as data, so approval, free text, draft editing and choice are one call with four control lists.
+description: Park a question durably as an escalation, or put it in a channel with `ask` — controls go in as data, one answer value comes back.
 ---
 
-The `discord` and `slack` packages present the same channel twice, along two independent paths:
+There are two places a person can answer from, chosen by what the question has to survive. A request
+nobody handles becomes a durable row in the runtime's database; a `discord.ask` is a live message with
+controls on it, answered where the conversation already is.
 
-- The **message plane** — a stream. `watch_messages(channel, deliver_to)` serves a channel forever,
-  delivering each incoming post as one `message` value, and `send_message` / `try_send` post back.
-- The **interaction plane** — a question and its answer. One agent, `ask`: post a prompt with
-  **controls** in front of it and block until someone completes one of them.
+## A question with no handler
+
+Declare a request, perform it, and handle it nowhere. The run parks at its root and waits:
 
 ```katari
-data message(channel: string, author: string, display_name: string, text: string, files: array[file])
-// Discord's shape. Slack's carries `thread` and no `display_name`; see "Twins, and where they diverge".
+@"Nothing serves this, so it parks: the run waits until someone answers."
+request confirm_release(version: string) -> boolean
 
-type control = button | select | form
-type answer = clicked | chose | submitted
-
-agent ask(
-  channel: string,
-  prompt: string,
-  controls: array[control],
-) -> answer with credential | io | prelude.throw[discord_error]
+agent main(version: string) -> string with confirm_release {
+  if (confirm_release(version = version)) { f"released ${version}" } else { "(held back)" }
+}
 ```
 
-That split is the whole reason a question is safe to ask in the middle of some other work.
+The parked question is an [escalation]({docs}/{currentVersion}/concepts/escalation): it appears in the
+admin console and in `katari status` carrying its arguments, with an input form derived from the return
+type. Answer it there or with `katari answer`, minutes or days later — a deploy in between changes
+nothing, because the waiting run is durable state rather than a held connection.
 
-## Why an interaction is not a message
+## A question in a channel
 
-A channel's messages have exactly one consumer: whatever agent you handed to `watch_messages`, which
-is already routing every post to a desk. A second reader — a tool that "waits for the next thing the
-human says" — would be racing that source for the same events, and which of the two saw the reply
-would be a coin flip. This is why neither package ships a "read the next message" primitive: it could
-not be composed with the source that is already running.
-
-An **interaction is not a message**. A press or a submit arrives over the platform's interaction path,
-correlated back to the prompt this call posted, so it can never be swallowed by the desk and never
-steals a post from it. The two planes do not contend, which is what makes "the agent stops mid-task,
-asks a human, and continues on the answer" a shape you can write at all.
-
-## One call, four shapes
-
-Approval, free-form text, editing a draft and picking from a list are **not** four agents. They are
-`ask` with different data in `controls`:
-
-| shape           | controls                                                  | answer                      |
-| --------------- | --------------------------------------------------------- | --------------------------- |
-| approval        | two `button`s                                             | `clicked(id, by)`           |
-| free-form text  | a one-field `form`                                        | `submitted(id, values, by)` |
-| draft editing   | a `form` prefilled with the draft, beside a deny `button` | `submitted` / `clicked`     |
-| multiple choice | a `select` over a computed list                           | `chose(id, option, by)`     |
-
-Both sums are plain data:
+`discord.ask` posts a prompt with controls under it and blocks until someone completes one. The answer
+comes back as a value:
 
 ```katari
-data button(id: string, label: string)
-data select(id: string, label: string, options: array[string])
-data field(id: string, label: string, value: string ?= "", multiline: boolean ?= false)
-data form(id: string, label: string, title: string, fields: array[field])
+agent admin_channel() -> string {
+  string.trim(value = env.get_or(key = "ADMIN_CHANNEL", fallback = ""))
+}
 
-data clicked(id: string, by: string)
-data chose(id: string, option: string, by: string)
-data submitted(id: string, values: record[string], by: string)
-```
-
-Every example below spells `discord`; the Slack twin is the same program with `slack.` in its place.
-
-### Approval
-
-```katari
-@"Publish only if the operator presses approve."
-agent publish_gated(channel: string, draft: string) -> string {
+@"Tool: put a draft in front of the operator; answers with the draft when they approve, and empty when
+they do not."
+agent approved_draft(draft: string) -> string {
   match (discord.ask(
-    channel = channel,
+    channel = admin_channel(),
     prompt = f"Publish this to the public feed?\n\n${draft}",
     controls = [
       discord.button(id = "approve", label = "approve"),
       discord.button(id = "deny", label = "deny"),
     ],
   )) {
-    case discord.clicked(id => "approve", by => _) -> publish(text = draft)
-    case rest -> "(not published)"
+    case discord.clicked(id => "approve", by => _, display_name => _) -> draft
+    case rest -> ""
   }
 }
 ```
 
-The literal `id => "approve"` **is** the branch. It turns on the key the program wrote, not on the
-label a human reads — relabel the button, translate it into another language, and the branch still
-holds. `case rest` takes everything else: the deny, and any control you later add beside it.
+The literal `id => "approve"` is the branch. It turns on the key the program wrote rather than the label
+a human reads, so relabelling or translating the button changes nothing, and `case rest` already covers
+whatever a later version puts beside these two. A press arrives over the platform's interaction path,
+correlated back to the prompt this call posted, so it never competes with the `watch_messages` source
+already serving that channel.
 
-### Free-form text
+## Four shapes, one call
 
-Free text is a form with nothing prefilled, not a second mechanism:
+Approval, free text, editing a draft and picking from a list are one agent with different data in
+`controls`:
 
-```katari
-@"Ask the operator one question; null when they skipped or submitted an empty box."
-agent consult(channel: string, question: string) -> string | null {
-  match (discord.ask(
-    channel = channel,
-    prompt = f"A question for you: ${question}",
-    controls = [
-      discord.form(id = "reply", label = "answer", title = "your answer", fields = [
-        discord.field(id = "answer", label = "answer", multiline = true),
-      ]),
-      discord.button(id = "skip", label = "skip"),
-    ],
-  )) {
-    case discord.submitted(id => _, values => values, by => _) -> {
-      match (record.get(target = values, key = "answer")) {
-        case null -> null
-        case text -> if (string.is_blank(value = text)) { null } else { text }
-      }
-    }
-    case rest -> null
-  }
-}
-```
+| shape           | controls                                                  | answer                                    |
+| --------------- | --------------------------------------------------------- | ----------------------------------------- |
+| approval        | two `button`s                                             | `clicked(id, by, display_name)`           |
+| free-form text  | a one-field `form`                                        | `submitted(id, values, by, display_name)` |
+| draft editing   | a `form` prefilled with the draft, beside a deny `button` | `submitted` / `clicked`                   |
+| multiple choice | a `select` over a computed list                           | `chose(id, option, by, display_name)`     |
 
-A `form` is two platform steps — a button in the channel that opens a dialog — because text input
-exists only inside a dialog, and a dialog only opens in reply to a click. **Opening a dialog and
-closing it again answers nothing**: the question stays open, and any control (this form again, or a
-sibling) can still answer it, so a curious press cannot consume the ask.
-
-### Editing a draft
-
-This is the shape worth reaching for, and the one that changes how a gated action is written. Ship
-the proposal as the form's **prefill**, and what comes back is not a yes about a draft — it is the
-draft, as the human sent it:
+The prefilled form is the shape to reach for when there is a draft. What comes back is not a yes about a
+proposal — it is the text the human read and submitted:
 
 ```katari
-@"Send the mail the operator submits — which may not be the mail that was proposed."
+@"Send the mail the operator submitted — which may not be the mail that was proposed."
 agent send_gated(channel: string, subject: string, body: string) -> string {
   match (discord.ask(
     channel = channel,
@@ -142,251 +87,112 @@ agent send_gated(channel: string, subject: string, body: string) -> string {
       discord.button(id = "deny", label = "deny"),
     ],
   )) {
-    case discord.submitted(id => _, values => values, by => _) -> send(values = values)
+    case discord.submitted(id => _, values => values, by => _, display_name => _) -> send_mail(values = values)
     case rest -> "(declined)"
   }
 }
-```
 
-`send` acts on `values` — the exact text the human read and submitted. Nothing regenerates it in
-between: the model that proposed the draft is not consulted again between the click and the deed, so
-the two cannot drift apart. "Approved" means **approved at these values**, and the values are in hand.
-
-Worth stating negatively, because the alternative is what a gate does by default: show a summary, take
-a yes, then rebuild the payload. Every rebuild between the yes and the act is a chance for the
-acted-on text to differ from the read-on text. A prefilled form removes the chance instead of
-narrowing it.
-
-### Multiple choice
-
-```katari
-match (discord.ask(
-  channel = channel,
-  prompt = "Which ticket should I pick up?",
-  controls = [discord.select(id = "pick", label = "choose one", options = open_tickets)],
-)) {
-  case discord.chose(id => _, option => option, by => _) -> assign(ticket = option)
-  case rest -> "(nothing chosen)"
+@"Send what the boxes hold; a cleared body reads as the operator withdrawing the draft."
+agent send_mail(values: record[string]) -> string {
+  match (record.get(target = values, key = "body")) {
+    case null -> "(declined)"
+    case text -> if (string.trim(value = text) == "") { "(declined)" } else { f"sent: ${text}" }
+  }
 }
 ```
 
-Reach for `select` when the options are **data the program computed** — the open tickets, the matching
-files. A _fixed_ set of choices is clearer as one `button` each, because then every branch has an id
-the program named rather than a string it has to compare.
+Nothing regenerates the text between the submit and the deed, so approved means approved at these
+values. Every declared field comes back and a blank box arrives as the empty string, so what a blank
+means is the program's decision — the usual rule is that a cleared body is a refusal. Reach for `select`
+when the options are data the program computed; a fixed set of choices is clearer as one `button` each.
 
-## What `ask` deliberately leaves out
+## Where the wait lives
 
-`ask` carries no time limit, no retry and no persistence of its own. Each is a composition, and that
-is the point: an expiry baked in would make every caller handle a timeout it never asked for.
+### Inside the turn
 
-**A deadline is `time.with_deadline` around it.** The loser's arm is cancelled, the controls come off
-the message, and `(expired)` is left in their place:
+The tool performs the ask and returns the answer, so the model continues on it. A tool call races
+`tool_budget_milliseconds`, and that budget bounds machine latency; a tool that waits on a person is
+named in `unbounded_tool_names`, derived from the tool's own metadata so a rename carries:
 
 ```katari
-agent ask_in_time(value: null) -> discord.answer {
-  discord.ask(channel = channel, prompt = question, controls = controls)
-}
-
-match (time.with_deadline(milliseconds = 1800000, task = ask_in_time)) {
-  case time.completed(value => answer) -> read(answer = answer)
-  case time.deadline_passed() ->
-    "(no answer within 30 minutes; the question was withdrawn and its buttons are dead)"
+@"One turn in which the model may stop and ask a person."
+agent answer_with_help(question: string) -> string {
+  ai.infer_with_tools[io | discord.credential](
+    history = [types.turn(role = types.user_role(), text = question, files = [])],
+    tools = [approved_draft],
+    max_steps = 8,
+    tool_budget_milliseconds = 60000.0,
+    unbounded_tool_names = [reflection.get_metadata(value = approved_draft).name],
+  )
 }
 ```
 
-**A withdrawal is `region.cancel_by_id`** on the fiber holding the ask — the shape a model-facing
-"cancel that request" tool takes, since fiber ids are data a model can carry and a stale one comes
-back as `region.unknown_fiber` rather than a panic.
+What waits is this conversation and nothing else: `region.watch` re-emits every fiber's escalation
+concurrently, so other work keeps running while one operator reads a dialog.
 
-**A question that must outlive the runtime is not an `ask` at all.** `ask` rides one external call, so
-a restart while it is open interrupts it and the posted controls go stale. When the question must
-survive that, leave a request of your own **unserved** and let it park at the run root: an
-[escalation]({docs}/{currentVersion}/concepts/escalation) is a durable database row, answerable from
-the admin console or `katari answer` minutes or days later. You trade the channel's controls for a
-schema-derived form in the console, and gain a question that survives a deploy.
+### In a fiber
 
-## Two ways to wait
-
-### Block inside the turn
-
-The tool performs the ask and returns the answer, so the model continues on it. Reach for this when
-the turn genuinely cannot proceed without a decision only a human can make.
-
-**The tool deadline is the trap.** `ai.take_turn` races every tool call against
-`tool_budget_milliseconds`, and a human is far slower than any budget worth setting for a machine
-call. A blocking ask must be named in `unbounded_tool_names`, or it is cancelled long before anyone
-reads it:
+When the turn should end at once and the answer only decides an action, fork the question and its
+consequence together. The forking code carries on immediately; the fiber reads the answer and does the
+deed in one place, which is what keeps "approved at these values" true.
 
 ```katari
-// `consult_operator` BLOCKS on a human by design, so it is exempt from the 60s tool deadline. The
-// name is DERIVED from the tool's own metadata, so a rename cannot silently un-exempt it.
-let unbounded_tools = [reflection.get_metadata(value = consult_operator).name]
-ai.take_turn[E](
-  conversation = conversation,
-  tools = tools,
-  max_steps = 16,
-  tool_budget_milliseconds = 60000,
-  unbounded_tool_names = unbounded_tools,
-)
-```
+effect gate_scope
 
-The doctrine behind the exemption: a deadline bounds **machine** latency. A pending question is posted
-where people can see it and the waiting run is visible in the admin console, so it is not a hang — it
-is a wait somebody can answer or cancel.
+// What a gate fiber may do: ask, then act.
+type gate_ceiling = discord.credential | io
 
-What blocks is the desk that ran the turn, and only that desk.
-[`region.watch`]({docs}/{currentVersion}/concepts/parallelism) re-emits every fiber's escalation
-concurrently, so the only serialization point is the receiving handler: other desks keep serving while
-one operator reads a dialog. Even so, a blocking ask holds a conversation — which is exactly why the
-deadline belongs to the caller, who knows what waiting costs it, and not to `ask`.
+@"One gate: put the question to the operator, then post what they approved — question and consequence
+in one place."
+agent post_gate(channel: string, draft: string) -> null with gate_ceiling | prelude.throw[discord.discord_error] {
+  let _outcome = discord.try_send(channel = channel, text = approved_draft(draft = draft))
+  null
+}
 
-### Fork a fiber
-
-When the turn should end at once and the answer only decides an action, put the whole
-question-and-consequence in a **fiber**. The tool performs a spawn request and returns a "carry on"
-note; the ask happens later, and the fiber's body reads the answer and does the deed.
-
-The app declares its own two requests, and the one place that owns a nursery serves them:
-
-```katari
-@"Ask the operator one question and BLOCK until they complete one of @controls@ — the seam every
-human decision goes through, so no tool has to know a channel."
-request ask_operator(prompt: string, controls: array[discord.control]) -> discord.answer
-
-// What a gate fiber may do: ask, then act. (Type synonyms take no docs.)
-type gate_ceiling = ask_operator | io | prelude.throw[discord.discord_error]
-
-@"FORK a gate: run @task@ — one crossing's whole question-and-consequence — as a fiber, and answer
-the caller AT ONCE, so the requesting turn ends without waiting."
-request spawn_gate(name: string, task: agent (input: null) -> null with gate_ceiling) -> string
-
-@"The session region's scope marker — one nullary phantom per nursery, per `region`'s rule."
-effect session_scope
-
-agent session(channel: string) -> never with region.crashed | region.failed | io | prelude.throw[discord.discord_error | env.missing_secret | oauth.server_error] {
+@"Fork the gate and carry on: the question waits in a fiber, and nothing else waits with it."
+agent gated_main(channel: string, draft: string) -> never with io | region.crashed | region.failed | prelude.throw[env.missing_secret | oauth.server_error] {
   use discord.provider(source = credentials.env(key = "DISCORD_TOKEN"))
-  // THE ASK ADAPTER: the one place a human question becomes Discord. PARALLEL, and load-bearing —
-  // several gates wait on their own questions at once, and a sequential clause would queue them, so
-  // one unread dialog would freeze every other gate.
-  use parallel handler {
-    request ask_operator(prompt: string, controls: array[discord.control]) {
-      next discord.ask(channel = channel, prompt = prompt, controls = controls)
-    }
-  }
-  let nursery = use region.provide[session_scope, gate_ceiling]
-  use handler {
-    request spawn_gate(name: string, task: agent (input: null) -> null with gate_ceiling) {
-      let handle = region.fork(nursery = nursery, task = task, argument = null, name = name)
-      next f"(asked the operator — ${region.fiber_id(handle = handle)}. Carry on; you cannot wait for this.)"
-    }
-  }
-  // The desks, and the `region.crashed` / `region.failed` interpretations, are installed here —
-  // above the watch so their escalations reach the handlers above, below the ask adapter so a desk
-  // tool can reach it. Both endings ride `watch`'s row, so `katari check` holds you to both.
+  let nursery = use region.provide[gate_scope, gate_ceiling]
+  let _gate = region.fork(nursery = nursery, task = post_gate, argument = { channel = channel, draft = draft }, name = "gate:post")
   region.watch(nursery = nursery)
 }
 ```
 
-Note what is _not_ here: no facility, no callback pair. `ask_operator` means "put this question in
-front of the human"; `spawn_gate` means "run this in the background". The fiber's body reads the
-answer and acts in **one** place, which is what keeps "approved at these values" true — a split
-`on_grant` / `on_deny` pair would put a re-derivation between the submit and the send.
+A gate a model asks for is the same fork made from a tool, and an AI hired through `ai.route` already
+has a nursery to fork into — that variant is in [Residents]({docs}/{currentVersion}/guides/residents).
 
-Assembling gates on this — folding the answer into one sum, choosing a form over buttons, containing a
-gate's own failure so one bad action does not take the session down — is [Approval
-gates]({docs}/{currentVersion}/guides/approval-gates).
+## The contract
 
-## The contract, and what surprises people
+- **Ids are the correlation key.** Each control's `id` is distinct within one ask and comes back
+  verbatim. Branch on the id, never on display text.
+- **`values` is total over the declared fields**, so a reader handles blanks rather than absences.
+- **`ask` carries no deadline, no withdrawal and no persistence.** A deadline is `time.with_deadline`
+  around it; a withdrawal is `region.cancel_by_id` on the fiber holding it; a question that must survive
+  a deploy is the escalation at the top of this page.
+- **The wait is at most once.** It rides one external call, so a restart interrupts it as a catchable
+  panic and the posted controls go stale. Ask again: a fresh ask opens its own connection.
+- **`by` is a raw platform id**, enumerable and so not safe to digest plainly — pass it through
+  `crypto.pseudonym` before it leaves the program.
+- **Presentation is clamped, load-bearing values are fatal.** An over-long `id`, option or prefill fails
+  the ask as `api_error`; `discord.check_controls` answers that purely, where the controls are built.
 
-- **Ids are the correlation key.** Each control's `id` must be distinct within one ask; the platform
-  carries it back verbatim, and a duplicate makes two controls indistinguishable (Slack rejects it
-  outright). Branch on the id, never on display text.
-- **Every field is optional, and `values` is total.** A `field` has no required-ness knob. A box left
-  blank comes back as the empty string, and `submitted.values` carries **every declared field** — a
-  missing key would mean the field was never declared, not that it went unanswered. So _what a blank
-  box means is the application's decision_, and it is worth deciding once, explicitly: a cleared
-  **body** usually reads as a refusal (the human deleted the text they were shown), while a cleared
-  **subject** usually means "keep what was proposed". Spell those two rules in one reader rather than
-  in every gate.
-- **Nothing validates a submission for you, and on Slack nothing could.** The socket acknowledges an
-  interaction the instant it arrives, which is exactly what closes the dialog, so per-field errors can
-  never be returned. Validate in the program and `ask` again.
-- **`form.title` is capped at 24 characters** — the twin contract's bound rather than either
-  platform's (Discord allows 45), so a form written for one renders on the other. Every other cap is
-  each platform's own (a button label of 80 characters on Discord, 75 on Slack; 25 dropdown options)
-  and is **not** checked here: an over-cap control is a payload the platform rejects, surfacing as
-  `api_error`. A form's own caps show when its **dialog opens**, not when the question posts.
-- **A finished question stops looking answerable.** On an answer the controls are stripped off the
-  message and the outcome is left in their place. A question that ends _without_ an answer is stripped
-  the same way — `(expired)` for a deadline, a cancel or a teardown, `(failed)` for a platform failure
-  — so no dead ask leaves live controls behind. Both strips are best effort: if the edit itself fails
-  the stale controls stay, and pressing one gets the platform's own "interaction failed" notice.
-- **`by` is a raw platform id** — a Discord snowflake, a Slack `U…`. Both are enumerable, so a plain
-  digest of one is dictionary-reversible: tag it with `crypto.hmac_sha256` under a secret key before it
-  leaves the program (an AI provider's abuse-attribution tag, a log line, an outbound body). Echoing it
-  back into the channel it was pressed in discloses nothing new — that channel's membership is who
-  could answer in the first place.
-- **At most once, and that is the honest contract.** The wait rides one external call, so a runtime
-  restart while a question is open interrupts it as a catchable `panic` and the posted controls go
-  stale. That is the designed outcome, not a defect to absorb: let the panic reach your supervisor and
-  **ask again** — whoever wanted the answer wants it still, and a fresh ask opens its own connection
-  and posts its own question, so asking again is the whole of the recovery. Inventing an answer for an
-  interaction that never landed is the one thing that must not happen.
+## The Slack twin
 
-## Twins, and where they diverge
+The `slack` package carries the same types with the same field and argument names, so a program ports
+by swapping the import. Slack's `message` carries `thread` and no `display_name`, its provider takes
+two tokens where Discord takes one, and its dialogs are acknowledged the instant they arrive — which
+is what closes them — so a submission is validated in the program and asked again rather than
+rejected per field. Presses arrive once the app's Interactivity toggle is on, over the same
+WebSocket; the authoritative divergence table is in the slack package's README.
 
-The two packages carry the same types with the same field and argument names, so a bot ports between
-them by swapping the import. The divergences are enumerated and **machine-checked** — the slack
-package's README holds the authoritative table, produced by a script that compares both surfaces and
-fails on any difference not declared with a reason. The ones a program sees:
-
-- **`message.thread`** — Slack only: the thread a message was posted in, or `null` at top
-  level. Slack addresses a thread by its parent's `ts`, which is also a message's identity, so
-  `send_message` returns a `ts` and takes `thread_ts` (as does `try_send`). Discord has no such value.
-- **`display_name`** — Discord only, on `message` and on all three answers: the name Discord shows for
-  the speaker. Discord's message event ships a partial guild member, so the nickname → global name →
-  username chain is free; Slack's carries only the `U…` id, so the same field would cost a `users.info`
-  call per message. It is **not an identity** either way — self-chosen and not unique — so code that
-  must read the same on both keeps its logic on `author` / `by`.
-- **The provider's credentials** — Slack takes two (`bot_source` for the `xoxb-…` Web API token,
-  `app_source` for the `xapp-…` socket token); Discord takes one, `source`. Either way the provider
-  only **serves** those credentials — it connects nothing, and each call opens what it needs for its
-  own lifetime ([why]({docs}/{currentVersion}/guides/ffi-sidecars#what-may-cross-the-boundary)).
-- **`caps.post_text`** — Slack only: it caps a posted message's text (40000) separately from a block's
-  (3000), so the two planes need two numbers. Discord's single 2000 governs both.
-- **Error classification** — both raise the same two constructors, `auth_error` and `api_error`, but
-  Discord classifies them by HTTP status and Slack by its own error strings (`invalid_auth`,
-  `missing_scope`, …). The unions are `discord.discord_error` and `slack.slack_error`.
-- **Slack cannot validate a dialog server-side**, as above. Unvalidated inputs are not a divergence —
-  both sides make every box optional and return `values` total over the declared fields — but only one
-  of them is unable to do otherwise.
-
-If a program should run on **either**, do not scatter `discord.` and `slack.` through it. Declare the
-app's own request — `ask_operator` above is exactly that — and bind it to a vendor with **one adapter
-at the root**. It is the same layering `ai.infer_step` uses for model providers: the app names the
-capability it needs, and one outermost handler says who provides it. Swapping Discord for Slack is
-then one clause, and moving the same question to a run-root escalation is that clause too.
-
-## If a Slack press never arrives
-
-Slack delivers presses and dialog submissions only when the app's **Interactivity** is switched on:
-Features → Interactivity & Shortcuts → toggle it on. Socket Mode carries them over the same WebSocket,
-so no Request URL is needed — but without the toggle nothing arrives at all, and the symptom is not an
-error. `ask` posts its controls and blocks forever; pressing a button does nothing visible. If a
-question in Slack looks like a hang, check that switch first.
-
-The two planes are also subscribed separately: the `message.channels` / `message.groups` /
-`message.im` bot events under Event Subscriptions feed `watch_messages`, and Interactivity feeds
-`ask`. Two planes, two switches.
+A program that should run on either declares its own request — `ask_operator(prompt, controls)` — and
+binds it to a vendor with one adapter at the root. Swapping platforms is then one clause, and so is
+moving the same question to an escalation.
 
 ## Where to go next
 
-- [Approval gates]({docs}/{currentVersion}/guides/approval-gates) — assembling gates on top of a
-  forked ask: why a gate is app code rather than a package, and where each gate's difference lives.
-- [Handler geometry]({docs}/{currentVersion}/guides/handler-geometry) — why the ask adapter sits above
-  the desks and the spawn handler below the nursery.
-- [Escalation]({docs}/{currentVersion}/concepts/escalation) — the durable, restart-proof question, for
-  when a channel's controls are not enough.
-- [A Discord bot]({docs}/{currentVersion}/tutorial/a-discord-bot) — the message plane end to end, as a
-  resident.
-- The `discord` and `slack` packages in the [reference](/packages).
+<DocCards>
+  <DocCard href="{docs}/{currentVersion}/guides/residents" />
+  <DocCard href="{docs}/{currentVersion}/guides/handler-geometry" />
+  <DocCard href="{docs}/{currentVersion}/concepts/escalation" />
+</DocCards>

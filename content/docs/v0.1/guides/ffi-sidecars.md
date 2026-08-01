@@ -105,21 +105,17 @@ katari.agent<{ text: string }>("parse_reading", ({ text }) => {
 });
 ```
 
-An ordinary exception (a rejected promise, a `throw new Error(...)`) is not typed: it fails the
-call as a **panic**, which escalates like any defect. Reserve `katari.throw` for the failures the
-signature anticipates, and let genuine bugs panic.
+An ordinary exception (a rejected promise, a `throw new Error(...)`) is not typed: it fails the call
+as a panic, which escalates like any defect. Reserve `katari.throw` for the failures the signature
+anticipates, and let genuine bugs panic.
 
-**An anticipated failure returns as a result value, not as a raise.** A sidecar's own failure — the SDK
-refused, the socket dropped, the sandbox is gone — belongs in the handler's **return value** (`{ ok, ... }`,
-read on the Katari side), which is why no `e2b` sidecar function throws. Two reasons, one per channel. A
-raw exception is a panic, and a panic is not something a Katari handler can answer at all — it would tear
-the whole run down for a failure the caller was ready to absorb. And even a typed `katari.throw` is only
-catchable where it surfaces: if the external agent is called from a handler body, the throw is raised at
-that handler's install site, above whoever performed the request, so the performer could not have caught it
-either. This is the outcome-as-value convention in
-[Handler geometry]({docs}/{currentVersion}/guides/handler-geometry#answer-with-the-failure), at the
-boundary — and it draws the line in the same place: what heals comes back as a value, what will never heal
-raises.
+An anticipated failure is better still as a result value — `{ ok, ... }`, read on the Katari side —
+which is why no `e2b` sidecar function throws. A typed `katari.throw` is catchable only where it
+surfaces: called from a handler body, it is raised at that handler's install site, above whoever
+performed the request, so the performer could not have caught it. That is the outcome-as-value
+convention in
+[Handler geometry]({docs}/{currentVersion}/guides/handler-geometry#answer-with-the-failure), drawn at
+the boundary: what heals comes back as a value, what will never heal raises.
 
 ## Call back into Katari
 
@@ -155,7 +151,7 @@ An external agent can take an agent **argument** and deliver into it repeatedly 
 
 ```katari
 @"Deliver each upstream event into Katari as it arrives; the sidecar owns the socket. Shaped like
-`time.watch`: it never resolves on its own, and @deliver_to@'s effects flow to the caller's handlers."
+`time.watch`: it never resolves on its own, and the effects of @deliver_to@ flow to the caller's handlers."
 external agent watch_events[effect E](
   channel: string,
   deliver_to: agent (payload: string) -> null with E,
@@ -166,7 +162,6 @@ agent on_event(payload: string) -> null with io | prelude.throw[http.fetch_error
   let _response = http.fetch(
     url = "https://api.example.com/ingest",
     method = "POST",
-    headers = record.empty(),
     body = http.text(content = payload),
   )
   null
@@ -238,14 +233,11 @@ katari-package-e2b/
 }
 ```
 
-**Your `@katari-lang/port` pin governs your typecheck, not what ships.** The bundler resolves
-`@katari-lang/port` to exactly one module — its own, from the toolchain — because the port holds
-process-wide state and a bundle containing two copies of it would not work. Two things follow. The
-good one: a package cannot drift its sidecar's wire format away from the runtime it will run
-against, however old its pin. The one to watch: a pin left behind type-checks your sidecar against
-an ABI it will never actually speak, and nothing fails until a signature you use happens to have
-moved. So keep it level with the toolchain you build against, and read a port release's notes even
-though the version you name is not the version that runs.
+Your `@katari-lang/port` pin governs your typecheck, not what ships: the bundler resolves the port to
+exactly one module, its own, because the port holds process-wide state and two copies in a bundle
+would not work. So a package cannot drift its wire format away from the runtime it runs against — but
+a stale pin type-checks your sidecar against an ABI it will never speak, and nothing fails until a
+signature you use happens to have moved. Keep it level with the toolchain you build against.
 
 The sidecar's source root defaults to `[package].src`, so `.ts` files simply live beside the
 `.ktr` files; a package with a different layout sets `[sidecar] sourceRoots` in its
@@ -296,9 +288,9 @@ data session_data(session_id: string, api_key: string of private)
 external agent e2b_run_in(session: string, code: string, api_key: string of private) -> unknown
 ```
 
-Nothing in that signature names anything local. The sidecar _does_ keep a `Map` of live `Sandbox`
-objects, because reconnecting on every call would be wasteful — but the map is keyed by the **session
-id**, so a miss is not an error. It is a reconnect:
+Nothing in that signature names anything local. The sidecar does keep a `Map` of live `Sandbox`
+objects, because reconnecting on every call would be wasteful — but the map is keyed by the session
+id, so a miss is not an error. It is a reconnect:
 
 ```typescript
 // A miss is ORDINARY: a fresh sidecar process, or a sandbox that timed out. Reconnect by name.
@@ -317,18 +309,11 @@ async function sandboxFor(session: string, apiKey: string): Promise<Sandbox> {
 ```
 
 That cache is a pure optimization nothing can observe. Delete it and every program still works, one
-round trip slower. **That is the test to apply to your own sidecar: if emptying the cache breaks a
-program, a durable value was pointing into the cache.**
+round trip slower — which is the test to apply to your own sidecar: if emptying the cache breaks a
+program, a durable value was pointing into the cache.
 
-The counter-example is worth knowing because it shipped. Before `discord` 0.7.0 / `slack` 0.5.0, the
-provider connected once and served the sidecar's **handle** for that client through a `connection`
-request; the sidecar's map was keyed by the handle, and a miss was documented as "a program defect". But
-a restart produces a miss legitimately — recovery replays committed state rather than re-running
-effects, so the _same_ handle came back in a _new_ process — and every call through it failed. Worse,
-the documented recovery (re-fork the watcher) handed the replacement the same dead handle, turning a
-merely disconnected bot into a silent crash loop. The fix was not to detect the staleness. It was to
-stop the pointer crossing: both packages now take the token on every call, and their sockets are leased
-per token inside the sidecar, refcounted, named by nothing.
+`discord` and `slack` follow the same rule for their gateway sockets: every call takes the token, and
+the sockets are leased per token inside the sidecar, refcounted and named by nothing.
 
 ### What a restart costs, and what a re-fork gets back
 
@@ -337,7 +322,7 @@ Under the rule, a runtime restart costs exactly one thing:
 |                             | what a restart does to it                                                            |
 | --------------------------- | ------------------------------------------------------------------------------------ |
 | the external call in flight | **dies, once** — at-most-once is unavoidable; it arrives as a catchable panic        |
-| everything durable          | **untouched**: run state, handler `var`s, a desk's conversation, `store` rows        |
+| everything durable          | **untouched**: run state, handler `var`s, a resident's conversation, `store` rows    |
 | a re-forked watcher         | **connects again** — the fresh call resolves the credential and opens its own socket |
 | events during the gap       | **not delivered** — a socket nobody was holding received nothing                     |
 
@@ -390,17 +375,16 @@ effect bot_scope
 // uncaught throw never crosses the region as a throw. (Type synonyms take no docs.)
 type bot_ceiling = slack.credential | io
 
-@"The watcher, as a fiber — and it SUPERVISES ITSELF. A runtime restart interrupts the watch and the
-frame panics; `signal_panics` turns that into the supervision signal and `exponential` opens a fresh
-connection after a backoff, because the credential is the whole of what the call needs. `forever` and
-not `exponential`: this watch is meant to outlive every deploy, and `exponential`'s budget is a LIFETIME
-count that never resets, so a bounded one would kill the watcher on its fifth restart. What bounds a
-reproducing defect here is the delay ceiling — the loop settles to one attempt every fifteen minutes,
-which is visible in the run's events rather than expensive."
-agent channel_source(input: string) -> never with slack.credential | io | prelude.throw[slack.slack_error] {
-  use supervise.forever(initial_delay_milliseconds = 1000.0, factor = 2.0, max_delay_milliseconds = 900000.0)
+@"The watcher, as a fiber — and it supervises itself. A runtime restart interrupts the watch and the
+frame panics; `signal_panics` turns that into the supervision signal and `forever` opens a fresh
+connection after a backoff, because the credential is the whole of what the call needs. `forever`
+rather than `exponential`, since this watch outlives every deploy and a lifetime budget would kill it
+on its fifth restart; what bounds a reproducing defect is the delay ceiling, one attempt every fifteen
+minutes."
+agent channel_source(channel: string) -> never with slack.credential | io | prelude.throw[slack.slack_error] {
+  use supervise.forever()
   use supervise.signal_panics[never]()
-  slack.watch_messages(channel = input, deliver_to = reply)
+  slack.watch_messages(channel = channel, deliver_to = reply)
 }
 
 @"The same bot with the watcher detached, so the resident can serve other traffic while it listens.
@@ -421,56 +405,48 @@ agent resident(channel: string) -> never with io | prelude.throw[watcher_failed 
       prelude.throw(error = watcher_failed(name = name, detail = json.stringify(value = error)))
     }
   }
-  let _watcher = region.fork(nursery = nursery, task = channel_source, argument = channel, name = "channel-watcher")
+  let _watcher = region.fork(nursery = nursery, task = channel_source, argument = { channel = channel }, name = "channel-watcher")
   region.watch(nursery = nursery)
 }
 ```
 
-**Put the restart INSIDE the fiber, and the budget with it.** A supervisor restarts a fiber with a
-budget; a `supervise` provider re-runs a block with a budget; a fiber's body is a block — so the two
-are the same mechanism, and the one already in the prelude is the one to use. Written this way the
-panic is answered where it happened and never becomes a `crashed` event at all, which is why the clause
-above has nothing to do.
+A fork applies its task to that task's whole parameter record, so `argument = { channel = channel }`
+is the call `channel_source(channel = channel)` deferred, and a nullary task forks with
+`argument = {}`.
 
-The older shape — a `crashed` clause outside the fiber holding a `region.fork` per arm — still
-compiles and you will meet it in the tutorial, where one watcher and one clause is the smaller thing to
-learn. It costs a name constant per fiber so the policy can compare the name the event reports, a sum
-to dispatch that comparison on, and, in every version of it anyone wrote, **no bound on the restarts**:
-a defect that panics on every attempt is then a fork loop with nothing to stop it. The budget is the
-whole reason to prefer the inside form.
+Put the restart inside the fiber, and the budget with it. A supervisor restarts a fiber with a budget;
+a `supervise` provider re-runs a block with a budget; a fiber's body is a block — the same mechanism,
+and the one already in the prelude is the one to use. Written this way the panic is answered where it
+happened and never becomes a `crashed` event at all, which is why the clause above has nothing to do.
 
-**A panic means the call was interrupted, which a fresh call fixes; a typed throw is the program's own
+A panic means the call was interrupted, which a fresh call fixes; a typed throw is the program's own
 anticipated failure — a revoked token, a channel the bot was removed from — which no number of fresh
-calls will.** That split is why the fiber's own supervisor answers the first and lets the second fly. Both ride `watch`'s row, so `katari
-check` holds you to writing both. And note where the watcher's `slack_error` went: it is not on
-`bot_ceiling` and not on `resident`'s row, because a fiber's uncaught throw is trapped at the region
-boundary and arrives as `failed`'s `error` — which is why `watcher_failed` is `resident`'s own throw and
-the package's is not.
+calls will. That split is why the fiber's own supervisor answers the first and lets the second fly.
+Note where the watcher's `slack_error` went: it is on neither `bot_ceiling` nor `resident`'s row,
+because a fiber's uncaught throw is trapped at the region boundary and arrives as `failed`'s `error`.
 
-Note what is _not_ in either listing: no `supervise` provider around the provider install, no `panic`
+Note what is not in either listing: no `supervise` provider around the provider install, no panic
 converter, no epoch to compare, no session to rebuild. If you find yourself reaching for that
 machinery to keep an FFI reference alive, the reference is the thing to fix.
 
 ### Where `supervise` still belongs
 
-`supervise` is for a failure that **heals on a retry** — a rate limit, a 5xx, a cold upstream. That is
+`supervise` is for a failure that heals on a retry — a rate limit, a 5xx, a cold upstream. That is
 what [scheduled jobs]({docs}/{currentVersion}/guides/scheduled-jobs) wrap a `time.watch` delivery in,
 and it is unaffected by any of the above: the failure there is a typed throw the converter chooses to
 re-run, not a pointer that went stale.
 
-What it is _not_ for is re-establishing a reference. It is worth knowing the cost you avoid by not
-needing it here, because that cost is what made the old recipe expensive: everything installed inside a
-replay scope is **rebuilt per attempt** (the rule, and its one strict precondition, is in
-[Durable execution]({docs}/{currentVersion}/concepts/durable-execution#what-a-replay-rebuilds-and-what-it-keeps)).
-For a resident, "everything" included the desk holding the conversation, so a bot supervised that way
-came back having forgotten it — and the desk could not simply be hoisted above the scope to save it,
-because its own clause performs the requests the providers _inside_ the scope serve. Under the rule none
-of that arises: nothing is rebuilt, so nothing has to be hoisted out of the way of a rebuild.
+It is not for re-establishing a reference, and the cost avoided is real: everything installed inside a
+replay scope is rebuilt per attempt (the rule, and its one precondition, is in
+[Durable execution]({docs}/{currentVersion}/concepts/durable-execution#what-a-replay-rebuilds-and-what-it-keeps)),
+so a resident supervised that way would come back having forgotten its conversation. Under the rule
+nothing is rebuilt, so nothing has to be hoisted out of a rebuild's way.
 
 ## Where to go next
 
-- [Packages]({docs}/{currentVersion}/guides/packages) — publishing to the registry, and what
-  consumers see.
-- [Durable execution]({docs}/{currentVersion}/concepts/durable-execution) — where the FFI
-  boundary sits in the recovery story.
-- The `@katari-lang/port` API in the [reference](/packages).
+<DocCards>
+  <DocCard href="{docs}/{currentVersion}/guides/packages" />
+  <DocCard href="{docs}/{currentVersion}/concepts/durable-execution" />
+</DocCards>
+
+The `@katari-lang/port` API is in the [reference](/packages).
