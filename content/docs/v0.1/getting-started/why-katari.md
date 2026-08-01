@@ -1,59 +1,37 @@
 ---
 title: Why Katari
-description: Why agent orchestration is a language problem — and how one rule about unhandled requests replaces a workflow engine, a graph SDK, and a bolted-on approval service.
+description: Orchestration as a language problem — durable execution as semantics, effects in the signature, and one rule for the question a program cannot answer itself.
 ---
 
-The obvious shape for a tool that orchestrates AI agents is a visual builder: drag a node,
-wire it to the next one, ship a workflow. Katari is a text language instead, and the reason
-for that choice is the reason the whole language exists.
+The obvious shape for a tool that orchestrates AI agents is a visual builder: drag a node, wire it
+to the next one, ship a workflow. Katari is a text language instead, and that choice is where the
+rest of the design comes from.
 
-## Graphs do not diff
+## Text is what review and compilers work on
 
-A visual builder is genuinely good for the first hour, and the artifact it produces is a node
-graph. A node graph does not survive contact with how software is actually written:
+A node graph is good for the first hour, and then it stops fitting how software is written. It does
+not diff — moving a box rewrites coordinates. It does not review — there is no unit of change
+smaller than "the flow", and no line to comment on. And a model cannot write it: an AI can emit a
+syntactically valid graph document, but its meaning lives in the builder's renderer, so nothing
+catches a wrong one until it runs.
 
-- **It does not diff.** Moving a box rewrites coordinates. Two people editing the same flow
-  produce a merge conflict no reviewer can read, in a file no reviewer was meant to read.
-- **It does not review.** There is no unit of change smaller than "the flow", and no line to
-  leave a comment on.
-- **A model cannot write it.** An AI can emit a syntactically valid graph document, but the
-  meaning of that document lives in the builder's renderer and runtime — whether a branch is
-  reachable, whether a variable is in scope at a node, whether a tool's arguments fit — so
-  nothing catches a wrong one until it runs, if then.
+Everything that makes AI-written code workable is a property of text: `git diff`, code review,
+tests, search, blame, a compiler that rejects the plausible-but-wrong. So the orchestration layer —
+branching, retries, fan-out, a pause for a human — is source a model writes, a person reviews, and a
+compiler checks before anything runs.
 
-Everything that makes AI-generated code workable is a property of **text**: `git diff`, code
-review, tests, search, blame, a compiler that rejects the plausible-but-wrong. Being a text
-language is not the conservative choice here; it is the AI-first one. So the orchestration
-layer — branching, retries, fan-out, a pause for a human — is source that a model writes, a
-person reviews, and a compiler checks before anything runs.
+## Durable execution is semantics, not an SDK
 
-## One mechanism, three products
-
-Teams building agent systems usually assemble three separate things: a durable workflow
-engine, an agent orchestration framework, and something homemade for human approvals. In
-Katari all three fall out of two language rules — **an agent is a function**, and **an effect
-is a request whose meaning the caller chooses**.
-
-### Durable execution, as semantics instead of an SDK
-
-Durable execution engines buy one property: a program that outlives the process running it.
-The usual price is shape. Your code splits into workflow and activity halves, the workflow
-half must be deterministic, and replay-safety is a discipline you maintain by hand — no
-wall-clock reads, no unversioned edits to running code.
-
-Katari puts the property in the language. Effects go through the runtime, the runtime commits
-them, and recovery replays committed state rather than re-running your effects. There is no
-workflow/activity split to design around, because every step is already on that side of the
-line:
+Effects go through the runtime, the runtime commits them, and recovery replays committed state
+rather than re-running your effects. There is no deterministic half of the program to keep apart,
+because every step is already on that side of the line:
 
 ```katari
 @"Post one week's digest. @time@ is the scheduled epoch millisecond."
-agent post_digest(time: number) -> null with io {
-  null
-}
+agent post_digest(time: number) -> null with io { null }
 
-@"Every Monday 09:00 in Tokyo, forever. The next occurrence is persisted, so a restart
-re-arms it and an occurrence missed while the runtime was down fires once on recovery."
+@"Every Monday 09:00 in Tokyo, forever. The next occurrence is persisted, so a restart re-arms it
+and an occurrence missed while the runtime was down fires once on recovery."
 agent weekly() -> never with io {
   time.watch(
     schedule = time.cron(expression = "0 9 * * 1", timezone = "Asia/Tokyo"),
@@ -62,39 +40,24 @@ agent weekly() -> never with io {
 }
 ```
 
-`time.sleep(milliseconds = 7 * 24 * 3600 * 1000)` is a week-long sleep written as a line, not
-a scheduled job plus a resume endpoint plus a row somewhere recording which stage you were in.
-`time.now()` reads the clock through the runtime, so the instant becomes durable with the step
-that observed it and a recovered run agrees with itself about what time it was. See
-[Durable execution]({docs}/{currentVersion}/concepts/durable-execution).
+`time.sleep(milliseconds = 7 * 24 * 3600 * 1000)` is a week-long sleep written as a line, not a
+scheduled job plus a resume endpoint plus a row recording which stage you were in. `time.now()`
+reads the clock through the runtime, so the instant becomes durable with the step that observed it,
+and a recovered run agrees with itself about what time it was.
 
-### Agent orchestration, as functions instead of a graph API
+## The topology is the call graph
 
-Graph-building frameworks model an agent system as a value you assemble at startup: nodes,
-edges, conditional routing, a shared state object every node reads and writes. It is an
-expressive shape, and it moves your program's structure out of the language — into a data
-structure the type checker sees as a graph of callbacks, with routing errors that appear on
-the unlucky input and state whose shape is whatever the last node put there.
+Delegation is a call. Fan-out is `parallel for`. Routing is `match` over a data type. State is
+arguments and return values, each carrying a schema the compiler derived. What a run may do is in
+the types: an agent's effect row lists the requests it may perform, and the compiler checks that
+someone handles them. Go-to-definition and find-references work, because there is nothing to look
+up but functions.
 
-In Katari the topology **is** the call graph. Delegation is a call. Fan-out is `parallel for`.
-Routing is `match` over a data type. State is arguments and return values, each with a schema
-the compiler derived. The thing a graph API needs a graph for — knowing what a run may do
-before it does it — is in the types instead: an agent's effect row lists the requests it may
-perform, and the compiler checks that someone handles them. Go-to-definition and find-references
-work, because there is nothing to look up but functions.
+## A request with no handler escalates
 
-### Human approval, as the default meaning of an unanswered question
-
-This is the one every stack adds late. Approval usually arrives as a feature bolted onto an
-execution model with no room for it: a special node type, a wait-for-signal API you must
-remember to make idempotent, a callback URL, a hand-rolled table of pending decisions, and a
-UI to work it. It is a feature because "the program stops here, possibly for three days, and a
-person decides" is not something the underlying model can say.
-
-Katari can already say it, and spends no feature on it. The rule is one line, and it is a rule
-about requests in general, not about approvals: **a request with no handler in scope
-escalates.** The performing thread parks, the question becomes a durable row owned by the
-runtime, and the answer — whenever it comes — resumes the run exactly where it stopped.
+That is the rule, and it is about requests in general rather than about approvals. The performing
+thread parks, the question becomes a durable row owned by the runtime, and the answer — whenever it
+comes — resumes the run exactly where it stopped.
 
 ```katari
 @"Approval before an irreversible action. This program declares it and never answers it."
@@ -111,17 +74,12 @@ agent deploy(summary: string) -> string with approve | io {
 }
 ```
 
-Nothing in `deploy` decides **who** answers. The caller does, and it decides by choosing a
-handler:
-
-- **No handler.** The question escalates. The run parks — for minutes or a week — and the
-  admin console lists it in an inbox with a form derived from the request's answer schema
-  (here, a boolean). `katari ls escalations` shows it, `katari answer <id> --value true`
-  resolves it. Restart the runtime in between and nothing is lost: the open escalation is the
-  state.
-- **A handler that asks a chat platform.** The operator answers with a Discord or Slack button;
-  the run resumes when they click.
-- **A handler that answers immediately.** CI deploys without a human, from the same agent:
+Nothing in `deploy` decides who answers. The caller does, by choosing a handler. With none, the
+question escalates: the run parks for minutes or a week, the console lists it with a form derived
+from the request's answer schema, and `katari answer <id> --value true` resolves it — restart the
+runtime in between and nothing is lost, because the open escalation is the state. A handler over
+`discord.ask` turns it into a button an operator clicks. A handler that answers in-process lets CI
+deploy without a human, from the same agent:
 
 ```katari
 @"The same agent, with the question answered in-process — no human, no parking."
@@ -133,88 +91,39 @@ agent deploy_in_ci(summary: string) -> string with io {
 }
 ```
 
-Three things follow, and they are the reason this is worth a language rather than a library.
+A parked run is exactly as durable as any other: waiting on a human and waiting on a cron tick are
+the same persisted thread, not a live process holding a socket open. And `with approve` is part of
+`deploy`'s type, so every caller either handles the request or carries it up to the run root.
 
-**A parked run is exactly as durable as any other.** Waiting on a human and waiting on a cron
-tick are the same mechanism — a persisted thread, not a live process holding a socket open. A
-run can be blocked on a question through a deploy, a restart, and a long weekend.
+## What the type checker checks
 
-**You cannot forget the human.** `with approve` is part of `deploy`'s type. Every caller either
-handles the request or carries it in its own row, all the way to the run root. Approval is not
-a code path an unlucky branch can skip; it is in the signature, and the compiler propagates it
-for you.
-
-**Test and production differ by a handler, not by a fork.** The agent under test and the agent
-in production are the same source. This symmetry is what makes requests the right boundary for
-human-in-the-loop logic at all — see
-[Escalation]({docs}/{currentVersion}/concepts/escalation) and
-[Approval gates]({docs}/{currentVersion}/guides/approval-gates).
-
-## What the type checker actually checks
-
-Effect rows are not documentation. Here are two claims in one program: this agent may ask a
-human, and the tools it uses belong to an open connection.
-
-```katari
-@"Write through one of a connected server's tools, but only after a human signs off.
-The row carries both facts: `approve` — this may stop and ask a person — and `mcp.scope`,
-the marker every tool of an open connection is stamped with."
-agent apply_change(tools: mcp.toolbox[mcp.scope], summary: string) -> string with approve | mcp.scope | io | prelude.throw[mcp.server_error | mcp.auth_error | reflection.call_error] {
-  if (approve(summary = summary)) {
-    match (record.get(target = tools, key = "create_page")) {
-      case null -> "no such tool"
-      case tool -> json.stringify(value = reflection.call_agent(target = tool, args = { title = summary }))
-    }
-  } else {
-    "declined"
-  }
-}
-
-@"The connection is the block: `provide` mints the scope for its body and discharges it
-from its own row, so `main` carries no trace of it."
-agent main(url: string, summary: string) -> string with approve | io | prelude.throw[mcp.server_error | mcp.auth_error | reflection.call_error] {
-  let tools : mcp.toolbox[mcp.scope] = use mcp.provide[mcp.scope](url = url, auth = mcp.headers(values = record.empty()))
-  apply_change(tools = tools, summary = summary)
-}
-```
-
-Drop `approve` from `apply_change`'s row and `katari check` fails: the body performs a request
-the signature does not admit. Take a tool out of the connection — stash it, return it, call it
-after the block ended — and it fails the same way, because the scope marker rides the tool's
-type and only `provide` discharges it:
+An effect row is a claim about what a piece of code may do, and the compiler holds every caller to
+it. Drop `approve` from `deploy`'s row and `katari check` says so, at the perform site:
 
 ```text
-K3001: The actual effect performs `prelude.mcp.scope`, which the expected effect does not allow.
-Either name that request in the expected `with` row, or serve it here with a `use handler` clause.
-  expected: throw[auth_error | server_error | call_error] | io
-  actual:   throw[auth_error | server_error | call_error] | scope | io
+bot:16:1 K3001: The actual effect performs `bot.approve`, which the expected effect does not allow. Either name that request in the expected `with` row, or serve it here with a `use handler` clause.
+  expected: io
+  actual:   approve | io
 ```
 
-No runtime guard rejects the stale tool call, because the program that would make it does not
-compile. Both checks are the same machinery — an effect row is a claim about what a piece of
-code may do, and the compiler holds every caller to it.
+The same machinery carries capabilities that are not questions. An MCP connection hands its tools
+out stamped with a scope marker that only the `mcp.provide` block discharges, so a tool stashed and
+called after the connection closed carries `mcp.scope` into a row that does not admit it, and prints
+the same shape of error ([MCP]({docs}/{currentVersion}/guides/mcp)). No runtime guard rejects the
+stale call, because the program that would make it does not compile.
 
 ## What Katari is not
 
-- **Its API surface is not frozen.** 0.1 is released and usable, but it is pre-1.0: a minor
-  version may still ship breaking changes. Pin what you deploy — `katari.lock` and the runtime
-  image tag exist for exactly that — and take the upgrade when you have time to read what
-  moved. `v1.0.0` is the line past which that stops being a cost you plan for.
-- **It is not for low-latency work.** Every step is persisted before the run proceeds. That is
-  the whole point when a run must survive a restart, and it is pure overhead when the budget is
-  a few milliseconds. Serve your latency-critical path directly and let Katari orchestrate
-  around it.
-- **It is not embeddable in an existing service.** Katari is a compiler plus a runtime server
-  with a database, not a library you import into a TypeScript app. Integration runs inbound —
-  a [webhook]({docs}/{currentVersion}/guides/webhooks), an MCP tool call, the runtime's HTTP
-  API — and TypeScript you already have joins as an
-  [FFI sidecar]({docs}/{currentVersion}/guides/ffi-sidecars) a Katari program calls. If what
-  you want is a few durable steps inside an app you already run, a library in that app's
-  language will fit better.
-- **Its ecosystem is small.** One editor extension, a
-  [handful of packages](/packages), and a language nobody has written before. The docs are
-  built to close that gap for AI-assisted work — see below — but it is a real cost, and worth
-  counting.
+- **Frozen.** 0.1 is released and usable, but pre-1.0: a minor version may still ship breaking
+  changes. Pin what you deploy — `katari.lock` and the runtime image tag exist for that.
+- **For low-latency work.** Every step is persisted before the run proceeds. Serve the
+  latency-critical path directly and let Katari orchestrate around it.
+- **Embeddable.** A compiler plus a runtime server with a database, not a library you import.
+  Integration runs inbound — a [webhook]({docs}/{currentVersion}/guides/webhooks), an MCP tool call,
+  the runtime's HTTP API — and existing TypeScript joins as an
+  [FFI sidecar]({docs}/{currentVersion}/guides/ffi-sidecars).
+- **A large ecosystem.** One editor extension, a [handful of packages](/packages), and a language
+  nobody has written before. The docs close that gap for AI-assisted work, but it is a real cost.
 
 ## Start here
 
@@ -223,16 +132,12 @@ npm install -g @katari-lang/cli
 katari init hello --dir hello
 ```
 
-[Quickstart]({docs}/{currentVersion}/getting-started/quickstart) takes it from there: a local
-runtime, a first run, and an escalation you answer yourself.
+Point your AI assistant at `https://katari-lang.dev/mcp` too: it serves these pages and the whole
+package API as tools, so the model reads real signatures instead of guessing.
 
-If you write Katari with an AI assistant, point it at the documentation MCP server first — it
-serves the docs and the whole package API as tools, so the model reads the real signatures
-instead of guessing at a language it has never seen:
-
-```sh
-claude mcp add --transport http katari-docs https://katari-lang.dev/mcp
-```
-
-[Docs for AI agents]({docs}/{currentVersion}/getting-started/docs-for-ai-agents) has the
-configuration for other clients, and what each tool returns.
+<DocCards>
+  <DocCard href="{docs}/{currentVersion}/getting-started/quickstart" />
+  <DocCard href="{docs}/{currentVersion}/getting-started/docs-for-ai-agents" />
+  <DocCard href="{docs}/{currentVersion}/concepts/escalation" />
+  <DocCard href="{docs}/{currentVersion}/concepts/durable-execution" />
+</DocCards>

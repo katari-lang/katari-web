@@ -23,9 +23,9 @@ export const EXAMPLE_PROJECTS: ExampleProject[] = [
   {
     name: "release-watch",
     url: `${EXAMPLES_REPOSITORY_URL}/tree/main/release-watch`,
-    useCase: "A GitHub release monitor you manage from Discord.",
+    useCase: "A GitHub release monitor whose watch list one AI keeps from Discord.",
     teaches:
-      "Durable scheduling, the desired-set (fleet) pattern, store cursors, folding HTTP failures without dying. No model in it at all — the durable skeleton alone.",
+      "An AI front desk over a deterministic poll loop — `ai.route` with one AI beside one plain fiber, durable scheduling, store cursors, at-least-once announcements.",
   },
   {
     name: "standup-scribe",
@@ -37,16 +37,16 @@ export const EXAMPLE_PROJECTS: ExampleProject[] = [
   {
     name: "concierge",
     url: `${EXAMPLES_REPOSITORY_URL}/tree/main/concierge`,
-    useCase: "A two-desk Discord community concierge.",
+    useCase: "A two-AI Discord community concierge.",
     teaches:
-      "Two desks and mail on one region bus, a curated-knowledge membrane, an AI desk with tools. This is where the tutorial's last chapter sends you.",
+      "Two `ai.spawn` lines on one route, a curated-knowledge membrane made of tool sets, mail between AIs. This is where the tutorial's last chapter sends you.",
   },
   {
     name: "inbox-butler",
     url: `${EXAMPLES_REPOSITORY_URL}/tree/main/inbox-butler`,
     useCase: "Gmail triage that proposes calendar events for one-click approval.",
     teaches:
-      "OAuth credentials and preflight, AI triage with structured output, the approval-gate idiom.",
+      "OAuth credentials, AI triage with structured output, the gate-fiber idiom for an editable form.",
   },
 ];
 

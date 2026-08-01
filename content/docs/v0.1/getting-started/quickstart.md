@@ -56,8 +56,8 @@ docker compose up -d
 `KATARI_API_KEY` is the bearer token every caller authenticates with; `KATARI_SECRET_KEY`
 encrypts secret values at rest. The runtime refuses to boot without either.
 
-**Note:** the CLI reads `KATARI_API_KEY` from your shell environment, not from `.env` — that
-is why the `export` comes first. In a new terminal, export it again (the value is in `.env`).
+The CLI reads `KATARI_API_KEY` from your shell environment rather than from `.env`, which is why
+the `export` comes first. In a new terminal, export it again — the value is in `.env`.
 
 ## Compile and deploy
 
@@ -74,8 +74,8 @@ Entry points (requests that escalate to the run root):
 
 `check` compiles locally and reports diagnostics; nothing leaves your machine. The last block is
 the **escalation report** — the requests that would reach a human, per entry point. Here it names
-the one you are about to answer. `apply`
-compiles too, then uploads the result to the runtime as an immutable **snapshot**:
+the one you are about to answer. `apply` compiles too, then uploads the result to the runtime as an
+immutable **snapshot**:
 
 ```sh
 katari apply
@@ -170,8 +170,8 @@ still parked on a question. Add `-v` to wipe it.
 
 ## Next
 
-- [Tutorial]({docs}/{currentVersion}/tutorial) — from here to a Discord bot that gives a
-  model your agents as tools.
-- [Escalation]({docs}/{currentVersion}/concepts/escalation) — what actually happened when
-  `ask_name` had no handler.
-- [The CLI]({docs}/{currentVersion}/toolchain/cli) — the commands you just used, and the rest.
+<DocCards>
+  <DocCard href="{docs}/{currentVersion}/tutorial" />
+  <DocCard href="{docs}/{currentVersion}/concepts/escalation" />
+  <DocCard href="{docs}/{currentVersion}/toolchain/cli" />
+</DocCards>

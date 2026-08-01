@@ -41,10 +41,9 @@ they target the nearest project: the extension walks up from the active file to 
 | **Katari: Generate MCP tool bindings** | `katari mcp pull` — prompts for the server URL and a `.ktr` output path, then opens the generated file |
 | **Katari: Restart language server**    | Restarts `katari-lsp` with the current settings                                                        |
 
-**Note:** there is no login command for MCP servers that use OAuth. Authorization is an
-escalation the runtime raises when a program first needs the credential — you answer it from
-the console or `katari answer`, like any other question. See
-[MCP]({docs}/{currentVersion}/guides/mcp).
+There is no login command for MCP servers that use OAuth: authorization is an escalation the runtime
+raises when a program first needs the credential, answered from the console or `katari answer` like
+any other question. See [MCP]({docs}/{currentVersion}/guides/mcp).
 
 ## How binaries are resolved
 
@@ -62,8 +61,8 @@ developing the LSP itself).
 
 ## Next
 
-- [The CLI]({docs}/{currentVersion}/toolchain/cli) — what those palette commands run.
-- [Quickstart]({docs}/{currentVersion}/getting-started/quickstart) — a project to open the
-  editor on.
-- [Types and schemas]({docs}/{currentVersion}/concepts/types-and-schemas) — what the hovers
-  are showing you.
+<DocCards>
+  <DocCard href="{docs}/{currentVersion}/toolchain/cli" />
+  <DocCard href="{docs}/{currentVersion}/getting-started/quickstart" />
+  <DocCard href="{docs}/{currentVersion}/concepts/types-and-schemas" />
+</DocCards>

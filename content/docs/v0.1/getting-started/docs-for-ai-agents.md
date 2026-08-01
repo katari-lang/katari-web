@@ -102,9 +102,8 @@ Point anything that reads a site rather than calling tools at it — and note th
 
 ## Related
 
-- [MCP]({docs}/{currentVersion}/guides/mcp) — the other direction entirely: consuming MCP
-  servers from a Katari program, and serving your own agents as one.
-- [Why Katari]({docs}/{currentVersion}/getting-started/why-katari) — why a text language is the
-  AI-first choice for orchestration.
-- [Quickstart]({docs}/{currentVersion}/getting-started/quickstart) — the five-minute path, for
-  the human in the loop.
+<DocCards>
+  <DocCard href="{docs}/{currentVersion}/guides/mcp" />
+  <DocCard href="{docs}/{currentVersion}/getting-started/why-katari" />
+  <DocCard href="{docs}/{currentVersion}/getting-started/quickstart" />
+</DocCards>

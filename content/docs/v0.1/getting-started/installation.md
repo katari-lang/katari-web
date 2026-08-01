@@ -25,13 +25,12 @@ katari --version
 ```
 
 ```
-katari 0.1.4
+katari 0.1.5
 ```
 
-**Note:** the package installs a prebuilt binary for linux-x64 and darwin-arm64. On another
-platform, download a tarball from the
-[GitHub releases](https://github.com/katari-lang/katari/releases) or build from source with
-stack.
+The package installs a prebuilt binary for linux-x64 and darwin-arm64. On another platform,
+download a tarball from the [GitHub releases](https://github.com/katari-lang/katari/releases) or
+build from source with stack.
 
 ## The runtime
 
@@ -55,11 +54,9 @@ and completion — the language server is bundled, so there is nothing else to i
 
 ## Next
 
-- [Quickstart]({docs}/{currentVersion}/getting-started/quickstart) — a project running in five
-  minutes.
-- [Docs for AI agents]({docs}/{currentVersion}/getting-started/docs-for-ai-agents) — one command
-  points your AI assistant at these docs over MCP, so it writes real Katari.
-- [The CLI]({docs}/{currentVersion}/toolchain/cli) — every command, in the order you reach for
-  them.
-- [Tutorial]({docs}/{currentVersion}/tutorial) — build up to a Discord bot with model-driven
-  tools.
+<DocCards>
+  <DocCard href="{docs}/{currentVersion}/getting-started/quickstart" />
+  <DocCard href="{docs}/{currentVersion}/getting-started/docs-for-ai-agents" />
+  <DocCard href="{docs}/{currentVersion}/toolchain/cli" />
+  <DocCard href="{docs}/{currentVersion}/tutorial" />
+</DocCards>

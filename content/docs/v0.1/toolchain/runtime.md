@@ -14,10 +14,26 @@ single port:
 - `/mcp/<token>` — the public endpoints `mcp.serve` mints, same contract.
 - `/oauth/callback` — where OAuth providers redirect the browser during an authorization.
 
-`katari init` scaffolds a `compose.yaml` running exactly this: the published
-`ghcr.io/katari-lang/katari` image, `postgres`, and a SeaweedFS blob store, with state in
-named volumes. That stack is the local dev setup and the self-host deployment — there is no
-separate "production" runtime.
+`katari init` scaffolds a `compose.yaml` running exactly this — the published
+`ghcr.io/katari-lang/katari` image, `postgres`, and a SeaweedFS blob store, with state in named
+volumes:
+
+```yaml
+services:
+  runtime:
+    image: ghcr.io/katari-lang/katari:0.1.5
+    ports:
+      - "${KATARI_PORT:-3000}:3000"
+    environment:
+      DATABASE_URL: postgres://katari:katari@postgres:5432/katari
+      KATARI_API_KEY: ${KATARI_API_KEY:?set KATARI_API_KEY in .env}
+      KATARI_SECRET_KEY: ${KATARI_SECRET_KEY:?set KATARI_SECRET_KEY in .env}
+      BLOB_S3_BUCKET: katari-blobs
+      BLOB_S3_ENDPOINT: http://seaweedfs:8333
+```
+
+That stack is the local dev setup and the self-host deployment — there is no separate "production"
+runtime.
 
 ## Snapshots and runs
 
@@ -51,11 +67,14 @@ project it shows:
 
 ## The two keys
 
-- `KATARI_API_KEY` is the Bearer token every `/api/v1` caller must present — the runtime
-  refuses to boot without one, so an API is never accidentally left open. Only
-  `/api/v1/health` and the console's static assets skip it.
+- `KATARI_API_KEY` is the Bearer token every `/api/v1` caller must present — at least 32
+  characters, and the runtime refuses to boot without one, so an API is never accidentally left
+  open. Only `/api/v1/health` and the console's static assets skip it.
 - `KATARI_SECRET_KEY` (base64, 32 bytes) encrypts secret env values and stored credentials at
-  rest. It never authenticates anything.
+  rest. It never authenticates anything, and it is the one value to keep across every redeploy:
+  the ciphertext records which key version sealed it, not the key. To rotate, put the new key in
+  `KATARI_SECRET_KEY` and move the old one to `KATARI_SECRET_KEY_PREVIOUS` — new writes use the
+  new key while old values keep opening.
 
 Generate them with `openssl rand -hex 32` and `openssl rand -base64 32` respectively, as the
 scaffolded `.env.example` shows.
@@ -65,49 +84,57 @@ scaffolded `.env.example` shows.
 The scaffolded compose file is a complete deployment; adapting it is configuration, not
 architecture:
 
-| Variable                                                         | What it sets                                                                                                                               |
-| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `PORT`, `HOST`                                                   | Where the server listens (defaults `3000`, `0.0.0.0`).                                                                                     |
-| `DATABASE_URL`                                                   | The PostgreSQL connection string. Migrations run on boot.                                                                                  |
-| `KATARI_API_KEY`                                                 | The API Bearer token. Required.                                                                                                            |
-| `KATARI_SECRET_KEY`                                              | The at-rest encryption key. Required.                                                                                                      |
-| `BLOB_S3_BUCKET`, `BLOB_S3_ENDPOINT`, `BLOB_S3_FORCE_PATH_STYLE` | The blob store. Point at a real bucket by dropping the endpoint and setting AWS credentials; unset, blobs live in memory (dev only).       |
-| `KATARI_PUBLIC_URL`                                              | The base URL the outside world reaches you at — what `/inbound` and `/mcp` URLs are minted under. Set it behind a reverse proxy or tunnel. |
-| `CORS_ORIGIN`                                                    | Allowed origins for a separately-hosted console (default `*` — lock it down in shared deployments).                                        |
-| `LOG_LEVEL`                                                      | `debug` / `info` / `warn` / `error`.                                                                                                       |
+| Variable                                                         | What it sets                                                                                                                                                                                                                                                             |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `PORT`, `HOST`                                                   | Where the server listens (defaults `3000`, `0.0.0.0`).                                                                                                                                                                                                                   |
+| `DATABASE_URL`                                                   | The PostgreSQL connection string. Migrations run on boot.                                                                                                                                                                                                                |
+| `DATABASE_SSL`                                                   | `disable` / `require` / `verify-full`. Unset, the runtime picks `disable` for a loopback host and `verify-full` for anything else.                                                                                                                                       |
+| `KATARI_API_KEY`, `KATARI_SECRET_KEY`                            | The API Bearer token and the at-rest encryption key. Both required.                                                                                                                                                                                                      |
+| `KATARI_SECRET_KEY_PREVIOUS`                                     | Keys still accepted for decryption, comma-separated, newest first — the other half of a rotation.                                                                                                                                                                        |
+| `BLOB_S3_BUCKET`, `BLOB_S3_ENDPOINT`, `BLOB_S3_FORCE_PATH_STYLE` | The blob store. Point at a real bucket by dropping the endpoint and setting AWS credentials; unset, blobs live in memory (dev only).                                                                                                                                     |
+| `KATARI_PUBLIC_URL`                                              | The base URL the outside world reaches you at — what `/inbound` and `/mcp` URLs are minted under. Required under `NODE_ENV=production`.                                                                                                                                  |
+| `KATARI_EGRESS_ALLOW_PRIVATE`                                    | Off by default: a program's outbound requests cannot reach loopback, private or link-local addresses, so a model-chosen URL cannot reach your internal network or the cloud metadata service. The scaffolded compose file turns it on because everything is one machine. |
+| `KATARI_EGRESS_ALLOWED_HOSTS`                                    | The narrow form of that escape hatch: named hosts a deployment's programs may reach, comma-separated.                                                                                                                                                                    |
+| `CORS_ORIGIN`                                                    | Allowed origins for a separately-hosted console (default `*` — pin it in shared deployments).                                                                                                                                                                            |
+| `LOG_LEVEL`                                                      | `debug` / `info` / `warn` / `error`.                                                                                                                                                                                                                                     |
 
-**Note:** webhooks and served MCP endpoints are only as reachable as your runtime. If it sits
-behind a proxy, `KATARI_PUBLIC_URL` must be the outside address, or the minted URLs point at
-a host external services cannot reach.
+Webhooks and served MCP endpoints are only as reachable as your runtime: behind a proxy,
+`KATARI_PUBLIC_URL` must be the outside address, or the minted URLs point at a host external
+services cannot reach.
 
-`/api/v1/health` answers without authentication — use it for container health checks and
-uptime probes.
+`/api/v1/health` answers without authentication and without touching the database — use it for
+container health checks and uptime probes:
+
+```sh
+curl -s http://localhost:3000/api/v1/health
+```
+
+```json
+{ "ok": true, "data": { "status": "ok", "uptimeSeconds": 42, "version": "0.1.5" } }
+```
 
 ## Operational constraints
 
-Two limits of the 0.1 runtime are worth stating plainly before you deploy.
+Two properties of the 0.1 runtime shape how you deploy it.
 
-**One runtime process per project.** A project's runs, its durable state, and its in-flight
-timers and reactors are owned by the process that executes them; the runtime has **no lease** that
-prevents a second process from warming the same project against the same database. Running two
-processes over one project is therefore unsupported — they would both drive the same runs and
-corrupt each other's progress. Deploy **one runtime process per project**. Scaling out (a lease so
-several processes can safely share a project) is planned for a later release; until then, a single
-process is the supported topology, and it is what the scaffolded compose file runs.
+**One runtime process per project.** A project's runs, its durable state, and its in-flight timers
+and reactors are owned by the process that executes them, and there is no lease preventing a second
+process from warming the same project against the same database — two would drive the same runs and
+corrupt each other's progress. Deploy one runtime process per project; that is what the scaffolded
+compose file runs. A lease that lets several processes share a project is planned for a later
+release.
 
-**Connect only to MCP servers you trust.** 0.1's MCP integration — both `mcp.provide` and a
-`katari mcp pull` binding — assumes the servers you reach are **trusted**. A tool response is decoded
-onto the value plane, and the runtime does not yet authenticate that a decoded value which looks like
-a callable actually originated inside your program, so a malicious server could in principle return a
-crafted response. The general authorization that closes this lands in v0.2; for now, treat an MCP
-server as trusted code and connect only to servers you control or trust. The full note is in
+**MCP servers are trusted code.** Both `mcp.provide` and a `katari mcp pull` binding decode a tool
+response onto the value plane, and the runtime does not yet authenticate that a decoded value which
+looks like a callable originated inside your program. Connect only to servers you control or trust.
+The general authorization that closes this lands in v0.2; the full note is in
 [MCP → Trust boundary]({docs}/{currentVersion}/guides/mcp#trust-boundary).
 
 ## Next
 
-- [Durable execution]({docs}/{currentVersion}/concepts/durable-execution) — what "persists
-  every step" actually means.
-- [Webhooks]({docs}/{currentVersion}/guides/webhooks) — the `/inbound` surface from the
-  program side.
-- [Secrets and credentials]({docs}/{currentVersion}/guides/secrets-and-credentials) — what
-  `KATARI_SECRET_KEY` protects.
+<DocCards>
+  <DocCard href="{docs}/{currentVersion}/concepts/durable-execution" />
+  <DocCard href="{docs}/{currentVersion}/guides/webhooks" />
+  <DocCard href="{docs}/{currentVersion}/guides/secrets-and-credentials" />
+  <DocCard href="{docs}/{currentVersion}/toolchain/cli" />
+</DocCards>
