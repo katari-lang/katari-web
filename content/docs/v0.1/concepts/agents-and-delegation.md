@@ -3,10 +3,10 @@ title: Agents and delegation
 description: Agents are Katari's functions — typed, schema-carrying, first-class — and every call is a delegation the runtime tracks.
 ---
 
-An agent is Katari's unit of execution: what a function is in other languages. It takes a
-labelled record in, returns one value out, and declares the requests it may perform. The
-compiler derives a JSON schema for both sides, so anything can call an agent — another agent,
-`katari run`, an HTTP client, or an AI model that discovered it as a tool.
+An agent takes a labelled record in, returns one value out, and declares the requests it may
+perform. There is one calling convention for all four kinds of caller — another agent,
+`katari run`, an HTTP client, an AI model that discovered it as a tool — because the schema
+they call through is derived from the same declaration the compiler checks.
 
 ## Labelled records in, one value out
 
@@ -141,8 +141,9 @@ submission sink — see the `of private` semantics in
 
 ## Where to go next
 
-- [Effects and handlers]({docs}/{currentVersion}/concepts/effects-and-handlers) — the `with`
-  row and what it buys you.
-- [Parallelism]({docs}/{currentVersion}/concepts/parallelism) — fanning delegations out.
-- [Giving the model tools]({docs}/{currentVersion}/tutorial/giving-the-model-tools) — agents
-  as an AI's tools, end to end.
+<DocCards>
+  <DocCard href="{docs}/{currentVersion}/concepts/effects-and-handlers" />
+  <DocCard href="{docs}/{currentVersion}/concepts/parallelism" />
+  <DocCard href="{docs}/{currentVersion}/concepts/language-reference" />
+  <DocCard href="{docs}/{currentVersion}/tutorial/giving-the-model-tools" />
+</DocCards>

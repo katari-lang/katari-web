@@ -3,11 +3,10 @@ title: Effects and handlers
 description: Requests declare capabilities, effect rows make them visible in signatures, and handlers decide what they mean.
 ---
 
-A **request** is an effect definition: an operation an agent can perform without saying how
-it is implemented. The agent's signature tracks it in the **effect row** after `with`, and a
-**handler** somewhere up the call chain supplies the implementation. The same agent can log
-to a counter in one caller, to a real sink in another, and escalate to a human in a third —
-without changing a line of its body.
+A request is an operation declared without an implementation, and the implementation comes
+from whichever handler is nearest up the call chain. So one agent can log to a counter in one
+caller, to a real sink in another, and to a human in a third, with no change to its body — and
+its signature says which of those substitutions are even possible.
 
 ## Declaring a request
 
@@ -108,11 +107,11 @@ agent report() -> string {
 ```
 
 `use quietly()` rewrites the rest of `report` into the `continuation` argument. This is the
-shape every stdlib and package provider uses: `use supervise.exponential(...)` serves the supervision
-signal, `use mcp.provide(url = ...)` serves an MCP server's tools for the extent of the block
-(and `let tools = use mcp.provide(...)` binds the value the provider passes to its
-continuation). The scoping is the point — the capability exists exactly for the block, and
-the provider's own row proves it discharged what it served.
+shape every stdlib and package provider uses: `use supervise.exponential(max_attempts = 5)`
+serves the supervision signal, `use mcp.provide(url = ...)` serves an MCP server's tools for
+the extent of the block (and `let tools = use mcp.provide(...)` binds the value the provider
+passes to its continuation). The scoping is the point — the capability exists exactly for the
+block, and the provider's own row proves it discharged what it served.
 
 Two row spellings appear in provider signatures, and they differ:
 
@@ -173,18 +172,19 @@ Two kinds of thing hide behind an effect, and they differ by lifetime. **Environ
 is _given_ to a run — `env`, OAuth tokens, the [store]({docs}/{currentVersion}/guides/store).
 These are requests: unhandled, they escalate to the run's outermost environment, the runtime,
 which machine-answers them against durable project state — and any handler in between can
-intercept first (a test stub, a sandboxed subtree). **Operations with a lifetime** — `http.fetch`,
-a timer, a `watch` — are not requests waiting for an answer; they go straight to a dedicated
-reactor that owns the in-flight work and wakes the run when it completes, and they ride the
-un-dischargeable `io` effect rather than a catchable request. An external operation is,
-conceptually, a direct line to that same outermost handler: the runtime, reached without stopping
-at any handler on the way.
+intercept first (a test stub, a sandboxed subtree).
+
+**Operations with a lifetime** — `http.fetch`, a timer, a `watch` — are not requests waiting
+for an answer. They go straight to a dedicated reactor that owns the in-flight work and wakes
+the run when it completes, and they ride the un-dischargeable `io` effect rather than a
+catchable request: a direct line to the same outermost handler, reached without stopping at
+any handler on the way.
 
 ## Where to go next
 
-- [Escalation]({docs}/{currentVersion}/concepts/escalation) — what happens when no handler
-  is in scope.
-- [Durable execution]({docs}/{currentVersion}/concepts/durable-execution) — `supervise`
-  providers and converters, the mechanism / policy split.
-- [Effects and escalation]({docs}/{currentVersion}/tutorial/effects-and-escalation) — the
-  tutorial pass over this material.
+<DocCards>
+  <DocCard href="{docs}/{currentVersion}/concepts/escalation" />
+  <DocCard href="{docs}/{currentVersion}/guides/handler-geometry" />
+  <DocCard href="{docs}/{currentVersion}/concepts/durable-execution" />
+  <DocCard href="{docs}/{currentVersion}/tutorial/effects-and-escalation" />
+</DocCards>

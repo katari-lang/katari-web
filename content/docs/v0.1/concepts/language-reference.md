@@ -4,7 +4,7 @@ description: Every legal form of Katari syntax, one minimal example each — dec
 ---
 
 A catalogue, not a tutorial. Each entry is the smallest legal spelling of one construct with a line
-saying what it does; the surrounding pages explain **why**. Every example on this page compiles.
+saying what it does; the surrounding pages explain why. Every example on this page compiles.
 
 If you are looking for meaning rather than shape:
 [Agents and delegation]({docs}/{currentVersion}/concepts/agents-and-delegation),
@@ -76,9 +76,9 @@ agent tap[R, effect E](action: agent (value: null) -> R with E) -> R with E {
 }
 ```
 
-Generic parameters go in brackets **before** the parameter list. Four kinds exist: a plain type (`T`),
+Generic parameters go in brackets before the parameter list. Four kinds exist: a plain type (`T`),
 an effect (`effect E`), a literal (`literal name extends string`), and an attribute (`attribute A`);
-`extends` bounds any of them. Generic arguments are inferred **only at call sites** — a generic value
+`extends` bounds any of them. Generic arguments are inferred only at call sites — a generic value
 used as a value must be applied by name (`label[T]`), which is [K3015]({docs}/{currentVersion}/toolchain/error-codes).
 
 The effect row is the `with` clause, and it is where an agent says what it may perform. Five
@@ -93,13 +93,13 @@ spellings, all legal in the same position:
 | `with {...E, credential}`      | A caller's row `E` **overridden** — see the table under [Types](#types). |
 | `with pure` / `with all`       | Nothing at all / anything at all.                                        |
 
-Omitting `with` entirely on a declaration lets the checker infer the row.
-
-A row that outgrows its line may **wrap**: a newline is legal before `with`, and after any `|` — in
+A row that outgrows its line may wrap: a newline is legal before `with`, and after any `|` — in
 an effect row and in a union return type alike. The body's `{` must still sit on the same line as the
 signature's last token, so there is no Allman-brace form.
 
 ```katari
+request post(message: string) -> null
+
 @"A row too long for one line."
 agent broadcast(message: string) -> null
   with post |
@@ -109,6 +109,42 @@ agent broadcast(message: string) -> null
 }
 ```
 
+### Annotations: the boundary is spelled, the inside is inferred
+
+```katari
+@"A module-boundary agent — exported, and reachable as a tool — so its result type
+and its row are spelled."
+agent headline(topic: string) -> string with io {
+  string.to_upper(value = collected(topic = topic))
+}
+
+// Internal and non-recursive: the checker fills in the result type and the row.
+agent collected(topic: string) {
+  f"notes on ${topic} at ${string.to_string(value = time.now())}"
+}
+
+// Recursive, so both are written out.
+agent countdown(remaining: integer) -> integer with io {
+  if (remaining <= 0) {
+    0
+  } else {
+    time.sleep(milliseconds = 100.0)
+    countdown(remaining = remaining - 1)
+  }
+}
+```
+
+`-> T` and `with …` are both optional on a non-recursive declaration, which makes their use a
+placement convention: spell them where the signature is a contract somebody reads — an exported
+agent, an entry point, anything handed to a model as a tool — and leave them off inside a module,
+where the checker's answer is the truth anyway. A recursive group has no fixed point to infer
+from, so the compiler asks for both
+([K3013]({docs}/{currentVersion}/toolchain/error-codes)).
+
+Generic arguments follow the same line: inferred at the call site, written when the arguments do
+not determine them. `json.validate[T]`, `ai.route[E]` and `ai.spawn[E]` are always written with
+their type argument — there, explicit is the canonical spelling rather than a fallback.
+
 ### Anonymous agents, agents as values, partial application
 
 ```katari
@@ -117,14 +153,14 @@ agent anonymous() -> number {
 }
 ```
 
-`agent (…) -> T with E { … }` with no name is an expression. It **cannot** declare generic parameters
+`agent (…) -> T with E { … }` with no name is an expression. It cannot declare generic parameters
 (there is no name to instantiate them through). A nullary one is written `agent () -> T { … }`.
 
 ```katari
-agent bump(value: number) -> number { value + 1.0 }
+agent positive(value: number) -> boolean { value > 0.0 }
 
 agent as_a_value(values: array[number]) -> array[number] {
-  array.map(target = values, transform = bump)
+  array.filter(target = values, keep = positive)
 }
 ```
 
@@ -312,7 +348,7 @@ agent nullable(value: string | null) -> string {
 }
 ```
 
-A bare name in the last arm binds **everything the earlier arms did not cover**, narrowed to exactly
+A bare name in the last arm binds everything the earlier arms did not cover, narrowed to exactly
 that residual — so it carries the residual's fields and goes wherever the residual's type is accepted,
 with no destructure-and-rebuild:
 
@@ -320,7 +356,7 @@ with no destructure-and-rebuild:
 data alpha(x: integer)
 data beta(x: integer, y: integer)
 data gamma(x: integer)
-type shape = alpha | beta | gamma
+type letter = alpha | beta | gamma
 
 agent takes_beta(value: beta) -> integer { value.y }
 agent takes_beta_or_gamma(value: beta | gamma) -> integer { value.x }
@@ -332,7 +368,7 @@ agent one_left(value: alpha | beta) -> integer {
   }
 }
 
-agent two_left(value: shape) -> integer {
+agent two_left(value: letter) -> integer {
   match (value) {
     case alpha(_) -> 0
     case rest -> takes_beta_or_gamma(value = rest) + rest.x   // residual is `beta | gamma`
@@ -375,7 +411,7 @@ the checker tells you what is uncovered.
 **There are no rest patterns.** `case { name, ...others }` and `case [first, ...tail]` do not exist,
 and this is deliberate for the record case: a record pattern is already a **subset** match, so
 `{ name }` accepts any object that has a `name`, and there is nothing left to bind. `...` is a
-record-**literal** form only (below).
+record-literal form only (below).
 
 ### Records, arrays, and field access
 
@@ -444,7 +480,7 @@ agent mapped(values: array[number]) -> array[number] {
 }
 ```
 
-A `for` **is** the map: it collects each iteration's `next` value into an array, which is the loop's
+A `for` is the map: it collects each iteration's `next` value into an array, which is the loop's
 value. `let` in the binder is an optional readability marker.
 
 ```katari
@@ -536,7 +572,7 @@ agent both_at_once(a: string, b: string) -> array[string] {
 }
 ```
 
-`parallel for` runs the iterations concurrently and joins their results **in source order**;
+`parallel for` runs the iterations concurrently and joins their results in source order;
 `parallel [a, b]` does the same for a fixed list. Neither may declare `var` state
 ([K3024]({docs}/{currentVersion}/toolchain/error-codes)) — collect and fold after the join instead.
 
@@ -554,7 +590,7 @@ agent stateless() -> integer with io {
 }
 ```
 
-`use handler` installs clauses for **the rest of the enclosing block** — the continuation. `next`
+`use handler` installs clauses for the rest of the enclosing block — the continuation. `next`
 resumes the performer with a value; `break` abandons the block and makes its value the result.
 
 ```katari
@@ -592,7 +628,7 @@ agent catching_panic() -> string {
 }
 ```
 
-A clause may name a **qualified** request, and a `prelude.throw` clause additionally selects by
+A clause may name a qualified request, and a `prelude.throw` clause additionally selects by
 **payload type**. The `panic` clause is special: `panic` is undeclared and never appears in a row, its
 parameter must be spelled `msg`, and only an explicit `break` recovers.
 
@@ -609,7 +645,7 @@ agent concurrent() -> null with io {
 }
 ```
 
-`use parallel handler` dispatches its bodies concurrently, and therefore **cannot** carry `var` state
+`use parallel handler` dispatches its bodies concurrently, and therefore cannot carry `var` state
 ([K3025]({docs}/{currentVersion}/toolchain/error-codes)). Where handlers go relative to one another is
 [Handler geometry]({docs}/{currentVersion}/guides/handler-geometry).
 
@@ -642,9 +678,9 @@ effect clock_scope
 // A `type` synonym takes no `@"..."` doc.
 type clock_ceiling = tick_seen | io
 
-agent ticker(input: number) -> never with clock_ceiling {
+agent ticker(every_milliseconds: number) -> never {
   forever {
-    time.sleep(milliseconds = input)
+    time.sleep(milliseconds = every_milliseconds)
     tick_seen(at = time.now())
   }
 }
@@ -661,17 +697,19 @@ agent three_ticks() -> integer with io {
     request region.failed(id: string, name: string, error: unknown) { next null }
   }
   let nursery: region.nursery[clock_scope, clock_ceiling] = use region.provide[clock_scope, clock_ceiling]
-  let _ticker = region.fork(nursery = nursery, task = ticker, argument = 200.0, name = "ticker")
-  let _mail = region.post(nursery = nursery, task = agent () -> null with clock_ceiling { tick_seen(at = 0.0) }, name = "one-shot")
+  let _ticker = region.fork(nursery = nursery, task = ticker, argument = { every_milliseconds = 200.0 }, name = "ticker")
   region.watch(nursery = nursery)
 }
 ```
 
 `region.provide[Scope, Ceiling]` opens a **nursery** for the rest of the block; `fork` spawns a
-detached fiber into it; `post` is `fork` for a task that is one inline perform; `watch` re-emits every
-fiber's escalations, and returns `never`. There is no join — a fiber reports through its escalations.
-`crashed` and `failed` ride `watch`'s row, so the compiler makes you handle them. See
-[Parallelism]({docs}/{currentVersion}/concepts/parallelism#regions-fork-without-join) and
+detached fiber into it; `watch` re-emits every fiber's escalations, and returns `never`. There is no
+join — a fiber reports through its escalations. `crashed` and `failed` ride `watch`'s row, so the
+compiler makes you handle them.
+
+A fork is a deferred call: `task` is `agent A -> null` and `argument` is that call's whole parameter
+record, so the task keeps its own parameter names and a nullary one is forked with `argument = {}`. See
+[Parallelism]({docs}/{currentVersion}/concepts/parallelism#regions-and-fibers) and
 [A Second Agent]({docs}/{currentVersion}/tutorial/a-second-agent).
 
 ### `finally`
@@ -686,7 +724,7 @@ agent guarded() -> string with io {
 }
 ```
 
-`finally` arms a finalizer on the current agent instance, running on completion **and** on
+`finally` arms a finalizer on the current agent instance, running on completion and on
 cancellation, never on a panic; arming order is reversed at run time. Its body's net effect must be
 within `io` ([K3021]({docs}/{currentVersion}/toolchain/error-codes)).
 
@@ -730,7 +768,7 @@ finally  then     in        with       of
 true     false    null
 ```
 
-**Type names**, rejected because a bare type name in a **pattern** is a type filter (`case
+**Type names**, rejected because a bare type name in a pattern is a type filter (`case
 integer(n) -> …`), and `let` takes a pattern:
 
 ```text
@@ -759,7 +797,10 @@ labelled-argument language anyway. A record KEY may still be any of these if you
 
 ## Where to go next
 
-- [Error codes]({docs}/{currentVersion}/toolchain/error-codes) — when `katari check` disagrees with
-  something you wrote here.
-- [Package reference](/packages) — every declaration of every published package, with signatures.
-- [Tutorial]({docs}/{currentVersion}/tutorial) — the same forms, in the order you would meet them.
+<DocCards>
+  <DocCard href="{docs}/{currentVersion}/toolchain/error-codes" />
+  <DocCard href="{docs}/{currentVersion}/tutorial" />
+</DocCards>
+
+The [package reference](/packages) lists every declaration of every published package, with
+signatures.

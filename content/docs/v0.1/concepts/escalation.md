@@ -3,11 +3,10 @@ title: Escalation
 description: A request with no handler parks the run as a durable open question — answered by a human minutes or days later, surviving restarts.
 ---
 
-When an agent performs a request and no handler is in scope anywhere up the chain, the
-request **escalates**: it leaves the run and becomes an open question owned by the runtime.
-The performing thread parks. The question is a durable row in the database, so it survives a
-runtime restart, and the answer — whenever it arrives — resumes the run exactly where it
-stopped. Escalation is not an error path; it is how a Katari program asks a human something.
+A request escalates when no handler is in scope anywhere up the chain: it leaves the run, and
+the runtime records it as a row addressed to a person. The performing thread parks on that
+row, so a week of waiting costs a database entry rather than a process, and the answer
+resumes the thread at the exact expression that asked.
 
 ## A question with no handler
 
@@ -67,32 +66,30 @@ logic — see [Effects and handlers]({docs}/{currentVersion}/concepts/effects-an
 authorization escalation; completing the browser flow resumes it right here."
 agent whoami() -> string with io | prelude.throw[oauth.server_error | http.fetch_error] {
   let bearer : string of private = oauth.token(name = "github")
-  let headers = record.set(
-    target = record.empty(),
-    key = "Authorization",
-    value = prelude.concat(left = "Bearer ", right = bearer),
+  let response = http.fetch(
+    url = "https://api.github.com/user",
+    headers = { Authorization = prelude.concat(left = "Bearer ", right = bearer) },
   )
-  let response = http.fetch(url = "https://api.github.com/user", method = "GET", headers = headers, body = http.text(content = ""))
   response.body
 }
 ```
 
 Some escalations are raised by the runtime itself. When `oauth.token` finds no usable
-credential under the name — never authorized, or its refresh died mid-run — it does **not**
-throw. The run pauses on a `prelude.oauth.authorize` escalation: the console renders it as
-an authorization request with an Authorize button, and `katari answer` prints the
-authorization URL and opens your browser. Completing the flow deposits the credential in the
-runtime's store and answers every escalation waiting on it; the run resumes and re-resolves
-the token. The token material itself never rides the answer — the answer is only the resume
-signal. A pause the runtime cannot resolve without a human is never a throw; only a
-transient failure (`oauth.server_error`) is. The same contract backs MCP servers with
-`oauth(...)` auth — see
+credential under the name — never authorized, or its refresh died mid-run — the run pauses on
+a `prelude.oauth.authorize` escalation. The console renders it as an authorization request
+with an Authorize button, and `katari answer` prints the authorization URL and opens your
+browser.
+
+Completing the flow deposits the credential in the runtime's store and answers every
+escalation waiting on it; the run resumes and re-resolves the token. The token material never
+rides the answer — the answer is only the resume signal. A pause the runtime cannot resolve
+without a human is an escalation; a transient failure (`oauth.server_error`) is a throw. The
+same contract backs MCP servers with `oauth(...)` auth — see
 [Secrets and credentials]({docs}/{currentVersion}/guides/secrets-and-credentials).
 
 ## What escalates, what fails, what is rejected
 
-Mechanically, every failure channel rides the same escalation spine — but they resolve
-differently, and it is worth keeping the lines straight:
+Every failure channel rides the same escalation spine, and they resolve differently:
 
 - **A user-facing request** with no handler parks the run as an answerable question, as
   above.
@@ -113,8 +110,9 @@ differently, and it is worth keeping the lines straight:
 
 ## Where to go next
 
-- [Durable execution]({docs}/{currentVersion}/concepts/durable-execution) — the persistence
-  model that makes parking safe.
-- [Parallelism]({docs}/{currentVersion}/concepts/parallelism) — many questions open at once.
-- [Effects and escalation]({docs}/{currentVersion}/tutorial/effects-and-escalation) — the
-  tutorial walk-through.
+<DocCards>
+  <DocCard href="{docs}/{currentVersion}/concepts/durable-execution" />
+  <DocCard href="{docs}/{currentVersion}/concepts/parallelism" />
+  <DocCard href="{docs}/{currentVersion}/tutorial/effects-and-escalation" />
+  <DocCard href="{docs}/{currentVersion}/guides/asking-a-human" />
+</DocCards>

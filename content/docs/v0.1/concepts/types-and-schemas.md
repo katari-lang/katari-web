@@ -3,10 +3,10 @@ title: Types and schemas
 description: Katari's type system — sums, unions, generics, privacy — and the JSON schemas it derives at every agent boundary.
 ---
 
-Katari's types do double duty. Inside a program they are checked the usual way; at every
-agent boundary they are also **schemas** — JSON Schema derived from the declaration, read by
-the runtime to validate dynamic calls and by AI models to understand your agents as tools.
-You never write a schema by hand.
+Inside a program, types are checked the usual way. At an agent boundary the same declaration
+is also the JSON Schema the runtime validates dynamic calls against and the one an AI model
+reads to work out how to call your agent as a tool. You never write a schema by hand, and
+there is no second place for the two to disagree.
 
 ## Scalars
 
@@ -117,12 +117,11 @@ agent route(to: string) -> string {
 
 Number literals work the same way (`case 1 -> ...`, `case n -> ...`).
 
-**The binder arm is not optional here, and this is where literals differ from constructors.**
-Listing every constructor of a `data` union IS exhaustive — that is the check that breaks a
-`match` when you add a third shape. Listing every member of a literal union is NOT: a closed
-`"page" | "ticket" | "noise"` is closed for assignment but open for `match`, so covering all
-three still leaves a residual and `check` reports `expected: never` against what is left. Write
-the binder arm, and put in it whatever an unforeseen value should mean.
+Exhaustiveness works constructor by constructor: listing every constructor of a `data` union
+covers it, which is the check that breaks a `match` when you add a third shape. A literal union
+is closed for assignment and open for `match` — covering `"page" | "ticket" | "noise"` still
+leaves a residual, so a literal dispatch ends in a binder arm carrying whatever an unforeseen
+value should mean.
 
 Relatedly, the comparison operators order strings too: `<` on strings is lexicographic by Unicode code
 point, so `"2026-07-01" < "2026-08-01"` is `true`.
@@ -160,8 +159,11 @@ site. Four kinds exist: plain **type** generics (optionally bounded with `extend
 **literal** generics (which bind a string-literal argument at its singleton type — how a
 scoped provider pins a resource name in the row), **effect** generics (rows as parameters —
 see [Effects and handlers]({docs}/{currentVersion}/concepts/effects-and-handlers)), and
-**attribute** generics (privacy labels as parameters). A type that appears only in the
-result cannot be inferred and is instantiated explicitly: `json.parse_as[T](...)`.
+**attribute** generics (privacy labels as parameters).
+
+A type that appears only in the result cannot be inferred and is instantiated explicitly:
+`json.validate[T](...)`. Where to spell a generic argument and where to let inference reach is
+[a convention]({docs}/{currentVersion}/concepts/language-reference#annotations-the-boundary-is-spelled-the-inside-is-inferred).
 
 ## Private values
 
@@ -169,57 +171,59 @@ result cannot be inferred and is instantiated explicitly: `json.parse_as[T](...)
 @"A secret is a `string of private`: it may flow only toward a submission sink,
 like the `Authorization` header `http.fetch` sends to the destination server."
 agent authorized_headers() -> record[string of private] with prelude.throw[env.missing_secret] {
-  record.set(
-    target = record.empty(),
-    key = "Authorization",
-    value = prelude.concat(left = "Bearer ", right = env.get_secret(key = "api.token")),
-  )
+  { Authorization = prelude.concat(left = "Bearer ", right = env.get_secret(key = "api.token")) }
 }
 ```
 
-`T of private` attaches the privacy attribute: the value is a secret. Privacy is
-information flow, not encryption — `public <: private`, so a public value fits anywhere a
-private one is expected, but a private value may leave the program only through a
-deliberate **submission sink** typed to absorb it: `http.fetch`'s header values and body
-(which go to the one server the program named), never its `url` (which leaks into logs and
-proxies — a private value there is a `K3001` type error). Everything derived from a secret
-is tainted private, and a private value is redacted at every user-facing boundary — run
-results, the trace, escalation answers. The values behind `env.get_secret` and
-`oauth.token` are private by declaration; a `private agent`'s handle and result are the
-same machinery applied to callables. Schemas ignore the attribute — privacy has no JSON
-counterpart.
+`T of private` attaches the privacy attribute: the value is a secret. Privacy is information
+flow, not encryption — `public <: private`, so a public value fits anywhere a private one is
+expected, and a private value leaves the program only through a **submission sink** typed to
+absorb it: `http.fetch`'s header values and body, which go to the one server the program
+named. Never its `url`, which leaks into logs and proxies — a private value there is a
+`K3001` type error.
+
+Everything derived from a secret is tainted private, and a private value is redacted at every
+user-facing boundary: run results, the trace, escalation answers. The values behind
+`env.get_secret` and `oauth.token` are private by declaration, and a `private agent`'s handle
+and result are the same machinery applied to callables. Schemas ignore the attribute — privacy
+has no JSON counterpart.
 
 ## The JSON boundary
 
 ```katari
-@"Read an AI reply through the typed text boundary: parsed and validated against
-the type's derived schema in one step."
-agent read_pick(reply: string) -> string with prelude.throw[json.parse_error | json.validation_error] {
-  let picked = json.parse_as[{ tool: string, arguments: record[unknown] }](text = reply)
+@"Read an AI reply through the typed boundary: parse the text, then check the value
+against the type's derived schema."
+agent read_pick(reply: string) -> string
+  with prelude.throw[json.parse_error | json.validation_error] {
+  let picked = json.validate[{ tool: string, arguments: record[unknown] }](
+    value = json.parse(text = reply),
+  )
   picked.tool
 }
 ```
 
-`json.parse_as[T]` parses a document and validates it against `T`'s schema in one step — sugar
-for `json.parse` then `json.validate[T]`. Malformed text throws `json.parse_error`; a value that
-does not conform throws `json.validation_error`, naming the offending path. It is the right tool
-when you know the shape you expect — an AI reply, a webhook body you re-read. `json.validate[T]`
-is that check on its own: it takes an `unknown`, returns it unchanged when it conforms to `T`
-(otherwise `json.validation_error`), and rewrites nothing. Validation is one of only **two**
-places a type is enforced at runtime — the other is `reflection.call_agent`, which checks a
-delegation's arguments against the callee's schema the same way; everywhere else your types are
-settled at compile time. Reserved wire keys all live in the `$katari_` namespace, disjoint from
-anything a real document carries, so a `$`-prefixed key like `$ref` stays an ordinary field.
+`json.parse` turns text into the value it denotes, throwing `json.parse_error` on malformed
+input. `json.validate[T]` is the check on its own: it takes an `unknown`, returns it unchanged
+when it conforms to `T`, and otherwise throws `json.validation_error` naming the offending path.
+It rewrites nothing, so parse-then-validate is the whole typed read — of an AI reply, of a
+webhook body you re-read.
+
+Validation is one of only two places a type is enforced at runtime; the other is
+`reflection.call_agent`, which checks a delegation's arguments against the callee's schema the
+same way. Everywhere else your types are settled at compile time. Reserved wire keys all live in
+the `$katari_` namespace, disjoint from anything a real document carries, so a `$`-prefixed key
+like `$ref` stays an ordinary field.
 
 For a document of unknown or irregular shape, `json.parse` yields a plain value (`unknown`) —
 a record / array / string / integer / number / boolean / null (or a `file`, where the text
 carried a `$katari_ref` handle) — already an ordinary Katari value with no dedicated JSON tree
 type. That marker interpretation is unconditional: `parse` reads a `$katari_` key the same way
-whether or not a schema is in play. You traverse it with shape filters (`case record(r)`,
-`case array(a)`) and the total readers (`json.field`, `json.element`, `json.text`,
-`json.entries`, `json.items`), each of which returns a harmless default rather than throwing
-when a key is missing or a shape is wrong — so probes chain freely and absence is checked once,
-at the end, where it matters.
+whether or not a schema is in play.
+
+You traverse such a value with shape filters (`case record(r)`, `case array(a)`) and the total
+readers (`json.field`, `json.element`, `json.text`, `json.entries`, `json.items`), each of
+which returns a harmless default rather than throwing when a key is missing or a shape is
+wrong — so probes chain freely and absence is checked once, at the end, where it matters.
 
 Going the other way, **`json.stringify` is the one writer** — total and canonical, one value to
 one text, so it never throws. A document round-trips (`json.stringify(json.parse(s))` is `s` up
@@ -254,24 +258,26 @@ agent inspect() -> unknown {
 Every agent's input, output, and request schemas are derived from its declaration. The
 `@"..."` annotation on the agent becomes its description; a `@"..."` before a parameter
 becomes that property's `description` in the input schema — which is exactly what an AI
-model reads when it decides how to call your tool, so write them for that reader. On the
-wire, a `data` value carries its constructor under a `$katari_constructor` marker with its
-fields nested under `$katari_value`, and a `file` under a `$katari_ref` handle, so unions of
-`data` types survive the round trip unambiguously. Turning those marked forms back into values
-is unconditional — the same codec `json.parse` runs, with or without a schema: a
-`{ "$katari_ref": … }` becomes a `file` every time. So when an AI replays a `{ "$katari_ref": … }`
-into a tool argument, it is already a `file` by the time `reflection.call_agent` sees it —
-`call_agent`'s job is to _check_ that value against the callee's input schema and throw
-`call_error` on a mismatch, never to lift a bare record into a handle. `reflection.get_metadata`
-hands you the derived schemas as `unknown` values at runtime — the building block of a tool list —
-and dynamic dispatch validates arguments against the same schemas
-([Giving the model tools]({docs}/{currentVersion}/tutorial/giving-the-model-tools)
+model reads when it decides how to call your tool, so write them for that reader.
+
+On the wire, a `data` value carries its constructor under a `$katari_constructor` marker with
+its fields nested under `$katari_value`, and a `file` under a `$katari_ref` handle, so unions
+of `data` types survive the round trip unambiguously. Reading those marked forms back is
+unconditional — the same codec `json.parse` runs, schema or no schema — so a
+`{ "$katari_ref": … }` an AI replays into a tool argument is already a `file` by the time
+`reflection.call_agent` sees it, and `call_agent`'s job is to check that value against the
+callee's input schema and throw `call_error` on a mismatch.
+
+`reflection.get_metadata` hands you the derived schemas as `unknown` values at runtime — the
+building block of a tool list — and dynamic dispatch validates arguments against those same
+schemas ([Giving the model tools]({docs}/{currentVersion}/tutorial/giving-the-model-tools)
 puts the loop together).
 
 ## Where to go next
 
-- [Agents and delegation]({docs}/{currentVersion}/concepts/agents-and-delegation) — where
-  these boundaries live.
-- [Escalation]({docs}/{currentVersion}/concepts/escalation) — answer schemas at work.
-- [MCP]({docs}/{currentVersion}/guides/mcp) — the same schemas, served to and consumed from
-  MCP.
+<DocCards>
+  <DocCard href="{docs}/{currentVersion}/concepts/agents-and-delegation" />
+  <DocCard href="{docs}/{currentVersion}/concepts/escalation" />
+  <DocCard href="{docs}/{currentVersion}/guides/mcp" />
+  <DocCard href="{docs}/{currentVersion}/tutorial/giving-the-model-tools" />
+</DocCards>
