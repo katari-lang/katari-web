@@ -221,14 +221,16 @@ katari-package-e2b/
     e2b.ts           # the sidecar: katari.agent(...) handlers
 ```
 
+The `package.json` carries the sidecar's own dependencies and the port:
+
 ```json
 {
-  "name": "katari-package-e2b",
+  "name": "katari-package-mytool",
   "private": true,
   "type": "module",
   "dependencies": {
-    "@e2b/code-interpreter": "^1.5.0",
-    "@katari-lang/port": "0.1.1"
+    "@katari-lang/port": "0.1.5",
+    "some-client-sdk": "^1.5.0"
   }
 }
 ```
@@ -240,10 +242,22 @@ a stale pin type-checks your sidecar against an ABI it will never speak, and not
 signature you use happens to have moved. Keep it level with the toolchain you build against.
 
 The sidecar's source root defaults to `[package].src`, so `.ts` files simply live beside the
-`.ktr` files; a package with a different layout sets `[sidecar] sourceRoots` in its
-`katari.toml`. On `katari apply`, the CLI bundles every package's sidecar sources (via the
-`katari-bundle` helper from `@katari-lang/bundle`) into the snapshot it deploys — consumers of
-your package never run a build step.
+`.ktr` files; a package with a different layout points `[sidecar] sourceRoots` at the directory
+holding them, of which `katari apply` reads the first entry. On `katari apply`, the CLI bundles
+every package's sidecar sources into the snapshot it deploys, via the `katari-bundle` helper from
+`@katari-lang/bundle` — `apply` requires it and says so if it is not installed.
+
+The bundler resolves each package's imports through the `node_modules` directories above its source
+root, and a published package ships none of its own. So a consumer of your package installs the
+sidecar's dependencies once, inside the copy `katari lock` fetched:
+
+```sh
+katari lock
+(cd .katari/packages/mytool-* && npm install)
+```
+
+Every `apply` after that is just the bundle. Say so in your README — it is the one step a user of a
+sidecar package has that a user of a pure-Katari package does not.
 
 Three consequences of the process model worth designing for:
 
@@ -438,7 +452,7 @@ re-run, not a pointer that went stale.
 
 It is not for re-establishing a reference, and the cost avoided is real: everything installed inside a
 replay scope is rebuilt per attempt (the rule, and its one precondition, is in
-[Durable execution]({docs}/{currentVersion}/concepts/durable-execution#what-a-replay-rebuilds-and-what-it-keeps)),
+[Durable execution]({docs}/{currentVersion}/concepts/durable-execution#what-a-re-run-rebuilds-and-what-it-keeps)),
 so a resident supervised that way would come back having forgotten its conversation. Under the rule
 nothing is rebuilt, so nothing has to be hoisted out of a rebuild's way.
 

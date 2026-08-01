@@ -168,9 +168,9 @@ live MCP server — see [MCP]({docs}/{currentVersion}/guides/mcp).
 ## Global flags
 
 Every command accepts `--quiet`, `--verbose` (traces runtime HTTP on stderr), `--url`, and
-`--no-input`. Commands that compile take `-C DIR` to point at the project directory; commands that
-talk to the runtime take `--project NAME` instead. Both default to walking up from the current
-directory to the nearest `katari.toml`.
+`--no-input`. Commands that compile take `-C DIR` to point at the project directory, and commands
+that talk to the runtime take `--project NAME`; `katari apply` does both and accepts both. Either
+one defaults to walking up from the current directory to the nearest `katari.toml`.
 
 `--no-input` disables everything interactive — pickers, per-parameter prompts, confirmation — and
 turns missing input into an error. It is what you want in CI and scripts.

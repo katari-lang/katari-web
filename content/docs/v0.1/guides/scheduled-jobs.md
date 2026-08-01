@@ -49,8 +49,8 @@ in any callee does. Resilience is composed at the call site, from two pieces:
   body, turning exactly the failures you choose into `supervise.interrupted`.
 
 ```katari
-@"The resilient daemon: a failed delivery re-runs the watch after a capped exponential backoff,
-and the watch re-arms from its persisted next occurrence."
+@"The resilient daemon: a failed delivery re-runs the block after a capped exponential backoff,
+opening a fresh watch."
 agent main() -> never with io {
   use supervise.forever()
   use handler {
@@ -73,10 +73,15 @@ the bare `use supervise.forever()` is the ordinary form and a named argument mea
 one of the three.
 
 When a poll fails, the converter performs `supervise.interrupted`, the provider sleeps its current
-backoff (durably — the delay survives a restart) and re-runs the block, and `watch` re-arms from its
-persisted next occurrence. The durable footprint stays flat no matter how many failures the daemon
-has survived. `supervise.interrupted` with no provider in scope fails the run, so the composition is
-explicit in source.
+backoff (durably — the delay survives a restart) and re-runs the block. The durable footprint stays
+flat no matter how many failures the daemon has survived. `supervise.interrupted` with no provider in
+scope fails the run, so the composition is explicit in source.
+
+A re-run unwinds the failed `time.watch` call and evaluates the expression again, which opens a new
+watch whose first occurrence is computed from the clock at that moment. An `interval` therefore takes
+its phase from the re-run rather than from the original start, and the occurrences that would have
+fallen during the failure and the backoff do not fire. Re-arming from a persisted cursor is what a
+runtime restart does to a watch that is still alive; a supervised re-run is a new call.
 
 ## Retry selectively, with a bound
 
@@ -97,8 +102,8 @@ agent push_report(time: number) -> null with io | prelude.throw[http.fetch_error
   null
 }
 
-@"Retry one delivery up to five times with exponential backoff, but only on transport errors. The
-fatal arm rethrows, leaving the loop immediately; exhaustion re-raises the last failure typed."
+@"Attempt one delivery at most five times with exponential backoff, but only on transport errors.
+The fatal arm rethrows, leaving the loop immediately; exhaustion re-raises the last failure typed."
 agent deliver_with_retry(time: number) -> null with io | prelude.throw[http.fetch_error | invalid_payload] {
   use supervise.exponential(max_attempts = 5)
   use handler {
@@ -119,7 +124,7 @@ each is just an agent.
 
 ## What the runtime guarantees
 
-`watch`'s durability contract is **at-least-once, serialized, with a single catch-up**:
+`watch`'s durability contract is **serialized, with a single catch-up**:
 
 - **The next occurrence is persisted.** A restart re-arms it; a deadline that passed while the
   runtime was down fires immediately on recovery.
@@ -130,10 +135,11 @@ each is just an agent.
 - **Deliveries are serialized.** The next occurrence is not armed until the current delivery
   settles, so a `deliver_to` slower than the interval rate-limits the ticks rather than queueing
   them.
-- **Ticks are at-least-once, not exactly-once.** A crash in the window between a delivery and the
-  commit that advances the cursor re-delivers the same occurrence on recovery. `deliver_to`
-  receives the occurrence's **scheduled** epoch millisecond (not the delivery instant) precisely
-  so it can deduplicate on it when the downstream effect must not repeat.
+- **The cursor advances with the delivery.** Advancing to the next occurrence and opening the
+  delivery happen in one turn and commit together, and a delivery still in flight across a restart
+  resumes as ordinary durable work rather than being re-delivered. `deliver_to` receives the
+  occurrence's **scheduled** epoch millisecond, not the delivery instant, so it is a stable key
+  wherever the downstream effect needs one.
 
 ## One-shot timers
 

@@ -1,6 +1,6 @@
 ---
 title: Agents and delegation
-description: Agents are Katari's functions — typed, schema-carrying, first-class — and every call is a delegation the runtime tracks.
+description: Agents are Katari's functions — typed, schema-carrying, first-class — and a call to one is a delegation the runtime tracks.
 ---
 
 An agent takes a labelled record in, returns one value out, and declares the requests it may
@@ -16,7 +16,7 @@ agent area(width: number, height: number) -> number {
   width * height
 }
 
-@"Total floor area. Every call names its arguments; every call is a delegation."
+@"Total floor area. Every call names its arguments; a call to your own agent is a delegation."
 agent floor_area(rooms: array[{ width: number, height: number }]) -> number {
   for (let room in rooms, var total: number = 0.0) {
     next with { total = total + area(width = room.width, height = room.height) }
@@ -61,12 +61,14 @@ agent notify(text: string, tags: array[string] ?= [], options: { urgent: boolean
 }
 ```
 
-## Every call is a delegation
+## A call is a delegation
 
 When `floor_area` calls `area`, the runtime spawns a child instance for the callee and
 suspends the caller until the child's result arrives. That tree of instances is the
 **delegation tree**, and it is the thing you see on a run's page in the admin console: which
-agent called which, which one is blocked, and on what. A direct, compiled call needs no
+agent called which, which one is blocked, and on what. A stdlib primitive (`string.trim`,
+`math.floor`, arithmetic) and a `data` construction are leaves the engine inlines into the calling
+turn instead — no child instance, no row on the tree, which is what keeps a run's journal small. A direct, compiled call needs no
 runtime validation — the type system already guarantees the argument fits. Dynamic calls
 (an AI picking a tool, an inbound webhook) are validated against the callee's input schema at
 the boundary instead.

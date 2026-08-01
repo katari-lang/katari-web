@@ -60,11 +60,15 @@ agent nothing_in() -> string {
 }
 
 private agent signing_secret() -> string {
-  "not exported from this module"
+  "k-2f9a-secret"
 }
 ```
 
-`private` keeps a declaration inside its module.
+`private` marks the agent's handle private: it may be called only from a private world — the body of
+another `private` agent — and everywhere else its result is a private value. It is an
+information-flow attribute rather than a visibility modifier, so a private agent is still part of the
+module's documented surface; see
+[Agents and delegation]({docs}/{currentVersion}/concepts/agents-and-delegation).
 
 ```katari
 agent label[T extends { name: string }](value: T) -> string {

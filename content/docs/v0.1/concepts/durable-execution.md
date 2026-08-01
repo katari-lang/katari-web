@@ -3,10 +3,10 @@ title: Durable execution
 description: Snapshots, runs, and threads — every step persists, so programs sleep for days, survive restarts, and resume where they parked.
 ---
 
-The Katari runtime is a persistent server, and execution state lives in PostgreSQL, not in
-process memory. Every effect goes through the runtime, which commits it before your code sees
-the answer — so recovery replays from committed state rather than re-running what already
-happened.
+The Katari runtime is a persistent server. A run's live state is warm in the process that executes
+it, and every step it takes is journalled to PostgreSQL, so nothing is lost when the process is —
+recovery reloads the journal and carries on. Work inside the runtime is re-executed freely from that
+journal; work outside it, an HTTP call or an FFI handler, is at-most-once and is never re-run.
 
 Three nouns organize everything:
 
@@ -37,12 +37,18 @@ agent slow_echo(message: string) -> string with io {
 }
 ```
 
-`time.sleep` does not spin a timer in memory: it persists the wake deadline and parks the
-thread. `time.now` reads the clock through the runtime too, and the instant becomes durable
-together with the first step that observes it — so a recovered run agrees with itself about
-what time it was, and no replayed step ever sees a different clock. This is the general
-contract: effects happen through the runtime, the runtime commits them, and recovery replays
-from committed state instead of re-running your effects.
+`time.sleep` parks the thread against an absolute deadline held in the database; the in-memory timer
+is only how a live process notices, and a restart re-arms it from the persisted instant. `time.now`
+reads the clock through the runtime rather than as a primitive, and the instant becomes durable
+together with the first step that observes it — so a recovered run agrees with itself about what
+time it was, and no re-executed step ever sees a different clock.
+
+That is the general shape. A step's own work may be re-executed from the journal, so anything whose
+answer must not move — a clock read, a random value, an outside call — goes through the runtime,
+which records the answer once. An `http` or FFI call interrupted by a restart is not resumed and not
+retried: it surfaces as a panic in the frame that held it, which `supervise.signal_panics` turns
+into a supervision signal an ordinary retry policy can answer. `time` and `webhook` calls carry no
+outside process, so they do survive a restart whole.
 
 ## Schedules
 
@@ -146,10 +152,12 @@ agent resilient() -> string {
 
 Retry is split into two parts that compose. A **supervise provider**
 (`supervise.immediate` / `supervise.forever` / `supervise.exponential`) is the mechanism: it
-re-runs the rest of the block whenever `supervise.interrupted` is performed, sleeping its
-policy's delay durably in between, and it knows nothing about what counts as retriable. The
-cadence is defaulted, so `supervise.forever()` and `supervise.exponential(max_attempts = 5)` are
-the ordinary spellings.
+re-runs the rest of the block whenever `supervise.interrupted` is performed, and it knows nothing
+about what counts as retriable. `forever` and `exponential` sleep their policy's delay durably in
+between; `immediate` adds no delay of its own and re-runs at once, so its cadence is whatever the
+converter does before it signals — parking on a human's answer, for instance. The delays are
+defaulted, so `supervise.forever()` and `supervise.exponential(max_attempts = 5)` are the ordinary
+spellings.
 
 A **converter** — an ordinary handler installed between the provider and the body — is the
 policy: it catches the failures you choose and turns exactly those into `interrupted`,

@@ -18,13 +18,15 @@ Your `katari.toml`'s `[dependencies]` section now reads:
 ```toml
 [dependencies]
 registry = "https://raw.githubusercontent.com/katari-lang/katari-registry/main"
-snapshot = "snapshot-2026-07-30-f55993f8"
+snapshot = "staging"
 packages = ["ai"]
 ```
 
-`katari init` pinned the registry and a **snapshot** — an immutable, curated set of package
-versions guaranteed to compile together. `katari add` resolved `ai` inside that snapshot and
-wrote the exact sources to `katari.lock`, so builds stay reproducible offline. More in
+`katari init` pinned the registry and a **snapshot** — a curated set of package versions that
+compile together. It scaffolds `staging`, the registry's rolling candidate set; `katari update
+<snapshot-id>` moves you to a dated, immutable cut when you want one that cannot change under you.
+`katari add` only appends to `packages`: it resolved `ai` inside the pinned snapshot and wrote the
+exact sources to `katari.lock`, so builds stay reproducible offline. More in
 [Packages]({docs}/{currentVersion}/guides/packages).
 
 What arrived: the provider-agnostic loop (`ai`), its conversation vocabulary (`ai.types`), and

@@ -30,9 +30,11 @@ agent main(url: string) -> string {
 
 Each entry in the toolbox is an agent, minted by the runtime with the server-declared name,
 description, and input schema: `reflection.get_metadata` reads them, and a call is validated against
-the schema before the server is ever contacted. There is no connection to manage — the runtime
-connects lazily, reuses the connection across calls, and reconnects transparently after a failure or
-a restart. Pass `prefix = "notion"` to publish the server's `search` as `notion_search`, which is
+the schema before the server is ever contacted. There is no connection to manage: the runtime
+connects lazily and reuses the connection across calls. A transport or listing failure comes back to
+the program as a typed `mcp.server_error`, and the retry you write reconnects; a call in flight when
+the runtime restarts is not re-run, since an outbound call is at-most-once. Pass `prefix = "notion"`
+to publish the server's `search` as `notion_search`, which is
 what keeps two servers' identically named tools apart in front of a model.
 
 The tools are scoped: a tool's effect row carries a scope marker, which only `provide`'s block
@@ -244,10 +246,15 @@ agent main() -> never with announce | io {
 The URL is the key: possession grants access, nothing else does. The subscriber hands it to whoever
 should connect (an AI session, a teammate's MCP client) and stays alive while calls should be served;
 when it returns — or the run is cancelled — the URL deactivates. A `tools/call` whose arguments
-violate the published schema is rejected at the boundary as invalid params; a served tool that throws
-or panics on a well-formed call proxies up and cancels the whole endpoint, so per-request resilience
-is a handler around the tool's body — the same contract as
-[webhooks]({docs}/{currentVersion}/guides/webhooks).
+violate the published schema is rejected at the boundary as the JSON-RPC `invalid params` error,
+carried on an HTTP 200 as the protocol requires; a served tool that throws or panics on a well-formed
+call proxies up and cancels the whole endpoint, so per-request resilience is a handler around the
+tool's body — the same contract as [webhooks]({docs}/{currentVersion}/guides/webhooks).
+
+The endpoint is POST-only (`GET` and `DELETE` answer 405: the contract is stateless, with no
+server-to-client stream and no session to delete). It shares the public-surface limits with
+`/inbound`: 413 above the 1 MiB body cap, 429 above the per-client rate limit, and 404 / 410 for a
+token that never existed or is winding down.
 
 ## Trust boundary
 

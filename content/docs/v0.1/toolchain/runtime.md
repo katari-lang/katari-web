@@ -89,12 +89,15 @@ architecture:
 | `PORT`, `HOST`                                                   | Where the server listens (defaults `3000`, `0.0.0.0`).                                                                                                                                                                                                                   |
 | `DATABASE_URL`                                                   | The PostgreSQL connection string. Migrations run on boot.                                                                                                                                                                                                                |
 | `DATABASE_SSL`                                                   | `disable` / `require` / `verify-full`. Unset, the runtime picks `disable` for a loopback host and `verify-full` for anything else.                                                                                                                                       |
+| `KATARI_INSTANCE_LOCK`                                           | `on` by default: the boot-time single-instance advisory lock. `off` only where you are certain nothing else runs against this database.                                                                                                                                  |
+| `KATARI_INSTANCE_LOCK_TIMEOUT_MS`                                | How long a booting process waits for the previous one to release the lock before refusing to boot (default `60000`). Raise it for a slow-draining rolling deploy.                                                                                                        |
 | `KATARI_API_KEY`, `KATARI_SECRET_KEY`                            | The API Bearer token and the at-rest encryption key. Both required.                                                                                                                                                                                                      |
 | `KATARI_SECRET_KEY_PREVIOUS`                                     | Keys still accepted for decryption, comma-separated, newest first — the other half of a rotation.                                                                                                                                                                        |
 | `BLOB_S3_BUCKET`, `BLOB_S3_ENDPOINT`, `BLOB_S3_FORCE_PATH_STYLE` | The blob store. Point at a real bucket by dropping the endpoint and setting AWS credentials; unset, blobs live in memory (dev only).                                                                                                                                     |
 | `KATARI_PUBLIC_URL`                                              | The base URL the outside world reaches you at — what `/inbound` and `/mcp` URLs are minted under. Required under `NODE_ENV=production`.                                                                                                                                  |
 | `KATARI_EGRESS_ALLOW_PRIVATE`                                    | Off by default: a program's outbound requests cannot reach loopback, private or link-local addresses, so a model-chosen URL cannot reach your internal network or the cloud metadata service. The scaffolded compose file turns it on because everything is one machine. |
 | `KATARI_EGRESS_ALLOWED_HOSTS`                                    | The narrow form of that escape hatch: named hosts a deployment's programs may reach, comma-separated.                                                                                                                                                                    |
+| `KATARI_RATE_LIMIT_PER_MINUTE`                                   | Requests a minute per client address on the surfaces carrying no bearer token — `/inbound`, `/mcp`, the OAuth callback — and on failed authentication (default `120`).                                                                                                   |
 | `CORS_ORIGIN`                                                    | Allowed origins for a separately-hosted console (default `*` — pin it in shared deployments).                                                                                                                                                                            |
 | `LOG_LEVEL`                                                      | `debug` / `info` / `warn` / `error`.                                                                                                                                                                                                                                     |
 
@@ -117,12 +120,14 @@ curl -s http://localhost:3000/api/v1/health
 
 Two properties of the 0.1 runtime shape how you deploy it.
 
-**One runtime process per project.** A project's runs, its durable state, and its in-flight timers
-and reactors are owned by the process that executes them, and there is no lease preventing a second
-process from warming the same project against the same database — two would drive the same runs and
-corrupt each other's progress. Deploy one runtime process per project; that is what the scaffolded
-compose file runs. A lease that lets several processes share a project is planned for a later
-release.
+**One runtime process per database.** A project's threads, its in-flight external calls, and its
+at-most-once bookkeeping are warm state in the process that executes them, and every boot revives an
+actor for every project with a live run. The scope is therefore the database, not the project: one
+process owns all of it. The runtime enforces that with a PostgreSQL session advisory lock taken at
+boot and held for the life of the process. A second process waits for the lock and refuses to boot
+if it does not get it within `KATARI_INSTANCE_LOCK_TIMEOUT_MS` (default 60 s); the wait is what makes
+a rolling deploy work, since the new process idles until the old one drains and releases. Several
+projects share one runtime and one database, which is what the scaffolded compose file runs.
 
 **MCP servers are trusted code.** Both `mcp.provide` and a `katari mcp pull` binding decode a tool
 response onto the value plane, and the runtime does not yet authenticate that a decoded value which

@@ -40,14 +40,18 @@ agent counted() -> string {
 ```
 
 `use handler` installs handler clauses for the rest of the block and discharges the handled
-requests from that block's row — `counted` has a pure signature. A handler clause has two
-ways out:
+requests from that block's row — `counted` has a pure signature. A handler clause ends in one
+of three ways:
 
 - `next value` answers the request with `value` and resumes the performer where it left off.
   `next value with { ... }` also updates the handler's `var` state, which lives across
   requests (the `(var lines = 0)` head declares it).
 - `break value` does not resume the performer: it aborts the whole handled block and makes
   `value` its result.
+- A clause body may perform a `-> never` request of its own, which transfers control outward
+  from the clause's install site. That is how a converter relabels one failure channel as
+  another: `supervise.signal_throws` serves `prelude.throw` with a clause that performs
+  `supervise.interrupted`.
 
 Katari's typed errors are exactly this machinery, not a separate feature. `prelude.throw` is
 a request whose answer type is `never`, so the only useful handler clause is a `break`:
@@ -108,9 +112,9 @@ agent report() -> string {
 
 `use quietly()` rewrites the rest of `report` into the `continuation` argument. This is the
 shape every stdlib and package provider uses: `use supervise.exponential(max_attempts = 5)`
-serves the supervision signal, `use mcp.provide(url = ...)` serves an MCP server's tools for
-the extent of the block (and `let tools = use mcp.provide(...)` binds the value the provider
-passes to its continuation). The scoping is the point — the capability exists exactly for the
+serves the supervision signal, `use mcp.provide[mcp.scope](url = ..., auth = ...)` serves an MCP
+server's tools for the extent of the block (and `let tools = use mcp.provide[mcp.scope](...)` binds
+the value the provider passes to its continuation). The scoping is the point — the capability exists exactly for the
 block, and the provider's own row proves it discharged what it served.
 
 Two row spellings appear in provider signatures, and they differ:
@@ -168,17 +172,22 @@ merge.
 
 ## Environment vs operation
 
-Two kinds of thing hide behind an effect, and they differ by lifetime. **Environment** is what
-is _given_ to a run — `env`, OAuth tokens, the [store]({docs}/{currentVersion}/guides/store).
-These are requests: unhandled, they escalate to the run's outermost environment, the runtime,
-which machine-answers them against durable project state — and any handler in between can
-intercept first (a test stub, a sandboxed subtree).
+Three kinds of thing hide behind an effect, and they differ by lifetime. **Environment** is what
+is _given_ to a run, and the [store]({docs}/{currentVersion}/guides/store) is its request form:
+`get`, `set`, `delete` and `list` are requests, so any handler in between serves them first (a
+test stub, a sandboxed subtree), and unhandled they escalate to the run's outermost environment,
+the runtime, which machine-answers them against the project's durable rows.
 
-**Operations with a lifetime** — `http.fetch`, a timer, a `watch` — are not requests waiting
-for an answer. They go straight to a dedicated reactor that owns the in-flight work and wakes
-the run when it completes, and they ride the un-dischargeable `io` effect rather than a
-catchable request: a direct line to the same outermost handler, reached without stopping at
-any handler on the way.
+**Operations with a lifetime** — `http.fetch`, `oauth.token`, a timer, a `watch` — are not
+requests waiting for an answer. They go straight to a dedicated reactor that owns the in-flight
+work and wakes the run when it completes, and they ride the un-dischargeable `io` effect rather
+than a catchable request: a direct line to the same outermost handler, reached without stopping
+at any handler on the way.
+
+**Primitives** are the third shape and the smallest. `env.get_secret` and `env.get_or` are host
+primitives, bound to the project's env entries when the runtime boots; a primitive runs inline in
+the turn that calls it, with no request and no reactor. To give a subtree its own answer for one,
+wrap it in a request you declare and serve that.
 
 ## Where to go next
 

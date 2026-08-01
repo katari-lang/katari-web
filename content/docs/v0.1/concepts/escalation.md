@@ -30,7 +30,7 @@ the admin console lists it in the Escalations inbox with a form derived from the
 answer schema (here: a boolean). From the CLI:
 
 ```bash
-katari ls escalations          # every open question, newest first
+katari ls escalations          # every open question in the project
 katari status <run>            # one run's state and its open questions
 katari answer                  # pick a question, get prompted through its schema
 katari answer <id> --value true
@@ -99,14 +99,18 @@ Every failure channel rides the same escalation spine, and they resolve differen
   process). Katari code cannot raise one, and it fails the run unless a handler catches it
   on the way out.
 - **Malformed input from outside** never reaches your agent at all. An inbound webhook
-  delivery or MCP `tools/call` whose body does not fit the target's input schema is rejected
-  with a 400-class response at the boundary, and the endpoint stays up; a run started with a
-  non-conforming argument is refused before it launches.
-- **`reflection.call_error` belongs to `reflection.call_agent` alone.** Dynamic dispatch —
-  an AI-built argument record hitting a tool — validates against the target's input schema
-  and throws a catchable `call_error` on mismatch, so a tool loop can let the model retry.
-  Direct calls are type-checked at compile time and carry no such error; no other boundary
-  reuses it.
+  delivery whose body does not fit the target's input schema is rejected at the boundary with
+  HTTP 400; an MCP `tools/call` that does not fit is the JSON-RPC `invalid params` error,
+  carried on a 200 as the protocol requires (a 400 there means the body was not parseable
+  JSON at all). Either way the endpoint stays up. A run started with a non-conforming argument
+  is refused before it launches.
+- **`reflection.call_error` is the one name every dispatch boundary uses.** Dynamic dispatch —
+  an AI-built argument record hitting a tool — validates against the target's input schema and
+  throws a catchable `call_error` on mismatch, so a tool loop can let the model retry. Direct
+  calls are type-checked at compile time and carry no such error. The inbound webhook and
+  `mcp.serve` boundaries above raise the same value to reject a delivery, and `mcp.provide`
+  raises it on an outbound tool call; `reflection.call_agent` is the only one of them that
+  hands it to your program as a catchable throw.
 
 ## Where to go next
 

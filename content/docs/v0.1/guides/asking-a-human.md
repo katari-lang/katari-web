@@ -55,8 +55,8 @@ agent approved_draft(draft: string) -> string {
 The literal `id => "approve"` is the branch. It turns on the key the program wrote rather than the label
 a human reads, so relabelling or translating the button changes nothing, and `case rest` already covers
 whatever a later version puts beside these two. A press arrives over the platform's interaction path,
-correlated back to the prompt this call posted, so it never competes with the `watch_messages` source
-already serving that channel.
+correlated back to the prompt this call posted, so it never competes with whatever else is reading
+that channel's messages.
 
 ## Four shapes, one call
 
@@ -127,8 +127,8 @@ agent answer_with_help(question: string) -> string {
 }
 ```
 
-What waits is this conversation and nothing else: `region.watch` re-emits every fiber's escalation
-concurrently, so other work keeps running while one operator reads a dialog.
+What waits is the thread that ran the turn. The tool blocks there until the answer comes back, so
+this conversation stalls while an operator reads the dialog and the rest of the run does not.
 
 ### In a fiber
 
@@ -158,13 +158,22 @@ agent gated_main(channel: string, draft: string) -> never with io | region.crash
 }
 ```
 
-A gate a model asks for is the same fork made from a tool, and an AI hired through `ai.route` already
-has a nursery to fork into — that variant is in [Residents]({docs}/{currentVersion}/guides/residents).
+`region.watch` re-emits every fiber's escalation concurrently and adds no serialization of its own.
+The serialization point is the receiving handler, so two gates escalating to different handlers are
+served at once, while two reaching the same stateful handler are served one at a time in arrival
+order.
+
+A model can ask for a gate the same way, with the fork moved above the dispatch. `region.fork` is
+scope-gated: it is callable only inside the `provide` that opened the nursery, which a tool
+dispatched inside a turn is not. So the tool performs a request of its own, and a handler installed
+inside the AI's extent does the fork. An AI hired through `ai.route` already has a nursery there —
+that variant is in [Residents]({docs}/{currentVersion}/guides/residents).
 
 ## The contract
 
-- **Ids are the correlation key.** Each control's `id` is distinct within one ask and comes back
-  verbatim. Branch on the id, never on display text.
+- **Ids are the correlation key.** Each control's `id` must be distinct within one ask and comes back
+  verbatim. Branch on the id, never on display text. A repeated id is unroutable rather than untidy:
+  the sidecar keeps the first control carrying it and warns.
 - **`values` is total over the declared fields**, so a reader handles blanks rather than absences.
 - **`ask` carries no deadline, no withdrawal and no persistence.** A deadline is `time.with_deadline`
   around it; a withdrawal is `region.cancel_by_id` on the fiber holding it; a question that must survive
@@ -183,11 +192,17 @@ by swapping the import. Slack's `message` carries `thread` and no `display_name`
 two tokens where Discord takes one, and its dialogs are acknowledged the instant they arrive — which
 is what closes them — so a submission is validated in the program and asked again rather than
 rejected per field. Presses arrive once the app's Interactivity toggle is on, over the same
-WebSocket; the authoritative divergence table is in the slack package's README.
+WebSocket. The authoritative divergence list is the slack package's own `scripts/check-twin.mjs`,
+which compares both modules' published names, fields and arguments and prints every declared
+difference when you run it.
 
 A program that should run on either declares its own request — `ask_operator(prompt, controls)` — and
-binds it to a vendor with one adapter at the root. Swapping platforms is then one clause, and so is
-moving the same question to an escalation.
+binds it to a vendor with one adapter at the root. `control` and `answer` are nominal types belonging
+to each package, so the declaration names one of them:
+`request ask_operator(prompt: string, controls: array[discord.control]) -> discord.answer`. The
+adapter is what a swap replaces in one clause; the declaration and the `discord.button` /
+`discord.form` / `discord.field` construction sites move with it. Routing that same request to an
+escalation instead is also one clause, with the operator's form derived from that vendor's answer sum.
 
 ## Where to go next
 

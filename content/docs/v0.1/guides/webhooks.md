@@ -82,9 +82,16 @@ The HTTP caller waits for the callback and receives:
   This is pre-validated at the boundary: the callback never runs, and the endpoint keeps serving.
   An empty body is delivered as a `null` argument (some providers POST bare notifications).
 - **404 / 410** — no endpoint serves this token / the endpoint is winding down.
-- **5xx** — the callback failed while running. An execution failure on a well-formed delivery is
-  different from a malformed one: the throw or panic **proxies up** like any escalation and
-  cancels the whole endpoint — the run fails unless a handler above the subscriber catches it.
+- **413 / 429** — the body is over the 1 MiB cap on the public capability URLs, or the per-client
+  rate limit is spent (120 requests a minute by default, `KATARI_RATE_LIMIT_PER_MINUTE`). Both are
+  decided before the delivery reaches the run, and both are the responses a provider's retry logic
+  should back off on.
+- **500** — a residual internal error.
+
+A callback that throws or panics on a well-formed delivery is not a 500. The failure proxies up like
+any escalation and cancels the whole endpoint, so the delivery never settles; the endpoint's
+cancellation then reaches the delivery in flight and the caller gets a **410**. A handler above the
+subscriber that catches the failure resumes the callback instead, and the caller gets its ordinary 200.
 
 One bad delivery therefore drops the endpoint, which is the right default for a callback whose
 failure is the run's failure. When deliveries should fail independently, catch inside the callback
@@ -115,9 +122,10 @@ The endpoint is part of the run's durable state, so it follows the rules of
 
 - The URL **survives runtime restarts** — it stays registered until the subscriber settles, so an
   external service keeps a working address across deploys and crashes.
-- A delivery in flight across a restart is lost — its HTTP waiter died with the process — and the
-  webhook provider's retry redelivers it. The callback runs per delivery, so design it for
-  redelivery (most providers retry on non-200 anyway).
+- A delivery in flight across a restart loses its **response**, not its work: the HTTP waiter died
+  with the process, while the callback is durable core work that resumes and runs to completion —
+  its outcome is simply dropped, because nobody is left to receive it. The provider then retries and
+  the callback runs a second time, so design it for redelivery.
 - Cancelling the run cancels the subscriber (its cleanup runs — for example deleting an external
   registration via FFI) and deactivates the URL the same way as a normal return.
 

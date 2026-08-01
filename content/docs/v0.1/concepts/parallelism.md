@@ -188,7 +188,7 @@ agent stop_all(nursery: region.nursery[clock_scope, clock_ceiling]) -> integer w
 
 One `watch` is enough: it re-emits every fiber's escalation concurrently the instant it
 arrives and adds no ordering of its own, so the only serialization point is the receiving
-handler — a sequential (`var`) one serves escalations at its own FIFO in arrival order while
+handler — an ordinary `use handler` serves escalations at its own FIFO in arrival order while
 a `parallel handler` serves them at once. A second watch buys no concurrency.
 
 ## Where to go next

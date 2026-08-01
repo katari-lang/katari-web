@@ -26,15 +26,18 @@ Workspaces nest and their prefixes accumulate; an operation no workspace catches
 access. A workspace descends only, and there is no `..`, so an agent dispatched inside one lives in
 that subtree by construction. A path is `/`-separated segments of lowercase letters, digits, `-` and
 `_`; a malformed one panics rather than opening a workspace elsewhere, so a name from outside the
-program goes through `store.safe_segment` first. The install catches all four operations and
-re-performs each outward with the prefix applied, which is why it puts all four in your row even
-when the block only writes.
+program goes through `store.safe_segment` first. The install has five clauses: four that re-perform
+each operation outward with the prefix applied, and one that serves `exclusive` as this workspace's
+serial domain. That is why a workspace puts all four operations in your row even when the block only
+writes.
 
 ## Read, write, delete
 
 `get` answers a sum — `found` with the value, `absent` with the key — so a stored `null`
 (`found(null)`) never blurs with a missing entry. `set` writes any Katari value, last write wins;
-`delete` removes one.
+`delete` removes one. `absent` carries the key as the environment resolved it, the full project-root
+path with every workspace prefix applied, which is the form to log rather than to hand back to a
+caller that only knows its own relative key.
 
 ```katari
 @"Remember a fact so a later run can read it back."
@@ -83,7 +86,9 @@ agent facts() -> array[string] with store.list {
 `store.exclusive` runs its task as a critical section of the nearest enclosing workspace: that
 workspace's sequential handler calls the task in its own body, so two sections of one domain run one
 at a time and a read-modify-write is atomic, including against a turn's `parallel` tool batch. An
-inner workspace shadows an outer one, and the task runs inside the prefix of the workspace serving it.
+inner workspace shadows an outer one, and the task runs inside the prefix of the workspace serving
+it. With no workspace above the perform, the runtime serves it at the project root, as one durable
+project-wide FIFO across every run — which is the case the example below lands in.
 
 ```katari
 @"Publish a note and bump the counter as one critical section of the nearest workspace, so the
@@ -134,8 +139,8 @@ agent serve() -> string {
 A task lands in the shared place and opens whichever subdirectory it wants as its first move, which
 is what lets one `share` serve every shared cell instead of one named request per cell. It binds to
 the nearest enclosing `share`, so an inner shared place shadows an outer one — and unlike the four
-operations it is not runtime-served, so with no `share` above it a `shared` rides to the run root as
-an unanswered request and the effect row is the guard.
+operations and `exclusive`, it is not runtime-served, so with no `share` above it a `shared` rides to
+the run root as an unanswered request and the effect row is the guard.
 
 ## Hand the model a narrowed store
 
@@ -154,14 +159,16 @@ agent save_memo(@"A short path-like key." key: string, @"The memo." text: string
 agent read_memo(@"The key to read." key: string) -> string with store.get {
   match (store.get(key = key)) {
     case store.found(value => text) -> json.text(target = text)
-    case store.absent(key => missing) -> f"(no memo at ${missing})"
+    case store.absent(key => _) -> "(no memo saved under that key)"
   }
 }
 ```
 
 `ai.spawn(..., workspace = "scribe")` runs a whole AI inside one workspace, so every key its tools
 touch is confined to that subtree. The tools carry no prefix, and that is the point: the same pair
-serves one AI's memos under `app/scribe/` and another's under `app/editor/`, unchanged.
+serves one AI's memos under `app/scribe/` and another's under `app/editor/`, unchanged. `read_memo`
+drops the `absent` key for the same reason: that key is the resolved project-root path, so passing it
+into the reply would show the model the layout the workspace resolves for it.
 
 ## The operations are requests
 
@@ -170,9 +177,14 @@ A handler in scope catches any of them the same way it catches `prelude.throw`, 
 the store testable: a stub answering `get` from a fixture, a sandbox redirecting writes to a scratch
 subtree.
 
-Left unhandled, a store request escalates to the run's outermost environment — the runtime itself,
-which machine-answers it against the project's durable rows and never puts it to a human. The
-answer is durable, so a re-run during recovery observes the value the first attempt did.
+Left unhandled, the four operations escalate to the run's outermost environment, the runtime, which
+machine-answers them against the project's durable rows at the project root rather than putting them
+to a human. The answer is durable, so a re-run during recovery observes the value the first attempt
+did. `exclusive` is runtime-served too, as the outermost serial domain.
+
+`shared` is the one the runtime does not serve. With no `share` installed above it, a `shared` rides
+to the run root as an ordinary unanswered request and waits there for an operator, so the effect row
+carrying `store.shared` out of your signature is what tells you a shared place is still missing.
 
 Storing a `file` joins its bytes to the project's file library, so it outlives the run that wrote it
 and appears on the console's Files page. Overwriting or deleting the entry forgets the reference and

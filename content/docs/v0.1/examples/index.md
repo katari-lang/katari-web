@@ -5,8 +5,9 @@ description: Deployable residents to read and run — four focused examples in o
 
 Everything else on this site is an excerpt: a page shows the handler and not the file it lives in,
 and the [tutorial]({docs}/{currentVersion}/tutorial) builds a real bot and then stops, because a
-tutorial has to. These are whole projects — manifest, lockfile, compose file, secrets, sidecar —
-that you clone, point at your own tokens, and leave running.
+tutorial has to. These are whole projects — manifest, lockfile, compose file, secrets, sidecar. The
+four in the examples repository are the ones to clone, point at your own tokens, and leave running;
+tsukasa at the end is a larger system in a repository of its own, with its own setup in its README.
 
 All of them are residents: programs that stay on a channel or a schedule rather than running once
 and exiting. A resident is the first program whose correctness you cannot see by running it once, so
@@ -46,9 +47,8 @@ the store and the desk's `var`; an open review does not, so that day's digest go
 A public face answers the community from published notes it can read and never write; a private
 curator works with the owner in a control channel and publishes, rewrites and retracts those notes
 in plain language. A question the notes do not cover is mailed to the curator instead of guessed at.
-Read it as the smallest complete `ai.route`: two `ai.spawn` calls whose five parameters — name,
-tools, persona, `deliver_to`, `sources` — are the entire difference between the two AIs, and whose
-tool sets are the privacy membrane. Three middlewares wrap the route and none of them serializes, so
+Read it as the smallest complete `ai.route`: two `ai.spawn` calls that differ in exactly five things
+— name, tools, persona, `deliver_to`, `sources` — and whose tool sets are the privacy membrane. Three middlewares wrap the route and none of them serializes, so
 the two AIs' model calls overlap instead of taking turns.
 
 _A restart:_ the published notes survive in the store; an interrupted turn ends its AI's fiber, the
@@ -112,8 +112,8 @@ dependencies the bundler needs — so run the `npm install` once inside the fetc
 `slack-*` in place of `discord-*` for standup-scribe.
 
 The entry point is `main` in every one of them, under the package name from `katari.toml` —
-`release_watch`, `standup_scribe`, `concierge`, `inbox_butler`. `Ctrl-C` detaches your terminal and
-the run keeps serving; `katari cancel <run-id>` stops it for real.
+`release_watch`, `standup_scribe`, `concierge`, `inbox_butler`. `--detach` prints the run id and
+returns while the run keeps serving; `katari cancel <run-id>` stops it for real.
 
 ## Where to go next
 

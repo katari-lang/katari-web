@@ -21,6 +21,13 @@ describe("prepareReadme", () => {
   });
 });
 
+it("rewrites a sibling-relative package link to an absolute /packages path", () => {
+  const input = "use [`gmail`](../gmail) or [`google_calendar`](../google_calendar).";
+  expect(prepareReadme(input)).toBe(
+    "use [`gmail`](/packages/gmail) or [`google_calendar`](/packages/google_calendar).",
+  );
+});
+
 it("rewrites autolinks to explicit links outside fences, not inside", () => {
   const input = "See <https://api.slack.com/apps> now.\n```\nkeep <https://x.test> verbatim\n```";
   const output = prepareReadme(input);

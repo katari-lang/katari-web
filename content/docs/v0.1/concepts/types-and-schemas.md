@@ -208,11 +208,13 @@ when it conforms to `T`, and otherwise throws `json.validation_error` naming the
 It rewrites nothing, so parse-then-validate is the whole typed read — of an AI reply, of a
 webhook body you re-read.
 
-Validation is one of only two places a type is enforced at runtime; the other is
-`reflection.call_agent`, which checks a delegation's arguments against the callee's schema the
-same way. Everywhere else your types are settled at compile time. Reserved wire keys all live in
-the `$katari_` namespace, disjoint from anything a real document carries, so a `$`-prefixed key
-like `$ref` stays an ordinary field.
+`json.validate` is the one place you ask for that check explicitly. The runtime runs the same
+check wherever a value crosses in from outside the compiler's reach: a run's start argument, an
+escalation answer, an inbound webhook or `mcp.serve` delivery, an outbound MCP tool call, an
+external or FFI result against the callee's output schema, and `reflection.call_agent`'s dynamic
+dispatch. Between two statically checked call sites nothing is re-checked — those types are settled
+at compile time. Reserved wire keys all live in the `$katari_` namespace, disjoint from anything a
+real document carries, so a `$`-prefixed key like `$ref` stays an ordinary field.
 
 For a document of unknown or irregular shape, `json.parse` yields a plain value (`unknown`) —
 a record / array / string / integer / number / boolean / null (or a `file`, where the text

@@ -173,7 +173,8 @@ question in, an answer out.
 loop you just used and hands back the reply, the advanced conversation, the step's token
 measurement, and one event per tool call. A provider failure comes back as a `failed_turn` value
 rather than unwinding, so a program that must survive a bad step matches on it and carries on.
-`ai.infer_with_tools` is this call with everything but the reply discarded.
+`ai.infer_with_tools` is this call keeping only the reply, and re-raising a `failed_turn`'s error as
+a throw — which is why chapter 4's `app_error` had to include `ai.step_error`.
 
 **`ai.route[E]()`** — the turn loop with a life of its own. `ai.spawn[E]` hires an AI under a
 name, giving it its own conversation, tool set, persona, background watchers and a `deliver_to`

@@ -3,12 +3,15 @@
 // can be handed, and these four live in a separate repository — so unlike everything else on
 // these surfaces they cannot be derived from this site's content at build time.
 //
-// Source of truth: https://github.com/katari-lang/examples (its README's table). Kept here rather
-// than in either consumer so llms.txt and the MCP server cannot describe them differently. When
-// the examples repository gains or renames a project, this list is what has to move.
+// Source of truth: https://github.com/katari-lang/examples (its README's "Reading order:"
+// sentence). Kept here rather than in either consumer so llms.txt and the MCP server cannot
+// describe them differently. When the examples repository gains or renames a project, this list is
+// what has to move.
 
 export interface ExampleProject {
-  /** The directory name in the examples repository, which is also the project's name. */
+  /** The directory name in the examples repository. The Katari package name in `katari.toml` is the
+   *  same word with underscores (`release-watch` → `release_watch`), and that is what `katari run`
+   *  takes. */
   name: string;
   url: string;
   /** What it does, for a reader deciding whether this is the one to open. */
@@ -52,7 +55,8 @@ export const EXAMPLE_PROJECTS: ExampleProject[] = [
 
 /** The one-paragraph framing both surfaces put above the list. */
 export const EXAMPLES_INTRO =
-  "Four complete, deployable projects — clone, add tokens, `docker compose up`, `katari apply`. " +
+  "Four complete, deployable projects — clone, `katari lock`, one `npm install` inside the fetched " +
+  "sidecar package, add tokens, `docker compose up`, `katari apply`. " +
   "Each pins a published registry snapshot and compiles in CI against the published CLI, so what " +
   "you clone is what runs. All four are residents: long-running programs that stay on a channel " +
   "or a schedule, and each README says what survives a runtime restart and what the interruption " +

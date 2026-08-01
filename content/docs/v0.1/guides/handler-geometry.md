@@ -38,7 +38,9 @@ agent run() -> null {
 `act(name = "deploy")` was called. It escalates from the `act` handler's own position and finds the
 `audit` handler installed above it, so `act` is discharged, `audit` rides its row one level up, and
 `run` ends pure. Written the other way round, `audit` would ride all the way to the run root and sit
-in `run`'s row — reported at the `audit(...)` perform inside the clause, not at the `use` line.
+in `run`'s row. `run` here declares no row, so the compiler infers one and simply widens it; annotate
+the row you meant and the mismatch is reported at the `audit(...)` perform inside the clause, not at
+the `use` line.
 
 ## Reading a stack
 
@@ -163,8 +165,9 @@ folds that into "not approved" at its own reason — which makes fail-closed str
 
 ## Sequential or parallel
 
-A handler carrying `var` state runs its invocations one at a time, through a FIFO, in arrival order.
-It is an actor, and its state is sound precisely because no two clause bodies run at once.
+A `use handler` runs its invocations one at a time, through a FIFO, in arrival order. That is the
+default for every handler, stateful or not. It makes a handler carrying `var` state an actor whose
+state is sound precisely because no two clause bodies run at once.
 
 ```katari
 @"Announce one arrival; the answer is how many have arrived." request seen(what: string) -> integer
@@ -202,10 +205,19 @@ order for free while independent ones keep flowing.
 
 ## When the geometry is wrong
 
-There is no dedicated diagnostic for a misplaced handler in 0.1. It surfaces as an ordinary row
-mismatch — a K3001 subtype error — reported at the perform site rather than at the handler you
-moved, because the perform is where a request now sits in a row that cannot discharge it. Read the
-install-site rule backwards from there: which handler serves this request, and is it above this code?
+A misplaced handler surfaces as an ordinary row mismatch — a K3001 subtype error — reported at the
+perform site rather than at the handler you would move, because the perform is where a request now
+sits in a row that cannot discharge it. Where the request does have a handler and that handler is
+installed below the failing check, K3001 appends the geometry note, which names its line and reads
+the install-site rule back for you:
+
+```text
+  Note: `bot.audit` is served by the handler installed at line 11, but a handler body's performs
+  escalate from its own install site and reach only handlers installed ABOVE it — move that handler
+  earlier, or this perform later.
+```
+
+There is no error code of its own for a misplaced handler; the note under K3001 is the signal.
 
 Two more show up while spelling the rows a stack needs, and neither is about position. K3011: an
 effect override `{...E, ...}` may only name requests, so the built-in `io` unions on outside —
