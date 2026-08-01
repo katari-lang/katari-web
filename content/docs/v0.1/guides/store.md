@@ -1,46 +1,40 @@
 ---
 title: Store
-description: The project's durable key-value tree — state that outlives any single run, browsable in the console, reachable as four requests you can intercept.
+description: The project's durable key-value tree — state that outlives any single run, browsable in the console, reachable as requests you can intercept.
 ---
 
-Katari keeps three kinds of state, and they differ by lifetime. A handler's `var` is state
-**within** a run — it vanishes when the run ends. The project **env** is operator-set
-configuration **into** a run — you write it from the CLI, a program only reads it. The **store**
-is state **between** runs: a durable key-value tree any run can write and any later run can read,
-that the operator browses and edits in the console, and that an AI can read a saved note back out
-of. It is the project's own memory.
+Katari keeps three kinds of state, differing by lifetime. A handler's `var` is state within a run;
+the project env is operator-set configuration into a run, written from the CLI and only read by a
+program; the store is state between runs — what one run writes, any later run reads.
 
-## The store, scoped
+## Workspaces
 
-**Keys are ambient.** There is no store handle to pass around: an operation names a path-like key
-and nothing else, and _where_ that key lands is decided by the **environment** rather than by a
-value threaded through the code. `store.scope` is the store's `cd` — installed with `use`, it
-prefixes every operation in the rest of the block, and nested scopes accumulate. An operation no
-scope catches is project-root access.
+Keys are ambient: an operation names a path-like key and nothing else, and where that key lands is
+the environment's decision rather than a handle's. `store.workspace` installs both halves of a
+working directory for the rest of the block — the prefix every key resolves against, and the serial
+domain critical sections queue in.
 
 ```katari
-@"Write into `memos/`: the scope prefixes every key for the rest of the block."
+@"Write into `memos/`: the workspace prefixes every key for the rest of the block."
 agent note(text: string) -> null with store.get | store.set | store.delete | store.list {
-  use store.scope(path = "memos")
-  store.set(key = "latest", value = text)   // lands at memos/latest
+  use store.workspace(path = "memos")
+  store.set(key = "latest", value = text)      // lands at memos/latest
 }
 ```
 
-A scope catches all four operations and re-performs each one outward with the prefix applied, so
-installing it puts all four in your row even when the block only writes — the row says what the
-_block_ may pass on, not what it happens to use.
-
-An agent dispatched inside a scope lives in that subtree **by construction** — it holds no value it
-could widen, and there is deliberately no `..`. A path is `/`-separated segments of lowercase
-letters, digits, `-` and `_`; a malformed one **panics** rather than quietly opening a workspace
-somewhere else, so a name that came from outside the program goes through `store.safe_segment`
-first.
+Workspaces nest and their prefixes accumulate; an operation no workspace catches is project-root
+access. A workspace descends only, and there is no `..`, so an agent dispatched inside one lives in
+that subtree by construction. A path is `/`-separated segments of lowercase letters, digits, `-` and
+`_`; a malformed one panics rather than opening a workspace elsewhere, so a name from outside the
+program goes through `store.safe_segment` first. The install catches all four operations and
+re-performs each outward with the prefix applied, which is why it puts all four in your row even
+when the block only writes.
 
 ## Read, write, delete
 
-Four operations resolve their key against the surrounding scope. `get` returns a **sum** — `found`
-with the value or `absent` with the key — so a stored `null` (`found(null)`) never blurs with a
-missing key. `set` writes any Katari value (last write wins); `delete` removes an entry.
+`get` answers a sum — `found` with the value, `absent` with the key — so a stored `null`
+(`found(null)`) never blurs with a missing entry. `set` writes any Katari value, last write wins;
+`delete` removes one.
 
 ```katari
 @"Remember a fact so a later run can read it back."
@@ -48,22 +42,29 @@ agent remember(fact: string) -> null with store.set {
   store.set(key = "facts/latest", value = fact)
 }
 
-@"Read what an earlier run remembered — `found` carries the value, `absent` the missing key.
-Pin an expected shape on the found value with `json.validate[T]`."
+@"Read what an earlier run remembered — `found` carries the value, `absent` the key."
 agent recall() -> string with store.get {
   match (store.get(key = "facts/latest")) {
     case store.found(value => saved) -> json.text(target = saved)
     case store.absent(key => _) -> "(nothing remembered yet)"
   }
 }
+
+@"How many notes have been published; a missing cell and a wrong-shaped one both read as 0."
+agent published() -> integer with store.get {
+  store.get_or(key = "counters/published", fallback = 0)
+}
 ```
+
+`store.get_or[T]` is the typed read; `T` is taken off the fallback, so it is normally inferred
+rather than written. Degrading is the semantics — a durable cell whose shape no longer fits was
+written by an earlier version of the program, and a value the reader understands is the recovery.
 
 ## List the tree
 
-`list` shows what sits **directly** under `path` in the current scope: a `leaf` per value-holding key
-and a `branch` per path segment with entries below it — the file-system face of the tree. The default
-`path` of `""` lists the scope itself; a deeper path descends. It is the one operation that carries a
-prefix as an argument, because a listing has no key to carry it.
+`list` shows what sits directly under `path` in the current workspace: a `leaf` per value-holding
+key and a `branch` per segment with entries below it. The default `""` lists the workspace itself.
+It is the one operation carrying a path as an argument, a listing having no key to carry the prefix.
 
 ```katari
 @"What sits directly under `facts/`: a name per stored key, a `name/` per sub-path."
@@ -77,53 +78,80 @@ agent facts() -> array[string] with store.list {
 }
 ```
 
-## The four operations are requests
+## Critical sections
 
-`get`, `set`, `delete`, and `list` are **requests**, part of a run's environment — which is what
-makes the store testable. A handler in scope can catch any of them (the same machinery that catches
-`prelude.throw`) to intervene: a test stub that answers from an in-memory map, a sandbox that
-redirects writes to a scratch subtree.
+`store.exclusive` runs its task as a critical section of the nearest enclosing workspace: that
+workspace's sequential handler calls the task in its own body, so two sections of one domain run one
+at a time and a read-modify-write is atomic, including against a turn's `parallel` tool batch. An
+inner workspace shadows an outer one, and the task runs inside the prefix of the workspace serving it.
 
 ```katari
-@"Test the logic above without touching the real store: a handler answers `get` from a fixture."
-agent recall_test() -> string {
-  use handler {
-    request store.get(key: string) {
-      next store.found(value = "seeded fact")
-    }
+@"Publish a note and bump the counter as one critical section of the nearest workspace, so the
+read-modify-write cannot interleave with another section of the same workspace."
+agent publish(key: string, body: string) -> integer with store.exclusive | prelude.throw[json.validation_error] {
+  agent section(value: null) -> unknown with store.get | store.set {
+    let already = store.get_or(key = "counters/published", fallback = 0)
+    store.set(key = f"notes/${key}", value = body)
+    store.set(key = "counters/published", value = already + 1)
+    already + 1
   }
-  recall()
+  json.validate[integer](value = store.exclusive(task = section))
 }
 ```
 
-Left unhandled, a store request escalates like any request — but to the run's **outermost**
-environment, the runtime itself, which machine-answers it against the project's durable rows. It is
-never surfaced as a question to a human operator. The answer is durable, so a re-run during
-recovery observes the same value the first attempt did: the store is replay-deterministic.
+The task's row is fixed to the store operations, so a section never blocks on a model or a network:
+compute everything else before entering and close over it, and narrow the `unknown` it answers with.
+One lane per workspace, so a section excludes the other sections of its own workspace and
+interleaves with every other lane's.
 
-## Files join the project library
+## A shared place
 
-Storing a `file` joins its bytes to the project's **file library**: the stored file becomes a
-project file, listed on the console's Files page, that outlives the run that wrote it. Overwriting
-or deleting the entry never frees the file — the store only forgets the reference. A file is removed
-only by an explicit delete through the file API or the Files page, and a stored reference to a file
-that was explicitly deleted reads as `gone`.
+Data several workspaces share travels as a `store.shared` request served above them. `use
+store.share` opens the shared place where it is installed, exactly as a workspace is its own place,
+and runs each task there — under that site's workspaces, over its serial domain — so a caller's own
+workspace does not travel with the task.
+
+```katari
+@"Read one line of the shared roster. `shared` runs its task at the `share`'s install site, so
+this answers the same wherever it is performed from."
+agent roster_line(name: string) -> string with store.shared {
+  agent section(value: null) -> unknown with store.get {
+    store.get_or(key = f"roster/${name}", fallback = "(unknown)")
+  }
+  json.text(target = store.shared(task = section))
+}
+
+@"The install order: the app's workspace, then the shared place, then one workspace per AI."
+agent serve() -> string {
+  use store.workspace(path = "app")
+  use store.share
+  let root = use ai.route[app_effects]()
+  let _scribe = ai.spawn[app_effects](name = "scribe", max_steps = 8, tools = [save_memo, read_memo, roster_line], persona = persona, workspace = "scribe")
+  region.watch(nursery = root)
+}
+```
+
+A task lands in the shared place and opens whichever subdirectory it wants as its first move, which
+is what lets one `share` serve every shared cell instead of one named request per cell. It binds to
+the nearest enclosing `share`, so an inner shared place shadows an outer one — and unlike the four
+operations it is not runtime-served, so with no `share` above it a `shared` rides to the run root as
+an unanswered request and the effect row is the guard.
 
 ## Hand the model a narrowed store
 
-Don't let a model read the store directly. Wrap it in small app tools and install the scope **around
-their dispatch** — with ambient keys the attenuation is the install site, not a value the tool holds.
-The model sees `save_memo` / `read_memo`, never the tree:
+Wrap the store in small app tools and install the workspace around their dispatch — with ambient
+keys the attenuation is the install site, not a value the tool holds. The model sees `save_memo` and
+`read_memo`, never the tree:
 
 ```katari
-@"Tool: save a short memo the assistant can recall later."
-agent save_memo(key: string, text: string) -> string with store.set {
+@"Tool: save a short memo you can recall later."
+agent save_memo(@"A short path-like key." key: string, @"The memo." text: string) -> string with store.set {
   store.set(key = key, value = text)
   f"saved ${key}"
 }
 
 @"Tool: read back a memo saved earlier, or a note that it is missing."
-agent read_memo(key: string) -> string with store.get {
+agent read_memo(@"The key to read." key: string) -> string with store.get {
   match (store.get(key = key)) {
     case store.found(value => text) -> json.text(target = text)
     case store.absent(key => missing) -> f"(no memo at ${missing})"
@@ -131,58 +159,29 @@ agent read_memo(key: string) -> string with store.get {
 }
 ```
 
-Pass `[save_memo, read_memo]` to `ai.infer_with_tools` from inside `use store.scope(path = "memos")`
-and the model can persist and recall notes across sessions while every key either tool names lands
-under `memos/` — a tool dispatched inside a scope is confined by it. The tools carry no prefix, and
-that is the point: **where** a toolset's data lives is the calling scope's decision, so the same pair
-serves one agent's memos under `core/memos/` and another's under `workers/scribe/memos/` with nothing
-changed in the tools.
+`ai.spawn(..., workspace = "scribe")` runs a whole AI inside one workspace, so every key its tools
+touch is confined to that subtree. The tools carry no prefix, and that is the point: the same pair
+serves one AI's memos under `app/scribe/` and another's under `app/editor/`, unchanged.
 
-## Inject memory every turn
+## The operations are requests
 
-To give a model standing memory — a profile it always sees — wrap the provider seam. `ai.infer_step`
-is a request, so an ordinary handler is middleware over it: read the saved note from the store,
-prepend it to the step's history, and re-perform `infer_step` so the augmented history reaches the
-real provider installed above.
+`get`, `set`, `delete`, `list`, `exclusive` and `shared` are requests, part of a run's environment.
+A handler in scope catches any of them the same way it catches `prelude.throw`, which is what makes
+the store testable: a stub answering `get` from a fixture, a sandbox redirecting writes to a scratch
+subtree.
 
-```katari
-@"Memory middleware: every `ai.infer_step` in the block first gets the saved note prepended.
-Install it UNDER your provider — `use gemini.provider(...)` then `use with_memory(...)` — so the
-re-performed step reaches the provider. The note is read from the SURROUNDING scope, so which
-subtree it comes from is the install site's decision."
-agent with_memory[R, effect E](
-  body: agent (value: null) -> R with E | ai.infer_step,
-) -> R with E | ai.infer_step | store.get {
-  use handler {
-    request ai.infer_step(
-      history: array[types.message],
-      tool_metas: array[reflection.agent_metadata],
-    ) {
-      let note = match (store.get(key = "profile")) {
-        case store.found(value => saved) -> json.text(target = saved)
-        case store.absent(key => _) -> "(nothing saved yet)"
-      }
-      next ai.infer_step(
-        history = array.concat(
-          left = [types.turn(role = types.user_role(), text = f"What you remember about the user:\n${note}", files = [])],
-          right = history,
-        ),
-        tool_metas = tool_metas,
-      )
-    }
-  }
-  body(value = null)
-}
-```
+Left unhandled, a store request escalates to the run's outermost environment — the runtime itself,
+which machine-answers it against the project's durable rows and never puts it to a human. The
+answer is durable, so a re-run during recovery observes the value the first attempt did.
 
-Because the handler re-performs `infer_step` rather than answering it, the request passes through —
-the middleware's row still carries `ai.infer_step`, and stacking two `with_memory` blocks injects
-two notes. The model never learns it is being fed memory; it just always knows.
+Storing a `file` joins its bytes to the project's file library, so it outlives the run that wrote it
+and appears on the console's Files page. Overwriting or deleting the entry forgets the reference and
+leaves the file; only an explicit delete through the file API removes it.
 
 ## Where to go next
 
-- [Effects and handlers]({docs}/{currentVersion}/concepts/effects-and-handlers) — the request /
-  handler machinery the four operations ride on.
-- [Secrets and credentials]({docs}/{currentVersion}/guides/secrets-and-credentials) — the env tier,
-  and secrets you can also seal at rest in the store.
-- The `prelude.store` module in the [reference](/packages/prelude).
+<DocCards>
+  <DocCard href="{docs}/{currentVersion}/guides/residents" />
+  <DocCard href="{docs}/{currentVersion}/guides/handler-geometry" />
+  <DocCard href="{docs}/{currentVersion}/guides/secrets-and-credentials" />
+</DocCards>
