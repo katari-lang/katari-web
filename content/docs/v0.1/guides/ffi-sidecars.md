@@ -361,9 +361,9 @@ agent reply(value: slack.message) -> null with io | slack.credential | prelude.t
   null
 }
 
-@"The whole bot: provide the tokens, serve the channel. Nothing here supervises a connection, because
-nothing here holds one — `watch_messages` opens a socket for its own call and that is the only thing a
-restart can take away."
+@"The whole bot: provide the tokens, serve the channel. No supervision is written here because
+`watch_messages` carries its own — a restart's interruption replays it onto a fresh credential
+resolve; what stops it is a typed `auth_error`, loudly."
 agent main(channel: string) -> never with io | prelude.throw[slack.slack_error | env.missing_secret | oauth.server_error] {
   use slack.provider(
     bot_source = credentials.env(key = "SLACK_BOT_TOKEN"),
@@ -373,10 +373,12 @@ agent main(channel: string) -> never with io | prelude.throw[slack.slack_error |
 }
 ```
 
-There is no `supervise` provider here and no panic converter, and that is not an omission. `main`'s watch
-_is_ the run: if the interrupted call ends it, the run ends, and the runtime tells you so. A resident
-that must outlive its watcher runs the watch as a **fiber**, and then the recovery has somewhere to
-live — one `region.crashed` clause:
+The supervision lives inside `watch_messages`: `use supervise.forever()` and
+`use supervise.signal_panics[never]()` over the mortal `slack_watch`, which is the pair to write
+around a streaming external agent of your own — the restart's interruption arrives as a panic, the
+converter turns it into the supervision signal, and the provider re-runs the block onto a fresh
+credential resolve. A resident that must serve other traffic while it listens runs the watch as a
+**fiber**:
 
 ```katari
 @"The watcher raised a typed failure no reconnect can fix."
@@ -389,15 +391,12 @@ effect bot_scope
 // uncaught throw never crosses the region as a throw. (Type synonyms take no docs.)
 type bot_ceiling = slack.credential | io
 
-@"The watcher, as a fiber — and it supervises itself. A runtime restart interrupts the watch and the
-frame panics; `signal_panics` turns that into the supervision signal and `forever` opens a fresh
-connection after a backoff, because the credential is the whole of what the call needs. `forever`
-rather than `exponential`, since this watch outlives every deploy and a lifetime budget would kill it
-on its fifth restart; what bounds a reproducing defect is the delay ceiling, one attempt every fifteen
-minutes."
+@"The watcher, as a fiber. It writes no supervision of its own — the watch replays a restart's
+interruption internally (`forever` rather than `exponential`, because a watch outlives every deploy
+and a lifetime budget would kill it on its fifth restart; what bounds a reproducing defect is the
+delay ceiling, one attempt every fifteen minutes) — so what can end this fiber is a typed
+`slack_error`: the fault no reconnect heals."
 agent channel_source(channel: string) -> never with slack.credential | io | prelude.throw[slack.slack_error] {
-  use supervise.forever()
-  use supervise.signal_panics[never]()
   slack.watch_messages(channel = channel, deliver_to = reply)
 }
 

@@ -89,9 +89,9 @@ is one fiber and one death; subscriptions that must share a fate go inside one e
 
 ```katari
 // The face's own watcher: `ai.spawn` forks it with `self` = "face" once that AI is addressable.
+// No supervision here — the watch replays a restart's interruption itself, so what can end this
+// fiber is a typed `discord_error` no reconnect heals.
 agent public_watcher(self: string) -> null {
-  use supervise.forever()
-  use supervise.signal_panics[never]()
   discord.watch_messages(channel = public_channel(), deliver_to = agent (value: discord.message) {
     let _posted = ai.mail(
       to = self,
