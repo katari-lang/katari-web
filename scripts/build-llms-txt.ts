@@ -39,7 +39,7 @@ const lines: string[] = [
   "",
   `> ${siteConfig.description} Agents are functions, the effects they may perform are visible in their types, and execution is durable — a run survives restarts and can park on a human's answer for days.`,
   "",
-  `Status: Katari 0.1 is released and pre-1.0${releaseVersion ? ` (latest release ${releaseVersion})` : ""}. The language, toolchain, and runtime are usable today, but the API surface is not frozen: a minor version may still ship breaking changes. Pin what you deploy — the CLI's lockfile and the runtime image tag exist for exactly that. The documentation below is the ${version} line.`,
+  `Status: Katari 0.1 is released and pre-1.0${releaseVersion ? ` (latest release ${releaseVersion})` : ""} — built for hobby projects; production workloads should wait for 1.0. The language, toolchain, and runtime are usable today, but the API surface is not frozen: a minor version may still ship breaking changes. Pin what you deploy — the CLI's lockfile and the runtime image tag exist for exactly that. The documentation below is the ${version} line.`,
   "",
   "Every page listed here also serves its raw markdown through the documentation MCP server at " +
     `${base}/mcp — a stateless Streamable HTTP endpoint with four tools: onboarding, search, ` +

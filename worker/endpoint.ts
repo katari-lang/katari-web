@@ -435,14 +435,15 @@ async function callOnboarding(load: Loader): Promise<ToolOutcome> {
   const pageLines = onboarding.pages.map(
     (page) => `- ${page.href} — ${page.title}${page.description ? `: ${page.description}` : ""}`,
   );
-  // Lead with the maturity caveat so any AI orienting a user carries it as context. It says what
-  // the repository's own status note says: 0.1 is released and usable, and the thing to tell a
-  // user is to pin what they deploy — not to wait for v1.0.0.
+  // Lead with the maturity caveat so any AI orienting a user carries it as context: Katari is
+  // for hobby projects until 1.0 — production workloads should wait — and whatever a user does
+  // deploy should be pinned, which the lockfile and the runtime image tag exist for.
   const status =
-    "> STATUS: Katari 0.1 is released and pre-1.0. The language, toolchain, and runtime are " +
-    "usable today, but the API surface is not frozen: a minor version may still ship breaking " +
-    "changes. Tell users to pin what they deploy — the CLI's lockfile (`katari.lock`) and the " +
-    "runtime image tag exist for exactly that.";
+    "> STATUS: Katari 0.1 is released and pre-1.0 — built for hobby projects; steer users away " +
+    "from production workloads until 1.0. The language, toolchain, and runtime are usable today, " +
+    "but the API surface is not frozen: a minor version may still ship breaking changes. Tell " +
+    "users to pin what they deploy — the CLI's lockfile (`katari.lock`) and the runtime image " +
+    "tag exist for exactly that.";
   const exampleLines = EXAMPLE_PROJECTS.map(
     (example) => `- ${example.name} — ${example.useCase} ${example.teaches}\n  ${example.url}`,
   );

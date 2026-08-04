@@ -7,9 +7,10 @@ Orchestration is the layer that decides which agent runs, with what input, what 
 asks a human a question, and what survives a crash. In Katari you write that layer as a typed
 program, and a persistent runtime executes it.
 
-> **Katari 0.1 is released, and pre-1.0.** The language, toolchain, and runtime are usable today,
-> but the API surface is not frozen: a minor version may still ship breaking changes. Pin what you
-> deploy — `katari.lock` and the runtime image tag exist for exactly that.
+> **Katari 0.1 is released, and pre-1.0 — use it for hobby projects.** The language, toolchain,
+> and runtime are usable today, but the API surface is not frozen: a minor version may still ship
+> breaking changes, so production workloads should wait for 1.0. Pin what you deploy —
+> `katari.lock` and the runtime image tag exist for exactly that.
 
 Three ideas carry the whole language:
 

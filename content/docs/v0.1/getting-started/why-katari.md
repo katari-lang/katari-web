@@ -115,7 +115,8 @@ stale call, because the program that would make it does not compile.
 ## What Katari is not
 
 - **Frozen.** 0.1 is released and usable, but pre-1.0: a minor version may still ship breaking
-  changes. Pin what you deploy — `katari.lock` and the runtime image tag exist for that.
+  changes. Prefer hobby projects over production workloads until 1.0, and pin what you deploy —
+  `katari.lock` and the runtime image tag exist for that.
 - **For low-latency work.** Every step is persisted before the run proceeds. Serve the
   latency-critical path directly and let Katari orchestrate around it.
 - **Embeddable.** A compiler plus a runtime server with a database, not a library you import.
